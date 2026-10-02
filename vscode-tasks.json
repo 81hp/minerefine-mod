@@ -1,0 +1,26 @@
+{
+	"version": "2.0.0",
+	"tasks": [
+		{
+			"label": "Build mod jar",
+			"type": "shell",
+			"command": "$env:JAVA_HOME='C:\\Program Files\\Microsoft\\jdk-21'; ./gradlew.bat build",
+			"problemMatcher": [],
+			"group": { "kind": "build", "isDefault": true }
+		},
+		{
+			"label": "Run test client",
+			"type": "shell",
+			"command": "$env:JAVA_HOME='C:\\Program Files\\Microsoft\\jdk-21'; ./gradlew.bat runClient",
+			"problemMatcher": [],
+			"group": "build"
+		},
+		{
+			"label": "Run core tests (fast, no Minecraft)",
+			"type": "shell",
+			"command": "$env:JAVA_HOME='C:\\Program Files\\Microsoft\\jdk-21'; & \"$env:JAVA_HOME\\bin\\javac.exe\" -d build/coretest -encoding UTF-8 (Get-ChildItem -Recurse src/main/java -Filter *.java | Where-Object { $_.FullName -notmatch 'client|data|ProgressionParser|BossStore' } | ForEach-Object { $_.FullName }) src/test/java/minerefinehud/CoreTests.java; & \"$env:JAVA_HOME\\bin\\java.exe\" -cp build/coretest minerefinehud.CoreTests",
+			"problemMatcher": [],
+			"group": "test"
+		}
+	]
+}

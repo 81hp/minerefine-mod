@@ -1,0 +1,2122 @@
+[
+  {
+    "id": "mine-overworld-oak",
+    "type": "mine",
+    "world": "Overworld",
+    "name": "Oak",
+    "items": {
+      "sword": 16,
+      "pickaxe": 16,
+      "axe": 408,
+      "armor": 58,
+      "charm": 64
+    },
+    "armorPieces": {
+      "helmet": 10,
+      "chestplate": 24,
+      "leggings": 16,
+      "boots": 8
+    }
+  },
+  {
+    "id": "mine-overworld-stone",
+    "type": "mine",
+    "world": "Overworld",
+    "name": "Stone",
+    "items": {
+      "sword": 24,
+      "pickaxe": 24,
+      "armor": 124,
+      "charm": 64
+    },
+    "armorPieces": {
+      "helmet": 24,
+      "chestplate": 48,
+      "leggings": 32,
+      "boots": 20
+    }
+  },
+  {
+    "id": "mine-overworld-coal",
+    "type": "mine",
+    "world": "Overworld",
+    "name": "Coal",
+    "items": {
+      "sword": 150,
+      "pickaxe": 150,
+      "armor": 230,
+      "charm": 250
+    },
+    "armorPieces": {
+      "helmet": 40,
+      "chestplate": 80,
+      "leggings": 70,
+      "boots": 40
+    }
+  },
+  {
+    "id": "mine-overworld-iron",
+    "type": "mine",
+    "world": "Overworld",
+    "name": "Iron",
+    "items": {
+      "sword": 1540,
+      "pickaxe": 1540,
+      "armor": 1630,
+      "charm": 750
+    },
+    "armorPieces": {
+      "helmet": 290,
+      "chestplate": 570,
+      "leggings": 480,
+      "boots": 290
+    }
+  },
+  {
+    "id": "mine-overworld-diamond",
+    "type": "mine",
+    "world": "Overworld",
+    "name": "Diamond",
+    "items": {
+      "sword": 10390,
+      "pickaxe": 3970,
+      "armor": 13790,
+      "charm": 3380
+    },
+    "armorPieces": {
+      "helmet": 2770,
+      "chestplate": 4730,
+      "leggings": 3790,
+      "boots": 2500
+    }
+  },
+  {
+    "id": "mine-overworld-emerald",
+    "type": "mine",
+    "world": "Overworld",
+    "name": "Emerald",
+    "items": {
+      "sword": 33380,
+      "pickaxe": 33380,
+      "armor": 66130,
+      "charm": 7500
+    },
+    "armorPieces": {
+      "helmet": 12750,
+      "chestplate": 25420,
+      "leggings": 17470,
+      "boots": 10490
+    }
+  },
+  {
+    "id": "mine-overworld-copper",
+    "type": "mine",
+    "world": "Overworld",
+    "name": "Copper",
+    "items": {
+      "sword": 51150,
+      "pickaxe": 51150,
+      "armor": 90600,
+      "charm": 15000
+    },
+    "armorPieces": {
+      "helmet": 18150,
+      "chestplate": 33300,
+      "leggings": 24900,
+      "boots": 14250
+    }
+  },
+  {
+    "id": "mine-overworld-gold",
+    "type": "mine",
+    "world": "Overworld",
+    "name": "Gold",
+    "items": {
+      "sword": 67640,
+      "pickaxe": 67640,
+      "armor": 132310,
+      "charm": 27000
+    },
+    "armorPieces": {
+      "helmet": 26190,
+      "chestplate": 49410,
+      "leggings": 36580,
+      "boots": 20130
+    }
+  },
+  {
+    "id": "mine-darkwater-caves-deepslate",
+    "type": "mine",
+    "world": "Darkwater Caves",
+    "name": "Deepslate",
+    "items": {
+      "sword": 107250,
+      "pickaxe": 107250,
+      "armor": 140000,
+      "charm": 58750
+    },
+    "armorPieces": {
+      "helmet": 29000,
+      "chestplate": 50500,
+      "leggings": 40000,
+      "boots": 20500
+    }
+  },
+  {
+    "id": "mine-darkwater-caves-prismarine",
+    "type": "mine",
+    "world": "Darkwater Caves",
+    "name": "Prismarine",
+    "items": {
+      "sword": 232500,
+      "pickaxe": 232500,
+      "armor": 237000,
+      "charm": 100000
+    },
+    "armorPieces": {
+      "helmet": 51500,
+      "chestplate": 81000,
+      "leggings": 67750,
+      "boots": 36750
+    }
+  },
+  {
+    "id": "mine-darkwater-caves-fossil",
+    "type": "mine",
+    "world": "Darkwater Caves",
+    "name": "Fossil",
+    "items": {
+      "sword": 404000,
+      "pickaxe": 404000,
+      "armor": 424000,
+      "charm": 155750
+    },
+    "armorPieces": {
+      "helmet": 84000,
+      "chestplate": 146250,
+      "leggings": 122000,
+      "boots": 71750
+    }
+  },
+  {
+    "id": "mine-darkwater-caves-decay",
+    "type": "mine",
+    "world": "Darkwater Caves",
+    "name": "Decay",
+    "items": {
+      "sword": 750500,
+      "pickaxe": 750500,
+      "armor": 811000,
+      "charm": 265000
+    },
+    "armorPieces": {
+      "helmet": 164250,
+      "chestplate": 276500,
+      "leggings": 237000,
+      "boots": 133250
+    }
+  },
+  {
+    "id": "mine-darkwater-caves-abyssal-glint",
+    "type": "mine",
+    "world": "Darkwater Caves",
+    "name": "Abyssal Glint",
+    "items": {
+      "sword": 1137750,
+      "pickaxe": 1137750,
+      "armor": 1307500,
+      "charm": 407000
+    },
+    "armorPieces": {
+      "helmet": 253750,
+      "chestplate": 470750,
+      "leggings": 369750,
+      "boots": 213250
+    }
+  },
+  {
+    "id": "mine-darkwater-caves-ice",
+    "type": "mine",
+    "world": "Darkwater Caves",
+    "name": "Ice",
+    "items": {
+      "sword": 1725000,
+      "pickaxe": 1725000,
+      "armor": 1852500,
+      "charm": 639500
+    },
+    "armorPieces": {
+      "helmet": 360000,
+      "chestplate": 666500,
+      "leggings": 527000,
+      "boots": 299000
+    }
+  },
+  {
+    "id": "boss-darkwater-caves-bluzon",
+    "type": "boss",
+    "world": "Darkwater Caves",
+    "name": "Bluzon",
+    "items": {
+      "sword": 2,
+      "pickaxe": 2,
+      "armor": 8,
+      "charm": 2
+    },
+    "armorPieces": {
+      "helmet": 2,
+      "chestplate": 2,
+      "leggings": 2,
+      "boots": 2
+    },
+    "fragmentsPerCredit": 1.0
+  },
+  {
+    "id": "mine-nether-netherrack",
+    "type": "mine",
+    "world": "Nether",
+    "name": "Netherrack",
+    "items": {
+      "sword": 1784500,
+      "pickaxe": 1784500,
+      "armor": 2520000,
+      "charm": 1200000
+    },
+    "armorPieces": {
+      "helmet": 525000,
+      "chestplate": 840000,
+      "leggings": 735000,
+      "boots": 420000
+    }
+  },
+  {
+    "id": "mine-nether-tuff",
+    "type": "mine",
+    "world": "Nether",
+    "name": "Tuff",
+    "items": {
+      "sword": 2100500,
+      "pickaxe": 2100500,
+      "armor": 2899500,
+      "charm": 1940000
+    },
+    "armorPieces": {
+      "helmet": 605500,
+      "chestplate": 965500,
+      "leggings": 843500,
+      "boots": 485000
+    }
+  },
+  {
+    "id": "mine-nether-nether-quartz",
+    "type": "mine",
+    "world": "Nether",
+    "name": "Nether Quartz",
+    "items": {
+      "sword": 2434500,
+      "pickaxe": 2434500,
+      "armor": 3318000,
+      "charm": 2250000
+    },
+    "armorPieces": {
+      "helmet": 691500,
+      "chestplate": 1105500,
+      "leggings": 968000,
+      "boots": 553000
+    }
+  },
+  {
+    "id": "mine-nether-nether-gold",
+    "type": "mine",
+    "world": "Nether",
+    "name": "Nether Gold",
+    "items": {
+      "sword": 2838500,
+      "pickaxe": 2838500,
+      "armor": 3808000,
+      "charm": 2600000
+    },
+    "armorPieces": {
+      "helmet": 793500,
+      "chestplate": 1269500,
+      "leggings": 1110500,
+      "boots": 634500
+    }
+  },
+  {
+    "id": "mine-nether-glowstone",
+    "type": "mine",
+    "world": "Nether",
+    "name": "Glowstone",
+    "items": {
+      "sword": 4453000,
+      "pickaxe": 4453000,
+      "armor": 7128000,
+      "charm": 4000000
+    },
+    "armorPieces": {
+      "helmet": 1485500,
+      "chestplate": 2376000,
+      "leggings": 2078500,
+      "boots": 1188000
+    }
+  },
+  {
+    "id": "mine-nether-magma",
+    "type": "mine",
+    "world": "Nether",
+    "name": "Magma",
+    "items": {
+      "sword": 5981500,
+      "pickaxe": 5981500,
+      "armor": 8273500,
+      "charm": 5520000
+    },
+    "armorPieces": {
+      "helmet": 1723000,
+      "chestplate": 2760000,
+      "leggings": 2412000,
+      "boots": 1378500
+    }
+  },
+  {
+    "id": "mine-nether-netherite",
+    "type": "mine",
+    "world": "Nether",
+    "name": "Netherite",
+    "items": {
+      "sword": 10340500,
+      "pickaxe": 10340500,
+      "armor": 9615500,
+      "charm": 9550000
+    },
+    "armorPieces": {
+      "helmet": 2000500,
+      "chestplate": 3198500,
+      "leggings": 2792500,
+      "boots": 1624000
+    }
+  },
+  {
+    "id": "boss-nether-nekronos",
+    "type": "boss",
+    "world": "Nether",
+    "name": "Nekronos",
+    "items": {
+      "sword": 4,
+      "pickaxe": 4,
+      "armor": 16,
+      "charm": 4
+    },
+    "armorPieces": {
+      "helmet": 4,
+      "chestplate": 4,
+      "leggings": 4,
+      "boots": 4
+    },
+    "fragmentsPerCredit": 1.0
+  },
+  {
+    "id": "mine-end-endstone",
+    "type": "mine",
+    "world": "End",
+    "name": "Endstone",
+    "items": {
+      "sword": 10220000,
+      "pickaxe": 7660000,
+      "armor": 31260000,
+      "charm": 6820000
+    },
+    "armorPieces": {
+      "helmet": 6240000,
+      "chestplate": 9720000,
+      "leggings": 8340000,
+      "boots": 6960000
+    }
+  },
+  {
+    "id": "mine-end-purpur",
+    "type": "mine",
+    "world": "End",
+    "name": "Purpur",
+    "items": {
+      "sword": 12200000,
+      "pickaxe": 9140000,
+      "armor": 37360000,
+      "charm": 8140000
+    },
+    "armorPieces": {
+      "helmet": 7460000,
+      "chestplate": 11620000,
+      "leggings": 9980000,
+      "boots": 8300000
+    }
+  },
+  {
+    "id": "mine-end-amethyst",
+    "type": "mine",
+    "world": "End",
+    "name": "Amethyst",
+    "items": {
+      "sword": 14380000,
+      "pickaxe": 10780000,
+      "armor": 44080000,
+      "charm": 9580000
+    },
+    "armorPieces": {
+      "helmet": 8800000,
+      "chestplate": 13720000,
+      "leggings": 11760000,
+      "boots": 9800000
+    }
+  },
+  {
+    "id": "mine-end-shulker",
+    "type": "mine",
+    "world": "End",
+    "name": "Shulker",
+    "items": {
+      "sword": 17140000,
+      "pickaxe": 12840000,
+      "armor": 52500000,
+      "charm": 11420000
+    },
+    "armorPieces": {
+      "helmet": 10500000,
+      "chestplate": 16320000,
+      "leggings": 14000000,
+      "boots": 11680000
+    }
+  },
+  {
+    "id": "mine-end-voidstone",
+    "type": "mine",
+    "world": "End",
+    "name": "Voidstone",
+    "items": {
+      "sword": 20520000,
+      "pickaxe": 15400000,
+      "armor": 62840000,
+      "charm": 13680000
+    },
+    "armorPieces": {
+      "helmet": 12560000,
+      "chestplate": 19540000,
+      "leggings": 16760000,
+      "boots": 13980000
+    }
+  },
+  {
+    "id": "mine-end-blacknova",
+    "type": "mine",
+    "world": "End",
+    "name": "Blacknova",
+    "items": {
+      "sword": 24240000,
+      "pickaxe": 18180000,
+      "armor": 74260000,
+      "charm": 16160000
+    },
+    "armorPieces": {
+      "helmet": 14860000,
+      "chestplate": 23080000,
+      "leggings": 19800000,
+      "boots": 16520000
+    }
+  },
+  {
+    "id": "mine-end-obsidian",
+    "type": "mine",
+    "world": "End",
+    "name": "Obsidian",
+    "items": {
+      "sword": 28900000,
+      "pickaxe": 21680000,
+      "armor": 88560000,
+      "charm": 19260000
+    },
+    "armorPieces": {
+      "helmet": 17720000,
+      "chestplate": 27560000,
+      "leggings": 23600000,
+      "boots": 19680000
+    }
+  },
+  {
+    "id": "boss-end-endor",
+    "type": "boss",
+    "world": "End",
+    "name": "Endor",
+    "items": {
+      "sword": 7,
+      "pickaxe": 7,
+      "armor": 28,
+      "charm": 7
+    },
+    "armorPieces": {
+      "helmet": 7,
+      "chestplate": 7,
+      "leggings": 7,
+      "boots": 7
+    },
+    "fragmentsPerCredit": 1.0
+  },
+  {
+    "id": "mine-aether-granite",
+    "type": "mine",
+    "world": "Aether",
+    "name": "Granite",
+    "items": {
+      "sword": 25830000,
+      "pickaxe": 19377000,
+      "armor": 71442000,
+      "charm": 17217000
+    },
+    "armorPieces": {
+      "helmet": 14292000,
+      "chestplate": 22221000,
+      "leggings": 19053000,
+      "boots": 15876000
+    }
+  },
+  {
+    "id": "mine-aether-diorite",
+    "type": "mine",
+    "world": "Aether",
+    "name": "Diorite",
+    "items": {
+      "sword": 26892000,
+      "pickaxe": 20178000,
+      "armor": 76914000,
+      "charm": 17937000
+    },
+    "armorPieces": {
+      "helmet": 15390000,
+      "chestplate": 23913000,
+      "leggings": 20502000,
+      "boots": 17109000
+    }
+  },
+  {
+    "id": "mine-aether-aethermud",
+    "type": "mine",
+    "world": "Aether",
+    "name": "Aethermud",
+    "items": {
+      "sword": 28035000,
+      "pickaxe": 21015000,
+      "armor": 82800000,
+      "charm": 18675000
+    },
+    "armorPieces": {
+      "helmet": 16551000,
+      "chestplate": 25767000,
+      "leggings": 22086000,
+      "boots": 18396000
+    }
+  },
+  {
+    "id": "mine-aether-aethersoil",
+    "type": "mine",
+    "world": "Aether",
+    "name": "Aethersoil",
+    "items": {
+      "sword": 29160000,
+      "pickaxe": 21888000,
+      "armor": 89109000,
+      "charm": 19449000
+    },
+    "armorPieces": {
+      "helmet": 17829000,
+      "chestplate": 27720000,
+      "leggings": 23760000,
+      "boots": 19800000
+    }
+  },
+  {
+    "id": "mine-aether-cloudite",
+    "type": "mine",
+    "world": "Aether",
+    "name": "Cloudite",
+    "items": {
+      "sword": 30393000,
+      "pickaxe": 22788000,
+      "armor": 95985000,
+      "charm": 20250000
+    },
+    "armorPieces": {
+      "helmet": 19197000,
+      "chestplate": 29862000,
+      "leggings": 25596000,
+      "boots": 21330000
+    }
+  },
+  {
+    "id": "mine-aether-skybrick",
+    "type": "mine",
+    "world": "Aether",
+    "name": "Skybrick",
+    "items": {
+      "sword": 31644000,
+      "pickaxe": 23724000,
+      "armor": 103302000,
+      "charm": 21096000
+    },
+    "armorPieces": {
+      "helmet": 20664000,
+      "chestplate": 32139000,
+      "leggings": 27540000,
+      "boots": 22959000
+    }
+  },
+  {
+    "id": "mine-aether-mistcore",
+    "type": "mine",
+    "world": "Aether",
+    "name": "Mistcore",
+    "items": {
+      "sword": 46836000,
+      "pickaxe": 35955000,
+      "armor": 158823000,
+      "charm": 33192000
+    },
+    "armorPieces": {
+      "helmet": 31725000,
+      "chestplate": 49509000,
+      "leggings": 42327000,
+      "boots": 35262000
+    }
+  },
+  {
+    "id": "mine-aether-skycore",
+    "type": "mine",
+    "world": "Aether",
+    "name": "Skycore",
+    "items": {
+      "sword": 58248000,
+      "pickaxe": 43695000,
+      "armor": 147807000,
+      "charm": 38826000
+    },
+    "armorPieces": {
+      "helmet": 29547000,
+      "chestplate": 45981000,
+      "leggings": 39420000,
+      "boots": 32859000
+    }
+  },
+  {
+    "id": "mine-aether-stormcore",
+    "type": "mine",
+    "world": "Aether",
+    "name": "Stormcore",
+    "items": {
+      "sword": 57024000,
+      "pickaxe": 42750000,
+      "armor": 163782000,
+      "charm": 38016000
+    },
+    "armorPieces": {
+      "helmet": 32751000,
+      "chestplate": 50967000,
+      "leggings": 43686000,
+      "boots": 36378000
+    }
+  },
+  {
+    "id": "boss-aether-aetheris",
+    "type": "boss",
+    "world": "Aether",
+    "name": "Aetheris",
+    "items": {
+      "sword": 11,
+      "pickaxe": 11,
+      "armor": 44,
+      "charm": 12
+    },
+    "armorPieces": {
+      "helmet": 11,
+      "chestplate": 11,
+      "leggings": 11,
+      "boots": 11
+    },
+    "fragmentsPerCredit": 1.0
+  },
+  {
+    "id": "boss-aether-zeus",
+    "type": "boss",
+    "world": "Aether",
+    "name": "Zeus",
+    "items": {
+      "sword": 11,
+      "pickaxe": 11,
+      "armor": 44,
+      "charm": 3
+    },
+    "armorPieces": {
+      "helmet": 11,
+      "chestplate": 11,
+      "leggings": 11,
+      "boots": 11
+    },
+    "fragmentsPerCredit": 1.0
+  },
+  {
+    "id": "mine-garden-grass",
+    "type": "mine",
+    "world": "Garden",
+    "name": "Grass",
+    "items": {
+      "sword": 44604000,
+      "pickaxe": 33453000,
+      "armor": 125541000,
+      "charm": 29736000
+    },
+    "armorPieces": {
+      "helmet": 25110000,
+      "chestplate": 39051000,
+      "leggings": 33489000,
+      "boots": 27891000
+    }
+  },
+  {
+    "id": "mine-garden-garden-wall",
+    "type": "mine",
+    "world": "Garden",
+    "name": "Garden Wall",
+    "items": {
+      "sword": 46449000,
+      "pickaxe": 34857000,
+      "armor": 135126000,
+      "charm": 30969000
+    },
+    "armorPieces": {
+      "helmet": 27018000,
+      "chestplate": 42039000,
+      "leggings": 36036000,
+      "boots": 30033000
+    }
+  },
+  {
+    "id": "mine-garden-koi-pond",
+    "type": "mine",
+    "world": "Garden",
+    "name": "Koi Pond",
+    "items": {
+      "sword": 48384000,
+      "pickaxe": 36270000,
+      "armor": 145494000,
+      "charm": 32256000
+    },
+    "armorPieces": {
+      "helmet": 29097000,
+      "chestplate": 45270000,
+      "leggings": 38799000,
+      "boots": 32328000
+    }
+  },
+  {
+    "id": "mine-garden-rose",
+    "type": "mine",
+    "world": "Garden",
+    "name": "Rose",
+    "items": {
+      "sword": 50391000,
+      "pickaxe": 37773000,
+      "armor": 156645000,
+      "charm": 33579000
+    },
+    "armorPieces": {
+      "helmet": 31320000,
+      "chestplate": 48735000,
+      "leggings": 41769000,
+      "boots": 34821000
+    }
+  },
+  {
+    "id": "mine-garden-dandelion",
+    "type": "mine",
+    "world": "Garden",
+    "name": "Dandelion",
+    "items": {
+      "sword": 67113000,
+      "pickaxe": 50328000,
+      "armor": 255087000,
+      "charm": 44730000
+    },
+    "armorPieces": {
+      "helmet": 51021000,
+      "chestplate": 79362000,
+      "leggings": 68022000,
+      "boots": 56682000
+    }
+  },
+  {
+    "id": "mine-garden-torchflower",
+    "type": "mine",
+    "world": "Garden",
+    "name": "Torchflower",
+    "items": {
+      "sword": 73395000,
+      "pickaxe": 55017000,
+      "armor": 230661000,
+      "charm": 48915000
+    },
+    "armorPieces": {
+      "helmet": 46134000,
+      "chestplate": 71748000,
+      "leggings": 61515000,
+      "boots": 51264000
+    }
+  },
+  {
+    "id": "mine-garden-wither-rose",
+    "type": "mine",
+    "world": "Garden",
+    "name": "Wither Rose",
+    "items": {
+      "sword": 80244000,
+      "pickaxe": 60183000,
+      "armor": 208611000,
+      "charm": 53496000
+    },
+    "armorPieces": {
+      "helmet": 41724000,
+      "chestplate": 64899000,
+      "leggings": 55629000,
+      "boots": 46359000
+    }
+  },
+  {
+    "id": "boss-garden-t-gardener",
+    "type": "boss",
+    "world": "Garden",
+    "name": "T-Gardener",
+    "items": {
+      "sword": 16,
+      "pickaxe": 16,
+      "armor": 64,
+      "charm": 16
+    },
+    "armorPieces": {
+      "helmet": 16,
+      "chestplate": 16,
+      "leggings": 16,
+      "boots": 16
+    },
+    "fragmentsPerCredit": 1.0
+  },
+  {
+    "id": "mine-ocean-bricked-prismarine",
+    "type": "mine",
+    "world": "Ocean",
+    "name": "Bricked Prismarine",
+    "items": {
+      "sword": 104994000,
+      "pickaxe": 78732000,
+      "armor": 321570000,
+      "charm": 70002000
+    },
+    "armorPieces": {
+      "helmet": 64314000,
+      "chestplate": 100044000,
+      "leggings": 85752000,
+      "boots": 71460000
+    }
+  },
+  {
+    "id": "mine-ocean-dark-prismarine",
+    "type": "mine",
+    "world": "Ocean",
+    "name": "Dark Prismarine",
+    "items": {
+      "sword": 124866000,
+      "pickaxe": 93636000,
+      "armor": 382392000,
+      "charm": 83250000
+    },
+    "armorPieces": {
+      "helmet": 76482000,
+      "chestplate": 118962000,
+      "leggings": 101970000,
+      "boots": 84978000
+    }
+  },
+  {
+    "id": "mine-ocean-tube-coral",
+    "type": "mine",
+    "world": "Ocean",
+    "name": "Tube Coral",
+    "items": {
+      "sword": 148644000,
+      "pickaxe": 111492000,
+      "armor": 455184000,
+      "charm": 99090000
+    },
+    "armorPieces": {
+      "helmet": 91044000,
+      "chestplate": 141606000,
+      "leggings": 121392000,
+      "boots": 101142000
+    }
+  },
+  {
+    "id": "mine-ocean-bubble-coral",
+    "type": "mine",
+    "world": "Ocean",
+    "name": "Bubble Coral",
+    "items": {
+      "sword": 176850000,
+      "pickaxe": 132624000,
+      "armor": 541602000,
+      "charm": 117900000
+    },
+    "armorPieces": {
+      "helmet": 108306000,
+      "chestplate": 168498000,
+      "leggings": 144432000,
+      "boots": 120366000
+    }
+  },
+  {
+    "id": "mine-ocean-fire-coral",
+    "type": "mine",
+    "world": "Ocean",
+    "name": "Fire Coral",
+    "items": {
+      "sword": 237492000,
+      "pickaxe": 178128000,
+      "armor": 860094000,
+      "charm": 158328000
+    },
+    "armorPieces": {
+      "helmet": 172026000,
+      "chestplate": 267588000,
+      "leggings": 229356000,
+      "boots": 191124000
+    }
+  },
+  {
+    "id": "mine-ocean-horn-coral",
+    "type": "mine",
+    "world": "Ocean",
+    "name": "Horn Coral",
+    "items": {
+      "sword": 250326000,
+      "pickaxe": 187740000,
+      "armor": 903132000,
+      "charm": 166878000
+    },
+    "armorPieces": {
+      "helmet": 180630000,
+      "chestplate": 280980000,
+      "leggings": 240822000,
+      "boots": 200700000
+    }
+  },
+  {
+    "id": "mine-ocean-sponge",
+    "type": "mine",
+    "world": "Ocean",
+    "name": "Sponge",
+    "items": {
+      "sword": 297954000,
+      "pickaxe": 223470000,
+      "armor": 912510000,
+      "charm": 180000000
+    },
+    "armorPieces": {
+      "helmet": 182502000,
+      "chestplate": 283896000,
+      "leggings": 243342000,
+      "boots": 202770000
+    }
+  },
+  {
+    "id": "boss-ocean-guardian-o--toole",
+    "type": "boss",
+    "world": "Ocean",
+    "name": "Guardian o' Toole",
+    "items": {
+      "sword": 16,
+      "pickaxe": 16,
+      "armor": 64,
+      "charm": 16
+    },
+    "armorPieces": {
+      "helmet": 16,
+      "chestplate": 16,
+      "leggings": 16,
+      "boots": 16
+    },
+    "fragmentsPerCredit": 1.0
+  },
+  {
+    "id": "mine-arctic-blue-ice",
+    "type": "mine",
+    "world": "Arctic",
+    "name": "Blue Ice",
+    "items": {
+      "sword": 182190000,
+      "pickaxe": 136640000,
+      "armor": 557980000,
+      "charm": 121460000
+    },
+    "armorPieces": {
+      "helmet": 111590000,
+      "chestplate": 173600000,
+      "leggings": 148790000,
+      "boots": 124000000
+    }
+  },
+  {
+    "id": "mine-arctic-pine-tree",
+    "type": "mine",
+    "world": "Arctic",
+    "name": "Pine Tree",
+    "items": {
+      "sword": 60300000,
+      "axe": 45100000,
+      "armor": 298800000,
+      "charm": 40000000
+    },
+    "armorPieces": {
+      "helmet": 57200000,
+      "chestplate": 89000000,
+      "leggings": 88600000,
+      "boots": 64000000
+    }
+  },
+  {
+    "id": "mine-arctic-glacite",
+    "type": "mine",
+    "world": "Arctic",
+    "name": "Glacite",
+    "items": {
+      "sword": 216830000,
+      "pickaxe": 162620000,
+      "armor": 664050000,
+      "charm": 144550000
+    },
+    "armorPieces": {
+      "helmet": 132800000,
+      "chestplate": 206600000,
+      "leggings": 177080000,
+      "boots": 147570000
+    }
+  },
+  {
+    "id": "mine-arctic-azurite",
+    "type": "mine",
+    "world": "Arctic",
+    "name": "Azurite",
+    "items": {
+      "sword": 257930000,
+      "pickaxe": 193440000,
+      "armor": 789920000,
+      "charm": 171950000
+    },
+    "armorPieces": {
+      "helmet": 157990000,
+      "chestplate": 245750000,
+      "leggings": 210640000,
+      "boots": 175540000
+    }
+  },
+  {
+    "id": "mine-arctic-snow",
+    "type": "mine",
+    "world": "Arctic",
+    "name": "Snow",
+    "items": {
+      "sword": 84200000,
+      "shovel": 62900000,
+      "armor": 413000000,
+      "charm": 56000000
+    },
+    "armorPieces": {
+      "helmet": 83000000,
+      "chestplate": 130000000,
+      "leggings": 113000000,
+      "boots": 87000000
+    }
+  },
+  {
+    "id": "mine-arctic-cryocopper",
+    "type": "mine",
+    "world": "Arctic",
+    "name": "Cryocopper",
+    "items": {
+      "sword": 306980000,
+      "pickaxe": 230240000,
+      "armor": 940090000,
+      "charm": 204650000
+    },
+    "armorPieces": {
+      "helmet": 188010000,
+      "chestplate": 292470000,
+      "leggings": 250700000,
+      "boots": 208910000
+    }
+  },
+  {
+    "id": "mine-arctic-marble",
+    "type": "mine",
+    "world": "Arctic",
+    "name": "Marble",
+    "items": {
+      "sword": 412250000,
+      "pickaxe": 309200000,
+      "armor": 1118850000,
+      "charm": 274830000
+    },
+    "armorPieces": {
+      "helmet": 223770000,
+      "chestplate": 348090000,
+      "leggings": 298360000,
+      "boots": 248630000
+    }
+  },
+  {
+    "id": "mine-arctic-pale-tree",
+    "type": "mine",
+    "world": "Arctic",
+    "name": "Pale Tree",
+    "items": {
+      "sword": 116000000,
+      "axe": 86500000,
+      "armor": 356400000,
+      "charm": 77000000
+    },
+    "armorPieces": {
+      "helmet": 70400000,
+      "chestplate": 112000000,
+      "leggings": 95000000,
+      "boots": 79000000
+    }
+  },
+  {
+    "id": "mine-arctic-permafrost",
+    "type": "mine",
+    "world": "Arctic",
+    "name": "Permafrost",
+    "items": {
+      "sword": 434710000,
+      "pickaxe": 326040000,
+      "armor": 1331290000,
+      "charm": 289810000
+    },
+    "armorPieces": {
+      "helmet": 266260000,
+      "chestplate": 414180000,
+      "leggings": 355010000,
+      "boots": 295840000
+    }
+  },
+  {
+    "id": "mine-arctic-aurora",
+    "type": "mine",
+    "world": "Arctic",
+    "name": "Aurora",
+    "items": {
+      "sword": 517350000,
+      "pickaxe": 388000000,
+      "armor": 1584410000,
+      "charm": 344900000
+    },
+    "armorPieces": {
+      "helmet": 316880000,
+      "chestplate": 492930000,
+      "leggings": 422510000,
+      "boots": 352090000
+    }
+  },
+  {
+    "id": "boss-arctic-bjorn-rebjorn",
+    "type": "boss",
+    "world": "Arctic",
+    "name": "Bjorn Rebjorn",
+    "items": {
+      "sword": 16,
+      "pickaxe": 16,
+      "armor": 64,
+      "charm": 16
+    },
+    "armorPieces": {
+      "helmet": 16,
+      "chestplate": 16,
+      "leggings": 16,
+      "boots": 16
+    },
+    "fragmentsPerCredit": 2.0
+  },
+  {
+    "id": "mine-sculk-darkstone",
+    "type": "mine",
+    "world": "Sculk",
+    "name": "Darkstone",
+    "items": {
+      "sword": 519610000,
+      "pickaxe": 389710000,
+      "armor": 1591310000,
+      "charm": 346410000
+    },
+    "armorPieces": {
+      "helmet": 318260000,
+      "chestplate": 495080000,
+      "leggings": 424340000,
+      "boots": 353630000
+    }
+  },
+  {
+    "id": "mine-sculk-warpwood",
+    "type": "mine",
+    "world": "Sculk",
+    "name": "Warpwood",
+    "items": {
+      "sword": 1505000000,
+      "axe": 1135000000,
+      "armor": 3911000000,
+      "charm": 850000000
+    },
+    "armorPieces": {
+      "helmet": 782000000,
+      "chestplate": 1220000000,
+      "leggings": 1042000000,
+      "boots": 867000000
+    }
+  },
+  {
+    "id": "mine-sculk-sapphire",
+    "type": "mine",
+    "world": "Sculk",
+    "name": "Sapphire",
+    "items": {
+      "sword": 605290000,
+      "pickaxe": 453970000,
+      "armor": 1853690000,
+      "charm": 403530000
+    },
+    "armorPieces": {
+      "helmet": 370740000,
+      "chestplate": 576700000,
+      "leggings": 494320000,
+      "boots": 411930000
+    }
+  },
+  {
+    "id": "mine-sculk-city-wall",
+    "type": "mine",
+    "world": "Sculk",
+    "name": "City Wall",
+    "items": {
+      "sword": 705180000,
+      "pickaxe": 528880000,
+      "armor": 2159630000,
+      "charm": 470120000
+    },
+    "armorPieces": {
+      "helmet": 431930000,
+      "chestplate": 671880000,
+      "leggings": 575900000,
+      "boots": 479920000
+    }
+  },
+  {
+    "id": "mine-sculk-soul-soil",
+    "type": "mine",
+    "world": "Sculk",
+    "name": "Soul Soil",
+    "items": {
+      "sword": 2055000000,
+      "shovel": 1200000000,
+      "armor": 2036120000,
+      "charm": 750000000
+    },
+    "armorPieces": {
+      "helmet": 407870000,
+      "chestplate": 627250000,
+      "leggings": 546000000,
+      "boots": 455000000
+    }
+  },
+  {
+    "id": "mine-sculk-blackstone",
+    "type": "mine",
+    "world": "Sculk",
+    "name": "Blackstone",
+    "items": {
+      "sword": 821570000,
+      "pickaxe": 616170000,
+      "armor": 2516050000,
+      "charm": 547710000
+    },
+    "armorPieces": {
+      "helmet": 503200000,
+      "chestplate": 782780000,
+      "leggings": 670950000,
+      "boots": 559120000
+    }
+  },
+  {
+    "id": "mine-sculk-onyx",
+    "type": "mine",
+    "world": "Sculk",
+    "name": "Onyx",
+    "items": {
+      "sword": 1103350000,
+      "pickaxe": 827520000,
+      "armor": 2931040000,
+      "charm": 735570000
+    },
+    "armorPieces": {
+      "helmet": 586210000,
+      "chestplate": 911880000,
+      "leggings": 781610000,
+      "boots": 651340000
+    }
+  },
+  {
+    "id": "mine-sculk-bloodwood",
+    "type": "mine",
+    "world": "Sculk",
+    "name": "Bloodwood",
+    "items": {
+      "sword": 2820000000,
+      "axe": 2110000000,
+      "armor": 7312000000,
+      "charm": 1615000000
+    },
+    "armorPieces": {
+      "helmet": 1484000000,
+      "chestplate": 2295000000,
+      "leggings": 1909000000,
+      "boots": 1624000000
+    }
+  },
+  {
+    "id": "mine-sculk-ruby",
+    "type": "mine",
+    "world": "Sculk",
+    "name": "Ruby",
+    "items": {
+      "sword": 1115040000,
+      "pickaxe": 836290000,
+      "armor": 3414760000,
+      "charm": 743360000
+    },
+    "armorPieces": {
+      "helmet": 682950000,
+      "chestplate": 1062370000,
+      "leggings": 910600000,
+      "boots": 758840000
+    }
+  },
+  {
+    "id": "mine-sculk-sculk",
+    "type": "mine",
+    "world": "Sculk",
+    "name": "Sculk",
+    "items": {
+      "sword": 1298980000,
+      "pickaxe": 974240000,
+      "armor": 3978150000,
+      "charm": 865990000
+    },
+    "armorPieces": {
+      "helmet": 795640000,
+      "chestplate": 1237640000,
+      "leggings": 1060840000,
+      "boots": 884030000
+    }
+  },
+  {
+    "id": "boss-sculk-warden",
+    "type": "boss",
+    "world": "Sculk",
+    "name": "Warden",
+    "items": {
+      "sword": 28,
+      "pickaxe": 28,
+      "armor": 112,
+      "charm": 32
+    },
+    "armorPieces": {
+      "helmet": 28,
+      "chestplate": 28,
+      "leggings": 28,
+      "boots": 28
+    },
+    "fragmentsPerCredit": 2.0
+  },
+  {
+    "id": "mine-woodland-woodland-copper",
+    "type": "mine",
+    "world": "Woodland",
+    "name": "Woodland Copper",
+    "items": {
+      "sword": 1056200000,
+      "pickaxe": 792000000,
+      "armor": 3232600000,
+      "charm": 704000000
+    },
+    "armorPieces": {
+      "helmet": 646600000,
+      "chestplate": 1005500000,
+      "leggings": 862000000,
+      "boots": 718500000
+    }
+  },
+  {
+    "id": "mine-woodland-podzol",
+    "type": "mine",
+    "world": "Woodland",
+    "name": "Podzol",
+    "items": {
+      "sword": 1584000000,
+      "shovel": 1537400000,
+      "armor": 4605000000,
+      "charm": 1007000000
+    },
+    "armorPieces": {
+      "helmet": 921000000,
+      "chestplate": 1433000000,
+      "leggings": 1228000000,
+      "boots": 1023000000
+    }
+  },
+  {
+    "id": "mine-woodland-vase",
+    "type": "mine",
+    "world": "Woodland",
+    "name": "Vase",
+    "items": {
+      "sword": 1256800000,
+      "pickaxe": 942500000,
+      "armor": 3848300000,
+      "charm": 837700000
+    },
+    "armorPieces": {
+      "helmet": 769600000,
+      "chestplate": 1197100000,
+      "leggings": 1026300000,
+      "boots": 855300000
+    }
+  },
+  {
+    "id": "mine-woodland-honeystone",
+    "type": "mine",
+    "world": "Woodland",
+    "name": "Honeystone",
+    "items": {
+      "sword": 1495400000,
+      "pickaxe": 1121600000,
+      "armor": 4579100000,
+      "charm": 996800000
+    },
+    "armorPieces": {
+      "helmet": 915800000,
+      "chestplate": 1424500000,
+      "leggings": 1221000000,
+      "boots": 1017800000
+    }
+  },
+  {
+    "id": "mine-woodland-pumpkin",
+    "type": "mine",
+    "world": "Woodland",
+    "name": "Pumpkin",
+    "items": {
+      "sword": 4112000000,
+      "axe": 2411300000,
+      "armor": 10704000000,
+      "charm": 2329000000
+    },
+    "armorPieces": {
+      "helmet": 2140000000,
+      "chestplate": 3333000000,
+      "leggings": 2853000000,
+      "boots": 2378000000
+    }
+  },
+  {
+    "id": "mine-woodland-overgrown-wall",
+    "type": "mine",
+    "world": "Woodland",
+    "name": "Overgrown Wall",
+    "items": {
+      "sword": 2007400000,
+      "pickaxe": 1506000000,
+      "armor": 7271300000,
+      "charm": 1340000000
+    },
+    "armorPieces": {
+      "helmet": 1454100000,
+      "chestplate": 2262300000,
+      "leggings": 1938800000,
+      "boots": 1616100000
+    }
+  },
+  {
+    "id": "mine-woodland-mansion-emerald",
+    "type": "mine",
+    "world": "Woodland",
+    "name": "Mansion Emerald",
+    "items": {
+      "sword": 2117300000,
+      "pickaxe": 1587800000,
+      "armor": 7635200000,
+      "charm": 1410000000
+    },
+    "armorPieces": {
+      "helmet": 1526900000,
+      "chestplate": 2375500000,
+      "leggings": 2036200000,
+      "boots": 1696600000
+    }
+  },
+  {
+    "id": "mine-woodland-mud-tangle",
+    "type": "mine",
+    "world": "Woodland",
+    "name": "Mud Tangle",
+    "items": {
+      "sword": 3490500000,
+      "shovel": 2144800000,
+      "armor": 10152000000,
+      "charm": 2213000000
+    },
+    "armorPieces": {
+      "helmet": 2030000000,
+      "chestplate": 3159000000,
+      "leggings": 2707000000,
+      "boots": 2256000000
+    }
+  },
+  {
+    "id": "mine-woodland-robe",
+    "type": "mine",
+    "world": "Woodland",
+    "name": "Robe",
+    "items": {
+      "sword": 2684800000,
+      "pickaxe": 2012900000,
+      "armor": 10213300000,
+      "charm": 1790000000
+    },
+    "armorPieces": {
+      "helmet": 2042300000,
+      "chestplate": 3177700000,
+      "leggings": 2723600000,
+      "boots": 2269700000
+    }
+  },
+  {
+    "id": "mine-woodland-amberstone",
+    "type": "mine",
+    "world": "Woodland",
+    "name": "Amberstone",
+    "items": {
+      "sword": 2998800000,
+      "pickaxe": 2248400000,
+      "armor": 10724100000,
+      "charm": 2000000000
+    },
+    "armorPieces": {
+      "helmet": 2144700000,
+      "chestplate": 3336500000,
+      "leggings": 2859700000,
+      "boots": 2383200000
+    }
+  },
+  {
+    "id": "mine-woodland-timber",
+    "type": "mine",
+    "world": "Woodland",
+    "name": "Timber",
+    "items": {
+      "sword": 6386600000,
+      "axe": 4790600000,
+      "armor": 16636000000,
+      "charm": 3621000000
+    },
+    "armorPieces": {
+      "helmet": 3325000000,
+      "chestplate": 5177000000,
+      "leggings": 4435000000,
+      "boots": 3699000000
+    }
+  },
+  {
+    "id": "mine-woodland-totem",
+    "type": "mine",
+    "world": "Woodland",
+    "name": "Totem",
+    "items": {
+      "sword": 3567800000,
+      "pickaxe": 2675800000,
+      "armor": 10926400000,
+      "charm": 2380000000
+    },
+    "armorPieces": {
+      "helmet": 2185100000,
+      "chestplate": 3399200000,
+      "leggings": 2913800000,
+      "boots": 2428300000
+    }
+  },
+  {
+    "id": "boss-woodland-watcher",
+    "type": "boss",
+    "world": "Woodland",
+    "name": "Watcher",
+    "items": {
+      "sword": 28,
+      "pickaxe": 28,
+      "armor": 112,
+      "charm": 32
+    },
+    "armorPieces": {
+      "helmet": 28,
+      "chestplate": 28,
+      "leggings": 28,
+      "boots": 28
+    },
+    "fragmentsPerCredit": 1.0
+  },
+  {
+    "id": "boss-woodland-ravager",
+    "type": "boss",
+    "world": "Woodland",
+    "name": "Ravager",
+    "items": {
+      "sword": 36,
+      "pickaxe": 36,
+      "armor": 144,
+      "charm": 36
+    },
+    "armorPieces": {
+      "helmet": 36,
+      "chestplate": 36,
+      "leggings": 36,
+      "boots": 36
+    },
+    "fragmentsPerCredit": 1.0
+  },
+  {
+    "id": "mine-trials-rusty",
+    "type": "mine",
+    "world": "Trials",
+    "name": "Rusty",
+    "items": {
+      "sword": 2785300000,
+      "pickaxe": 2088900000,
+      "armor": 11817100000,
+      "charm": 1830000000
+    },
+    "armorPieces": {
+      "helmet": 2353600000,
+      "chestplate": 3681000000,
+      "leggings": 3150000000,
+      "boots": 2632500000
+    }
+  },
+  {
+    "id": "mine-trials-trestle",
+    "type": "mine",
+    "world": "Trials",
+    "name": "Trestle",
+    "items": {
+      "sword": 7660700000,
+      "axe": 5746500000,
+      "armor": 25988000000,
+      "charm": 4032000000
+    },
+    "armorPieces": {
+      "helmet": 5172000000,
+      "chestplate": 8104000000,
+      "leggings": 6928000000,
+      "boots": 5784000000
+    }
+  },
+  {
+    "id": "mine-trials-lodestone",
+    "type": "mine",
+    "world": "Trials",
+    "name": "Lodestone",
+    "items": {
+      "sword": 3365300000,
+      "pickaxe": 2523800000,
+      "armor": 14272800000,
+      "charm": 2220000000
+    },
+    "armorPieces": {
+      "helmet": 2844800000,
+      "chestplate": 4440400000,
+      "leggings": 3804900000,
+      "boots": 3182700000
+    }
+  },
+  {
+    "id": "mine-trials-ironclad",
+    "type": "mine",
+    "world": "Trials",
+    "name": "Ironclad",
+    "items": {
+      "sword": 3713700000,
+      "pickaxe": 2785300000,
+      "armor": 15752600000,
+      "charm": 2450000000
+    },
+    "armorPieces": {
+      "helmet": 3135200000,
+      "chestplate": 4911000000,
+      "leggings": 4198000000,
+      "boots": 3508400000
+    }
+  },
+  {
+    "id": "mine-trials-wind",
+    "type": "mine",
+    "world": "Trials",
+    "name": "Wind",
+    "items": {
+      "sword": 5412000000,
+      "shovel": 5184600000,
+      "armor": 21755900000,
+      "charm": 3382000000
+    },
+    "armorPieces": {
+      "helmet": 4333900000,
+      "chestplate": 6783000000,
+      "leggings": 5795000000,
+      "boots": 4844000000
+    }
+  },
+  {
+    "id": "mine-trials-goldenclad",
+    "type": "mine",
+    "world": "Trials",
+    "name": "Goldenclad",
+    "items": {
+      "sword": 5845200000,
+      "pickaxe": 4392800000,
+      "armor": 24799700000,
+      "charm": 3850000000
+    },
+    "armorPieces": {
+      "helmet": 4936000000,
+      "chestplate": 7730000000,
+      "leggings": 6604000000,
+      "boots": 5529700000
+    }
+  },
+  {
+    "id": "mine-trials-rampart",
+    "type": "mine",
+    "world": "Trials",
+    "name": "Rampart",
+    "items": {
+      "sword": 8248000000,
+      "pickaxe": 6198000000,
+      "armor": 27380000000,
+      "charm": 4250000000
+    },
+    "armorPieces": {
+      "helmet": 5459000000,
+      "chestplate": 8530000000,
+      "leggings": 7290000000,
+      "boots": 6101000000
+    }
+  },
+  {
+    "id": "mine-trials-sienna",
+    "type": "mine",
+    "world": "Trials",
+    "name": "Sienna",
+    "items": {
+      "sword": 14770000000,
+      "axe": 13583000000,
+      "armor": 39224000000,
+      "charm": 6088000000
+    },
+    "armorPieces": {
+      "helmet": 7816000000,
+      "chestplate": 12216000000,
+      "leggings": 10448000000,
+      "boots": 8744000000
+    }
+  },
+  {
+    "id": "mine-trials-gear",
+    "type": "mine",
+    "world": "Trials",
+    "name": "Gear",
+    "items": {
+      "sword": 12760000000,
+      "pickaxe": 9571700000,
+      "armor": 42350000000,
+      "charm": 6570000000
+    },
+    "armorPieces": {
+      "helmet": 8440000000,
+      "chestplate": 13190000000,
+      "leggings": 11280000000,
+      "boots": 9440000000
+    }
+  },
+  {
+    "id": "mine-trials-chamber",
+    "type": "mine",
+    "world": "Trials",
+    "name": "Chamber",
+    "items": {
+      "sword": 14010000000,
+      "pickaxe": 10502000000,
+      "armor": 46470000000,
+      "charm": 7210000000
+    },
+    "armorPieces": {
+      "helmet": 9260000000,
+      "chestplate": 14480000000,
+      "leggings": 12370000000,
+      "boots": 10360000000
+    }
+  },
+  {
+    "id": "boss-trials-brass-colossus",
+    "type": "boss",
+    "world": "Trials",
+    "name": "Brass Colossus",
+    "items": {
+      "sword": 40,
+      "pickaxe": 40,
+      "armor": 160,
+      "charm": 40
+    },
+    "armorPieces": {
+      "helmet": 40,
+      "chestplate": 40,
+      "leggings": 40,
+      "boots": 40
+    },
+    "fragmentsPerCredit": 1.0
+  },
+  {
+    "id": "mine-ruins-rubble",
+    "type": "mine",
+    "world": "Ruins",
+    "name": "Rubble",
+    "items": {
+      "sword": 8379400000,
+      "pickaxe": 6279600000,
+      "armor": 35390000000,
+      "charm": 5520000000
+    },
+    "armorPieces": {
+      "helmet": 7080000000,
+      "chestplate": 11010000000,
+      "leggings": 9440000000,
+      "boots": 7860000000
+    }
+  },
+  {
+    "id": "mine-ruins-suspicious-sand",
+    "type": "mine",
+    "world": "Ruins",
+    "name": "Suspicious Sand",
+    "items": {
+      "sword": 12190000000,
+      "shovel": 11690000000,
+      "armor": 46341000000,
+      "charm": 7218000000
+    },
+    "armorPieces": {
+      "helmet": 9270000000,
+      "chestplate": 14427000000,
+      "leggings": 12357000000,
+      "boots": 10287000000
+    }
+  },
+  {
+    "id": "mine-ruins-marrow",
+    "type": "mine",
+    "world": "Ruins",
+    "name": "Marrow",
+    "items": {
+      "sword": 10130000000,
+      "pickaxe": 7593000000,
+      "armor": 42770000000,
+      "charm": 6670000000
+    },
+    "armorPieces": {
+      "helmet": 8550000000,
+      "chestplate": 13310000000,
+      "leggings": 11410000000,
+      "boots": 9500000000
+    }
+  },
+  {
+    "id": "mine-ruins-ceramic",
+    "type": "mine",
+    "world": "Ruins",
+    "name": "Ceramic",
+    "items": {
+      "sword": 11180000000,
+      "pickaxe": 8379600000,
+      "armor": 47220000000,
+      "charm": 7360000000
+    },
+    "armorPieces": {
+      "helmet": 9440000000,
+      "chestplate": 14690000000,
+      "leggings": 12600000000,
+      "boots": 10490000000
+    }
+  },
+  {
+    "id": "mine-ruins-scaffold",
+    "type": "mine",
+    "world": "Ruins",
+    "name": "Scaffold",
+    "items": {
+      "sword": 29790000000,
+      "axe": 28590000000,
+      "armor": 100688000000,
+      "charm": 15680000000
+    },
+    "armorPieces": {
+      "helmet": 20136000000,
+      "chestplate": 31328000000,
+      "leggings": 26848000000,
+      "boots": 22376000000
+    }
+  },
+  {
+    "id": "mine-ruins-sniffer-egg",
+    "type": "mine",
+    "world": "Ruins",
+    "name": "Sniffer Egg",
+    "items": {
+      "sword": 17610000000,
+      "pickaxe": 13200000000,
+      "armor": 74350000000,
+      "charm": 11600000000
+    },
+    "armorPieces": {
+      "helmet": 14860000000,
+      "chestplate": 23130000000,
+      "leggings": 19830000000,
+      "boots": 16530000000
+    }
+  },
+  {
+    "id": "mine-ruins-debris",
+    "type": "mine",
+    "world": "Ruins",
+    "name": "Debris",
+    "items": {
+      "sword": 30530000000,
+      "shovel": 28050000000,
+      "armor": 90738000000,
+      "charm": 14130000000
+    },
+    "armorPieces": {
+      "helmet": 18144000000,
+      "chestplate": 28233000000,
+      "leggings": 24201000000,
+      "boots": 20160000000
+    }
+  },
+  {
+    "id": "mine-ruins-zircon",
+    "type": "mine",
+    "world": "Ruins",
+    "name": "Zircon",
+    "items": {
+      "sword": 24830000000,
+      "pickaxe": 18620000000,
+      "armor": 81970000000,
+      "charm": 12780000000
+    },
+    "armorPieces": {
+      "helmet": 16390000000,
+      "chestplate": 25500000000,
+      "leggings": 21860000000,
+      "boots": 18220000000
+    }
+  },
+  {
+    "id": "mine-ruins-malice",
+    "type": "mine",
+    "world": "Ruins",
+    "name": "Malice",
+    "items": {
+      "sword": 38420000000,
+      "pickaxe": 28820000000,
+      "armor": 126920000000,
+      "charm": 19780000000
+    },
+    "armorPieces": {
+      "helmet": 25390000000,
+      "chestplate": 39490000000,
+      "leggings": 33830000000,
+      "boots": 28210000000
+    }
+  },
+  {
+    "id": "mine-ruins-rafter",
+    "type": "mine",
+    "world": "Ruins",
+    "name": "Rafter",
+    "items": {
+      "sword": 44520000000,
+      "axe": 40880000000,
+      "armor": 117568000000,
+      "charm": 18320000000
+    },
+    "armorPieces": {
+      "helmet": 23520000000,
+      "chestplate": 36552000000,
+      "leggings": 31360000000,
+      "boots": 26136000000
+    }
+  },
+  {
+    "id": "mine-ruins-relic",
+    "type": "mine",
+    "world": "Ruins",
+    "name": "Relic",
+    "items": {
+      "sword": 42070000000,
+      "pickaxe": 31560000000,
+      "armor": 138930000000,
+      "charm": 21650000000
+    },
+    "armorPieces": {
+      "helmet": 27790000000,
+      "chestplate": 43220000000,
+      "leggings": 37040000000,
+      "boots": 30880000000
+    }
+  },
+  {
+    "id": "boss-ruins-angry-archaeologist",
+    "type": "boss",
+    "world": "Ruins",
+    "name": "Angry Archaeologist",
+    "items": {
+      "sword": 50,
+      "pickaxe": 50,
+      "armor": 200,
+      "charm": 54
+    },
+    "armorPieces": {
+      "helmet": 50,
+      "chestplate": 50,
+      "leggings": 50,
+      "boots": 50
+    },
+    "fragmentsPerCredit": 1.0
+  }
+]

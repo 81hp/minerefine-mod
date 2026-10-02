@@ -1,0 +1,20 @@
+{
+  "schemaVersion": 1,
+  "id": "minerefine-hud",
+  "version": "${version}",
+  "name": "MineRefine HUD",
+  "description": "Shows upgrade costs for the mine you are standing in, and self-learning boss respawn timers.",
+  "authors": ["81hp"],
+  "license": "MIT",
+  "environment": "client",
+  "entrypoints": {
+    "client": ["minerefinehud.client.MinerefineHudClient"]
+  },
+  "mixins": ["minerefine-hud.mixins.json"],
+  "depends": {
+    "fabricloader": ">=0.15.0",
+    "minecraft": "~1.21.11",
+    "java": ">=21",
+    "fabric-api": "*"
+  }
+}

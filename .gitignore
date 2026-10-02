@@ -1,0 +1,14 @@
+build/
+.gradle/
+run/
+.idea/
+*.iml
+
+# Editor build output
+bin/
+
+# Private: handoff notes, and the community spreadsheet (its file properties name other people).
+# The mod only needs the generated src/main/resources/assets/minerefine-hud/progression.json.
+STATUS.md
+*.xlsx
+CLAUDE-CODE-PROMPT.md

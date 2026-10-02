@@ -1,0 +1,117 @@
+name: Build mod
+
+# Builds the jar on GitHub's machines, which have the internet access that Fabric needs.
+# Download the finished jar from the Actions tab, under the run's "Artifacts" section.
+
+on:
+  push:
+  pull_request:
+  workflow_dispatch:   # adds a "Run workflow" button on the Actions tab
+
+jobs:
+
+  # Fast and self-contained: the logic tests need no network and no Minecraft, so this job
+  # should go green even while the mod build is still being sorted out.
+  core-tests:
+    name: Core logic tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-java@v4
+        with:
+          java-version: '21'
+          distribution: 'temurin'
+
+      - name: Compile and run the core tests
+        run: |
+          mkdir -p build/coretest
+          # Everything except the files that need Gson or Minecraft.
+          SRCS=$(find src/main/java -name '*.java' \
+            ! -name 'ProgressionParser.java' \
+            ! -name 'BossStore.java' \
+            ! -path '*/client/*' \
+            ! -path '*/data/*')
+          javac -d build/coretest -encoding UTF-8 $SRCS \
+            src/test/java/minerefinehud/CoreTests.java
+          # Validate the parser against the live upstream data file too.
+          curl -sSfL -o /tmp/data.js \
+            https://raw.githubusercontent.com/Weirdfishes-Gaurs/Minerefine-Job-Calculator/main/data.js
+          java -cp build/coretest minerefinehud.CoreTests /tmp/data.js
+
+  build:
+    name: Build jar
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-java@v4
+        with:
+          java-version: '21'
+          distribution: 'temurin'
+
+      # The four Fabric version strings change with every Minecraft release. Rather than pin
+      # them by hand, resolve them here against Fabric's own metadata and write them in.
+      - name: Resolve Fabric versions
+        id: versions
+        run: |
+          set -euo pipefail
+          MC=$(grep '^minecraft_version=' gradle.properties | cut -d= -f2 | tr -d '\r')
+          echo "Minecraft: $MC"
+
+          YARN=$(curl -sSfL "https://meta.fabricmc.net/v2/versions/yarn/$MC" \
+                 | jq -r '.[0].version // empty')
+          LOADER=$(curl -sSfL "https://meta.fabricmc.net/v2/versions/loader" \
+                   | jq -r '[.[] | select(.stable == true)][0].version // empty')
+          FABRIC_API=$(curl -sSfL \
+                   "https://maven.fabricmc.net/net/fabricmc/fabric-api/fabric-api/maven-metadata.xml" \
+                   | grep -oP '(?<=<version>)[^<]+' | grep -F "+${MC}" | tail -1 || true)
+          LOOM=$(curl -sSfL \
+                   "https://maven.fabricmc.net/net/fabricmc/fabric-loom/maven-metadata.xml" \
+                   | grep -oP '(?<=<release>)[^<]+' | tail -1 || true)
+
+          # Fall back to whatever is already in the file rather than writing an empty value.
+          [ -n "$LOOM" ] || LOOM=$(grep '^loom_version=' gradle.properties | cut -d= -f2 | tr -d '\r')
+
+          for pair in "yarn:$YARN" "loader:$LOADER" "fabric-api:$FABRIC_API" "loom:$LOOM"; do
+            name=${pair%%:*}; value=${pair#*:}
+            if [ -z "$value" ]; then
+              echo "::error::Could not resolve the $name version for Minecraft $MC."
+              exit 1
+            fi
+            echo "$name: $value"
+          done
+
+          sed -i "s|^yarn_mappings=.*|yarn_mappings=$YARN|"   gradle.properties
+          sed -i "s|^loader_version=.*|loader_version=$LOADER|" gradle.properties
+          sed -i "s|^fabric_version=.*|fabric_version=$FABRIC_API|" gradle.properties
+          sed -i "s|^loom_version=.*|loom_version=$LOOM|"     gradle.properties
+
+          {
+            echo "### Resolved Fabric versions for \`$MC\`"
+            echo ''
+            echo 'Paste these into `gradle.properties` if you ever want to build locally:'
+            echo ''
+            echo '```properties'
+            echo "yarn_mappings=$YARN"
+            echo "loader_version=$LOADER"
+            echo "fabric_version=$FABRIC_API"
+            echo "loom_version=$LOOM"
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      # Files uploaded through the GitHub web interface lose their executable bit.
+      - name: Make the Gradle wrapper executable
+        run: chmod +x gradlew
+
+      - name: Build
+        run: ./gradlew build --stacktrace
+
+      - name: Upload the jar
+        uses: actions/upload-artifact@v4
+        with:
+          name: minerefine-hud-jar
+          path: |
+            build/libs/*.jar
+            !build/libs/*-sources.jar
+          if-no-files-found: error

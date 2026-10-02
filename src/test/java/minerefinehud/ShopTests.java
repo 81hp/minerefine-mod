@@ -238,7 +238,10 @@ public final class ShopTests {
         for (int level = 1; level <= 5; level++) {
             ledger.record(new ShopItemParser.Entry("Rafter", "axe", level, "Rafter", 1_000L * level), 1L);
         }
-        yes("five of six tiers is no total", ledger.observedTotal("Rafter", "axe").isEmpty());
+        yes("with a sheet saying there is more, five tiers is no total",
+                ledger.observedTotal("Rafter", "axe", java.util.OptionalLong.of(21_000L)).isEmpty());
+        eq("without a sheet, the shop's highest tier is the last", 15_000L,
+                ledger.observedTotal("Rafter", "axe").orElse(-1));
         ledger.record(new ShopItemParser.Entry("Rafter", "axe", 6, "Rafter", 6_000L), 1L);
         eq("all six summed", 21_000L, ledger.observedTotal("Rafter", "axe").orElse(-1));
 

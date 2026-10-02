@@ -27,12 +27,32 @@ import java.util.Set;
  */
 public final class MineCosts {
 
-    public enum Source { SHOP, SHEET, NONE }
+    /**
+     * SHOP and SHEET are whole-piece figures. PARTIAL is only the tiers the shop has shown, for a
+     * piece neither source has in full: in a new area, the spreadsheet has nothing and the shop
+     * hides tiers already owned, so tier I of a piece bought before its shop was read is never
+     * seen. Showing what is known, labelled with its tiers, beats "open the shop" for a shop that
+     * has been opened.
+     */
+    public enum Source { SHOP, SHEET, PARTIAL, NONE }
 
-    /** @param gear "sword", "axe", "armor", "helmet" and so on; "tool" when not yet known */
-    public record Piece(String gear, OptionalLong cost, Source source) {
+    /**
+     * @param gear  "sword", "axe", "armor", "helmet" and so on; "tool" when not yet known
+     * @param tiers for a PARTIAL figure, the tiers it covers, e.g. "II-V"; otherwise empty
+     */
+    public record Piece(String gear, OptionalLong cost, Source source, String tiers) {
 
+        public Piece(String gear, OptionalLong cost, Source source) {
+            this(gear, cost, source, "");
+        }
+
+        /** A whole-piece figure, the only kind that may go into a total. */
         public boolean known() {
+            return cost.isPresent() && source != Source.PARTIAL;
+        }
+
+        /** Any figure to show at all, partial ones included. */
+        public boolean shown() {
             return cost.isPresent();
         }
     }
@@ -41,7 +61,7 @@ public final class MineCosts {
 
         /** False for a mine nobody has priced: not in the data and its shop never opened. */
         public boolean anyKnown() {
-            return pieces.stream().anyMatch(Piece::known);
+            return pieces.stream().anyMatch(Piece::shown);
         }
     }
 
@@ -103,7 +123,28 @@ public final class MineCosts {
         if (fromSheet.isPresent()) {
             return new Piece(gear, fromSheet, Source.SHEET);
         }
+        List<Integer> seen = ledger.observedTiers(mineName, gear);
+        if (!seen.isEmpty()) {
+            return new Piece(gear, OptionalLong.of(ledger.observedSum(mineName, gear)), Source.PARTIAL,
+                    tierLabel(seen));
+        }
         return new Piece(gear, OptionalLong.empty(), Source.NONE);
+    }
+
+    /** "II-V" for a run of tiers, "I, III" otherwise. */
+    static String tierLabel(List<Integer> tiers) {
+        boolean run = true;
+        for (int i = 1; i < tiers.size(); i++) {
+            run &= tiers.get(i) == tiers.get(i - 1) + 1;
+        }
+        if (run && tiers.size() > 1) {
+            return roman(tiers.get(0)) + "-" + roman(tiers.get(tiers.size() - 1));
+        }
+        return String.join(", ", tiers.stream().map(MineCosts::roman).toList());
+    }
+
+    private static String roman(int level) {
+        return minerefinehud.shop.RomanNumerals.toRoman(level);
     }
 
     private static OptionalLong sheet(Optional<Mine> data, String gear) {
@@ -111,16 +152,24 @@ public final class MineCosts {
         return v > 0L ? OptionalLong.of(v) : OptionalLong.empty();
     }
 
-    /** Armour as one line: the four pieces summed, and only from the shop if all four are. */
+    /**
+     * Armour as one line: the four pieces summed, and only from the shop if all four are. If any
+     * piece is only partly known, so is the line, labelled "part" rather than with tiers.
+     */
     private static Piece bundle(List<Piece> armor) {
         long sum = 0L;
         boolean allShop = true;
+        boolean partial = false;
         for (Piece p : armor) {
-            if (!p.known()) {
+            if (!p.shown()) {
                 return new Piece("armor", OptionalLong.empty(), Source.NONE);
             }
             sum += p.cost().getAsLong();
             allShop &= p.source() == Source.SHOP;
+            partial |= p.source() == Source.PARTIAL;
+        }
+        if (partial) {
+            return new Piece("armor", OptionalLong.of(sum), Source.PARTIAL, "part");
         }
         return new Piece("armor", OptionalLong.of(sum), allShop ? Source.SHOP : Source.SHEET);
     }

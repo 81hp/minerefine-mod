@@ -145,6 +145,14 @@ public final class ShopItemParser {
         return new String[] { trimmed.substring(0, space).trim(), tail };
     }
 
+    /**
+     * A count and icon after the tier, as gear in the newer areas is named:
+     * "[Frost Pickaxe] [I] 2[item/book@items]". Not part of the name, so it is dropped before
+     * the name is read.
+     */
+    private static final Pattern ICON_SUFFIX = Pattern.compile(
+            "\\s*[0-9]*[\\p{Cf}\\s]*\\[(?:item|block)/[^\\]]*\\]");
+
     private static String clean(String raw) {
         String s = FORMATTING.matcher(raw).replaceAll("");
         s = LEADING_JUNK.matcher(s).replaceFirst("");
@@ -166,7 +174,7 @@ public final class ShopItemParser {
         if (title == null) {
             return Optional.empty();
         }
-        String cleaned = clean(title);
+        String cleaned = clean(ICON_SUFFIX.matcher(title).replaceAll(""));
         Optional<GearRef> ref = titleWith(TITLE, cleaned);
         if (ref.isEmpty()) {
             ref = titleWith(TITLE_INLINE_LEVEL, cleaned);

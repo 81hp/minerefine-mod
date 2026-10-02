@@ -48,7 +48,7 @@ Open the **Actions** tab. A run starts by itself. Two jobs:
 
 ## 4. Download the jar
 
-Click the finished run. At the bottom under **Artifacts** there is `minerefine-hud-jar`. Download
+Click the finished run. At the bottom under **Artifacts** there is `minerefine-mod-jar`. Download
 it and unzip. That is your mod.
 
 The run summary also prints the four Fabric version numbers it resolved, in case you ever want to

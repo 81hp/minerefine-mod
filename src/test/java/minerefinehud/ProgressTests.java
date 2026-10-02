@@ -64,6 +64,7 @@ public final class ProgressTests {
         severalBarsStack();
         mineRowsCanBeHidden();
         maxedThreeTierArmourMovesOn();
+        newAreaWithoutSpreadsheet();
         barCanTrackEverythingLeftToMax();
 
         System.out.println();
@@ -554,6 +555,46 @@ public final class ProgressTests {
                 catalog, new ProgressionLinks(), Optional.empty(), all, balances, ProgressPlanner.Goal.TO_MAX);
         eq("one tier left is just that tier", 167_740_000L, lastTier.cost().orElse(-1));
         eq("so no range is shown", lastTier.targetLevel(), lastTier.toLevel());
+    }
+
+    /** Frost, a new area the spreadsheet does not have, as read in game on 2 October. */
+    private static void newAreaWithoutSpreadsheet() {
+        PriceLedger ledger = new PriceLedger();
+        java.util.function.BiConsumer<String, long[]> tiers = (gear, prices) -> {
+            for (int i = 0; i < prices.length; i += 2) {
+                ledger.record(new ShopItemParser.Entry("Frost", gear, (int) prices[i], "Frost", prices[i + 1]), 1L);
+            }
+        };
+        tiers.accept("pickaxe", new long[] { 1, 1_550_000_000L, 2, 2_330_000_000L, 3, 3_020_000_000L,
+                4, 3_480_000_000L, 5, 3_760_000_000L });
+        tiers.accept("sword", new long[] { 2, 3_100_000_000L, 3, 4_030_000_000L, 4, 4_640_000_000L, 5, 5_010_000_000L });
+        tiers.accept("chestplate", new long[] { 1, 3_540_000_000L, 2, 5_490_000_000L, 3, 7_430_000_000L, 4, 8_320_000_000L });
+        tiers.accept("helmet", new long[] { 2, 3_530_000_000L, 3, 4_780_000_000L, 4, 5_350_000_000L });
+        tiers.accept("leggings", new long[] { 2, 4_700_000_000L, 3, 6_370_000_000L, 4, 7_130_000_000L });
+        tiers.accept("boots", new long[] { 2, 3_920_000_000L, 3, 5_310_000_000L, 4, 5_940_000_000L });
+        tiers.accept("charm", new long[] { 1, 12_400_000_000L });
+
+        eq("the shop listed pickaxe up to V, so it has five tiers", 5,
+                ledger.maxLevel("Frost", "pickaxe", java.util.OptionalLong.empty()));
+        var v = MineCosts.of("Frost", Optional.empty(), ledger, true);
+        eq("pickaxe complete from the shop", MineCosts.Source.SHOP, piece(v, "pickaxe").source());
+        eq("its total", 14_140_000_000L, piece(v, "pickaxe").cost().orElse(-1));
+        eq("chestplate complete too", MineCosts.Source.SHOP, piece(v, "chestplate").source());
+        eq("sword missing tier I (owned, so never listed) is shown in part", MineCosts.Source.PARTIAL,
+                piece(v, "sword").source());
+        eq("with the tiers it covers", "II-V", piece(v, "sword").tiers());
+        yes("a part never makes a total", v.total().isEmpty());
+
+        List<String> text = HudModel.costPanel(Optional.of(v), Optional.empty(), HudModel.Options.defaults())
+                .stream().map(HudModel.Line::text).toList();
+        yes("panel shows the part, labelled", text.contains("Sword: 16.78b* (II-V)"));
+        yes("and the complete pickaxe", text.contains("Pickaxe: 14.14b*"));
+        yes("and the charm", text.contains("Charm: 12.4b*"));
+        yes("and says the total is incomplete", text.contains("Total: incomplete"));
+
+        eq("a name with a count and icon after the tier still reads", 1,
+                ShopItemParser.parseTitle("[Frost Pickaxe] [I] 2‌[item/book@items]")
+                        .map(GearRef::level).orElse(-1));
     }
 
     private static void maxedThreeTierArmourMovesOn() {

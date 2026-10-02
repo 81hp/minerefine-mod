@@ -162,7 +162,7 @@ public final class PriceLedger {
     public int maxLevel(String mine, String gear, OptionalLong sheetTotal) {
         int fallback = maxLevel(mine, gear);
         if (sheetTotal.isEmpty() || sheetTotal.getAsLong() <= 0L) {
-            return fallback;
+            return shopTierCount(mine, gear).orElse(fallback);
         }
         int highest = 0;
         long seen = 0L;
@@ -189,6 +189,38 @@ public final class PriceLedger {
         }
         long room = Math.min(MAX_PROBED_LEVEL, rest / top);
         return Math.max(highest, Math.min(fallback, highest + (int) room));
+    }
+
+    /**
+     * The tier count from the shop alone, for an item the spreadsheet does not list (a new area).
+     * A shop lists every tier above the ones owned, so the highest tier it has shown is the last
+     * one: Frost's pickaxe was listed II to V, so it has five. Only trusted once two or more tiers
+     * have been seen, so a single item seen on its own (a purchase screen, a chat link) cannot
+     * pass for a whole listing.
+     */
+    public java.util.OptionalInt shopTierCount(String mine, String gear) {
+        List<Integer> seen = observedTiers(mine, gear);
+        return seen.size() >= 2 ? java.util.OptionalInt.of(seen.get(seen.size() - 1)) : java.util.OptionalInt.empty();
+    }
+
+    /** The tiers of this item read from the shop, lowest first. */
+    public List<Integer> observedTiers(String mine, String gear) {
+        List<Integer> out = new ArrayList<>();
+        for (int level = 1; level <= MAX_PROBED_LEVEL; level++) {
+            if (observed.containsKey(key(mine, gear, level))) {
+                out.add(level);
+            }
+        }
+        return out;
+    }
+
+    /** What the tiers that have been seen add up to, whether or not that is every tier. */
+    public long observedSum(String mine, String gear) {
+        long sum = 0L;
+        for (int level : observedTiers(mine, gear)) {
+            sum += observed.get(key(mine, gear, level)).amount();
+        }
+        return sum;
     }
 
     /**

@@ -286,8 +286,13 @@ public final class HudModel {
                 continue;
             }
             String label = capitalise(piece.gear());
-            if (!piece.known()) {
+            if (!piece.shown()) {
                 lines.add(Line.of(label + ": open the shop", Style.DIM));
+                continue;
+            }
+            if (piece.source() == MineCosts.Source.PARTIAL) {
+                // Only the tiers the shop has shown, so say which; never counted in the total.
+                lines.add(costLine(label, piece.cost().getAsLong(), "* (" + piece.tiers() + ")", options));
                 continue;
             }
             // A star marks a figure read from the shop rather than taken from the spreadsheet.

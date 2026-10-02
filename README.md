@@ -25,7 +25,7 @@ Everything is movable, resizable and configurable in game.
 ./gradlew build
 ```
 
-The jar lands in `build/libs/minerefine-hud-0.1.0.jar` (ignore the `-sources` one). The Minecraft,
+The jar lands in `build/libs/minerefine-mod-<version>.jar` (ignore the `-sources` one). The Minecraft,
 Fabric and Loom versions are pinned in `gradle.properties`; to move to another Minecraft version,
 copy new values from <https://fabricmc.net/develop>.
 

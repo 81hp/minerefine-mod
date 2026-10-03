@@ -170,7 +170,48 @@ public final class MineCatalog {
                 found = b;
             }
         }
+        if (found != null || k.length() < 5) {
+            return Optional.ofNullable(found);
+        }
+        // The server and the sheet can differ by a letter: "Atheris" gear for the sheet's Aetheris.
+        for (Mine b : bosses) {
+            if (oneLetterOff(k, letters(b.name()))) {
+                if (found != null) {
+                    return Optional.empty();
+                }
+                found = b;
+            }
+        }
         return Optional.ofNullable(found);
+    }
+
+    /** One letter added, dropped or changed, and no more. */
+    public static boolean oneLetterOff(String a, String b) {
+        if (a.equals(b) || Math.abs(a.length() - b.length()) > 1) {
+            return false;
+        }
+        int i = 0;
+        int j = 0;
+        int edits = 0;
+        while (i < a.length() && j < b.length()) {
+            if (a.charAt(i) == b.charAt(j)) {
+                i++;
+                j++;
+                continue;
+            }
+            if (++edits > 1) {
+                return false;
+            }
+            if (a.length() > b.length()) {
+                i++;
+            } else if (b.length() > a.length()) {
+                j++;
+            } else {
+                i++;
+                j++;
+            }
+        }
+        return edits + (a.length() - i) + (b.length() - j) <= 1;
     }
 
     private static String letters(String s) {

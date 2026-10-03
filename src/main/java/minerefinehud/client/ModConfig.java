@@ -60,6 +60,8 @@ public final class ModConfig {
         public String slot = "SWORD";
         /** 1 for a single piece. 12 for twelve chestplates bought at the same tier. */
         public int quantity = 1;
+        /** Follow boss gear, paid in that boss's fragments, instead of mine gear. */
+        public boolean boss = false;
 
         public Bar() {
         }
@@ -304,6 +306,11 @@ public final class ModConfig {
         }
         for (Bar b : progressBars) {
             b.quantity = Math.max(1, Math.min(ProgressPlanner.ProgressView.MAX_QUANTITY, b.quantity));
+            // A boss is not a mine, so there is no boss Total, and no boss sells an axe or a shovel.
+            if (b.choice().map(s -> s.isTotal() || s == ProgressSlot.AXE || s == ProgressSlot.SHOVEL)
+                    .orElse(false)) {
+                b.boss = false;
+            }
         }
 
         if (minedBlocks == null) {

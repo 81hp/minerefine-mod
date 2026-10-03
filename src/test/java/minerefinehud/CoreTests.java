@@ -46,6 +46,7 @@ public final class CoreTests {
         turretMergesMatchTheOriginal();
         bossWorldsFromSheetAndBroadcasts();
         bossPanelShowsOnlyThisWorld();
+        chatSpellingsFindTheSheetsBoss();
         reminderNeedsATrustedTimer();
         reminderRingsOncePerRespawn();
         bossRowsCanBeHidden();
@@ -308,6 +309,54 @@ public final class CoreTests {
                         Optional.of("SKYBOUND")));
         assertTrue("nothing mined yet, no world",
                 BossWorlds.currentWorld(Optional.empty(), Optional.empty()).isEmpty());
+    }
+
+    /**
+     * Seen in game: the chat names bosses differently from the sheet, and each mismatch left a
+     * boss with no world, so Atheris showed in the Ocean.
+     */
+    private static void chatSpellingsFindTheSheetsBoss() {
+        Map<String, Long> fragments = new LinkedHashMap<>();
+        fragments.put("sword", 10L);
+        MineCatalog catalog = new MineCatalog(List.of(
+                mine("Granite", "Aether", "pickaxe"),
+                new Mine("boss-aether-aetheris", "boss", "Aether", "Aetheris", fragments, null),
+                new Mine("boss-aether-zeus", "boss", "Aether", "Zeus", fragments, null),
+                mine("Sponge", "Ocean", "pickaxe"),
+                new Mine("boss-ocean-guardian", "boss", "Ocean", "Guardian o' Toole", fragments, null),
+                new Mine("boss-arctic-bjorn", "boss", "Arctic", "Bjorn Rebjorn", fragments, null),
+                new Mine("boss-woodland-watcher", "boss", "Woodland", "Watcher", fragments, null),
+                new Mine("boss-woodland-ravager", "boss", "Woodland", "Ravager", fragments, null),
+                new Mine("boss-ruins-angry-archaeologist", "boss", "Ruins", "Angry Archaeologist", fragments, null)));
+        BossWorlds worlds = new BossWorlds();
+
+        assertEquals("one letter off", Optional.of("Aether"), worlds.worldOf("Atheris", catalog));
+        assertEquals("with a \"The\" in front", Optional.of("Woodland"), worlds.worldOf("The Watcher", catalog));
+        assertEquals("another \"The\"", Optional.of("Woodland"), worlds.worldOf("The Ravager", catalog));
+        assertEquals("a shared first name", Optional.of("Arctic"), worlds.worldOf("Björn Ironside", catalog));
+        assertEquals("without \"Angry\"", Optional.of("Ruins"), worlds.worldOf("Archaeologist", catalog));
+        assertTrue("a boss nothing like any listed stays unknown",
+                worlds.worldOf("The Kraken", catalog).isEmpty());
+        assertTrue("a short name is not stretched to fit", worlds.worldOf("Zeta", catalog).isEmpty());
+
+        // A wrong world learned before the names matched no longer counts.
+        worlds.importAll(Map.of("The Watcher", "Ruins"));
+        assertEquals("the sheet beats an old wrong guess", Optional.of("Woodland"),
+                worlds.worldOf("The Watcher", catalog));
+        assertTrue("and a matched boss is not learned again",
+                !worlds.learn("Atheris", Optional.of("Ocean"), catalog));
+
+        BossTracker tracker = new BossTracker();
+        tracker.onSlain("Atheris", 0L);
+        tracker.onSlain("Guardian 'o Toole", 0L);
+        tracker.onSlain("The Watcher", 0L);
+        List<String> inOcean = worlds.filter(tracker.views(1_000L), Optional.of("Ocean"), catalog, false)
+                .stream().map(BossTracker.BossView::displayName).toList();
+        assertEquals("in the Ocean only the Ocean's boss", List.of("Guardian 'o Toole"), inOcean);
+
+        assertEquals("shop gear in the chat's spelling finds the boss", Optional.of("Aetheris"),
+                catalog.boss("Atheris").map(Mine::name));
+        assertTrue("a mine is never taken for a boss", catalog.boss("Granite").isEmpty());
     }
 
     private static void bossPanelShowsOnlyThisWorld() {

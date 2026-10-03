@@ -35,6 +35,7 @@ import minerefinehud.mine.MineSpots;
 import minerefinehud.mine.MiningBlocks;
 import minerefinehud.mine.ResourcePickups;
 import minerefinehud.progress.ActionBarReader;
+import minerefinehud.progress.FragmentCounts;
 import minerefinehud.progress.MineCosts;
 import minerefinehud.progress.ProgressPlanner;
 import minerefinehud.progress.ProgressSlot;
@@ -107,6 +108,7 @@ public final class MinerefineHudClient implements ClientModInitializer {
 
     /** Resource items gained, which name the mine being mined outright. */
     private final ResourcePickups resourcePickups = new ResourcePickups();
+    private final FragmentCounts fragmentCounts = new FragmentCounts();
     private Optional<String> lastPickup = Optional.empty();
     private long lastPickupAt;
     /** The block icon on screen when the last resource was picked up. */
@@ -382,6 +384,7 @@ public final class MinerefineHudClient implements ClientModInitializer {
             currentWorld = Optional.empty();
             lastUnknownBlockAt = 0L;
             resourcePickups.reset();
+            fragmentCounts.reset();
             // Cheap, and lets a replaced progression.json in the config folder apply on rejoin.
             catalogSource.load();
         });
@@ -875,7 +878,9 @@ public final class MinerefineHudClient implements ClientModInitializer {
                 return;
             }
             lastProgressCheck = now;
-            scanPickups(client, now);
+            List<ResourcePickups.Item> items = inventoryItems(client);
+            fragmentCounts.observe(items).forEach((currency, count) -> balances.update(currency, count, now));
+            scanPickups(items, now);
             progressViews = planAllProgress();
         });
     }
@@ -885,9 +890,9 @@ public final class MinerefineHudClient implements ClientModInitializer {
      * directly, and if the action bar showed a block at the same moment, that block is taught to
      * MiningBlocks so the mine is known from the block alone next time, even with a full inventory.
      */
-    private void scanPickups(MinecraftClient client, long now) {
+    private void scanPickups(List<ResourcePickups.Item> items, long now) {
         var catalog = catalogSource.catalog();
-        Optional<String> gained = resourcePickups.observe(inventoryItems(client), catalog);
+        Optional<String> gained = resourcePickups.observe(items, catalog);
         // Still observed above, so the inventory baseline stays current, but a gain while not
         // mining (compressing, a backpack, a sale) says nothing about where the player is.
         if (gained.isEmpty() || !ResourcePickups.namesTheMine(now, lastActionBarAt, SAME_BLOCK_MS)) {
@@ -948,16 +953,21 @@ public final class MinerefineHudClient implements ClientModInitializer {
         List<ProgressPlanner.ProgressView> out = new java.util.ArrayList<>();
         for (ModConfig.Bar bar : config.progressBars) {
             // A Total bar ignores any amount left over from when it tracked a single piece.
-            bar.choice().ifPresent(slot -> out.add(planProgress(slot)
+            bar.choice().ifPresent(slot -> out.add(planProgress(slot, bar.boss)
                     .withQuantity(slot.isTotal() ? 1 : bar.quantity)));
         }
         return out;
     }
 
-    private ProgressPlanner.ProgressView planProgress(ProgressSlot slot) {
-        return ProgressPlanner.plan(slot, ownedGear(MinecraftClient.getInstance()),
-                catalogSource.catalog(), links, currentMine, prices, balances,
-                config.progressToMax ? ProgressPlanner.Goal.TO_MAX : ProgressPlanner.Goal.NEXT_TIER);
+    private ProgressPlanner.ProgressView planProgress(ProgressSlot slot, boolean boss) {
+        ProgressPlanner.Goal goal = config.progressToMax ? ProgressPlanner.Goal.TO_MAX : ProgressPlanner.Goal.NEXT_TIER;
+        List<ShopItemParser.GearRef> owned = ownedGear(MinecraftClient.getInstance());
+        if (boss && !slot.isTotal()) {
+            return ProgressPlanner.planBoss(slot, owned, catalogSource.catalog(), links, currentMine, prices,
+                    balances, goal);
+        }
+        return ProgressPlanner.plan(slot, owned, catalogSource.catalog(), links, currentMine, prices, balances,
+                goal);
     }
 
     /**

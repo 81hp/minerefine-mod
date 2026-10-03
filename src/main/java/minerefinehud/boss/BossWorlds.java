@@ -60,13 +60,80 @@ public final class BossWorlds {
 
     /** The spreadsheet's world for this boss, else the learned one. */
     public Optional<String> worldOf(String bossName, MineCatalog catalog) {
+        Optional<String> fromSheet = sheetBoss(bossName, catalog).map(Mine::world).filter(w -> !w.isBlank());
+        if (fromSheet.isPresent()) {
+            return fromSheet;
+        }
+        return Optional.ofNullable(learned.get(key(bossName))).map(Learned::world);
+    }
+
+    /** Words that say nothing about which boss it is: "The Watcher" is the sheet's Watcher. */
+    private static final java.util.Set<String> FILLER = java.util.Set.of("the", "angry");
+
+    /**
+     * The spreadsheet's entry for a boss, however the chat spells it. The chat and the sheet
+     * disagree more than they agree: "The Watcher" for Watcher, "Atheris" for Aetheris, "Björn
+     * Ironside" for Bjorn Rebjorn. Unmatched, such a boss had no world, so it showed in every
+     * world, and a broadcast heard after a warp could teach it the wrong one.
+     *
+     * Tried in order, each only when exactly one boss fits: the same letters; the same without
+     * "the" and "angry"; one letter off; a shared word of four letters or more.
+     */
+    static Optional<Mine> sheetBoss(String bossName, MineCatalog catalog) {
         String k = key(bossName);
-        for (Mine boss : catalog.bosses()) {
-            if (key(boss.name()).equals(k) && !boss.world().isBlank()) {
-                return Optional.of(boss.world());
+        if (k.isEmpty()) {
+            return Optional.empty();
+        }
+        List<Mine> bosses = catalog.bosses();
+        Optional<Mine> found = only(bosses, b -> key(b.name()).equals(k));
+        if (found.isEmpty()) {
+            String core = core(bossName);
+            found = only(bosses, b -> !core.isEmpty() && core(b.name()).equals(core));
+            if (found.isEmpty() && core.length() >= 5) {
+                found = only(bosses, b -> MineCatalog.oneLetterOff(core, core(b.name())));
+            }
+            if (found.isEmpty()) {
+                List<String> words = words(bossName);
+                found = only(bosses, b -> words(b.name()).stream().anyMatch(words::contains));
             }
         }
-        return Optional.ofNullable(learned.get(k)).map(Learned::world);
+        return found;
+    }
+
+    private static Optional<Mine> only(List<Mine> bosses, java.util.function.Predicate<Mine> test) {
+        Mine found = null;
+        for (Mine b : bosses) {
+            if (test.test(b)) {
+                if (found != null) {
+                    return Optional.empty();
+                }
+                found = b;
+            }
+        }
+        return Optional.ofNullable(found);
+    }
+
+    /** The name's words, accents folded and lower case, the filler words left out. */
+    private static List<String> allWords(String name) {
+        String folded = Normalizer.normalize(name == null ? "" : name, Normalizer.Form.NFD)
+                .replaceAll("\\p{M}+", "").toLowerCase(Locale.ROOT);
+        List<String> out = new ArrayList<>();
+        for (String w : folded.split("[^\\p{L}\\p{N}']+")) {
+            String word = w.replace("'", "");
+            if (!word.isEmpty() && !FILLER.contains(word)) {
+                out.add(word);
+            }
+        }
+        return out;
+    }
+
+    private static String core(String name) {
+        return String.join("", allWords(name));
+    }
+
+    /** Words long enough to say which boss it is: "bjorn" yes, the "o" of Guardian o' Toole no. */
+    private static List<String> words(String name) {
+        return allWords(name).stream().filter(w -> w.length() >= 4).toList();
     }
 
     /**
@@ -79,10 +146,8 @@ public final class BossWorlds {
         if (world.isEmpty() || world.get().isBlank() || key(bossName).isEmpty()) {
             return false;
         }
-        for (Mine boss : catalog.bosses()) {
-            if (key(boss.name()).equals(key(bossName))) {
-                return false;
-            }
+        if (sheetBoss(bossName, catalog).isPresent()) {
+            return false;
         }
         Learned old = learned.get(key(bossName));
         if (old != null && sameWorld(old.world()).equals(sameWorld(world.get()))) {

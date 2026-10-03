@@ -57,10 +57,17 @@ public final class ProgressPlanner {
      */
     public record ProgressView(ProgressSlot slot, String mine, String gear, int targetLevel,
                                State state, OptionalLong cost, OptionalLong have, String currency,
-                               int quantity, int toLevel) {
+                               int quantity, int toLevel, boolean boss) {
 
         /** Most anyone buys at once. Far beyond 12, and keeps the multiplication well inside a long. */
         public static final int MAX_QUANTITY = 999;
+
+        /** Mine gear, the usual bar. */
+        public ProgressView(ProgressSlot slot, String mine, String gear, int targetLevel,
+                            State state, OptionalLong cost, OptionalLong have, String currency,
+                            int quantity, int toLevel) {
+            this(slot, mine, gear, targetLevel, state, cost, have, currency, quantity, toLevel, false);
+        }
 
         /**
          * The same upgrade bought this many times over: one bar for the combined cost rather than
@@ -69,7 +76,8 @@ public final class ProgressPlanner {
         public ProgressView withQuantity(int count) {
             int q = Math.max(1, Math.min(MAX_QUANTITY, count));
             if (q == quantity || cost.isEmpty()) {
-                return new ProgressView(slot, mine, gear, targetLevel, state, cost, have, currency, q, toLevel);
+                return new ProgressView(slot, mine, gear, targetLevel, state, cost, have, currency, q, toLevel,
+                        boss);
             }
             long total;
             try {
@@ -82,7 +90,7 @@ public final class ProgressPlanner {
                 s = have.isPresent() && have.getAsLong() >= total ? State.FINISHED : State.TRACKING;
             }
             return new ProgressView(slot, mine, gear, targetLevel, s, OptionalLong.of(total), have, currency, q,
-                    toLevel);
+                    toLevel, boss);
         }
 
         /** 0 to 1, for the bar. Zero when either side is unknown. */
@@ -148,7 +156,15 @@ public final class ProgressPlanner {
         List<ShopItemParser.GearRef> unfinished = mine.stream()
                 .filter(g -> g.level() < maxLevel(ledger, catalog, catalog.serverName(g.mine()), slot.gear()))
                 .toList();
-        List<ShopItemParser.GearRef> candidates = unfinished.isEmpty() ? mine : unfinished;
+        // Boss gear short of its last tier is usually just worn, not being upgraded: it is bought
+        // with boss fragments, not mined resources. Ranked by its world, an Archaeologist
+        // chestplate at I outranked the End chestplates actually being upgraded. It only leads
+        // when no mine-bought copy is unfinished.
+        List<ShopItemParser.GearRef> unfinishedFromMines = unfinished.stream()
+                .filter(g -> !isBossGear(catalog, g.mine()))
+                .toList();
+        List<ShopItemParser.GearRef> candidates = !unfinishedFromMines.isEmpty() ? unfinishedFromMines
+                : !unfinished.isEmpty() ? unfinished : mine;
 
         String at;
         if (!candidates.isEmpty()) {
@@ -183,9 +199,19 @@ public final class ProgressPlanner {
             level = ownedLevel(catalog, mine, at, maxLevel(ledger, catalog, at, slot.gear()));
         }
 
+        // A price names its currency. Without one, the mine's own name is the best guess, which
+        // is what every observed tooltip so far has used ("Debris x1.96B" at Debris).
+        int max = maxLevel(ledger, catalog, at, slot.gear());
+        String currency = currencyOf(ledger, at, slot.gear(), max).orElse(at);
+        return priced(slot, at, level, max, currency, catalog, ledger, balances, goal, false);
+    }
+
+    /** The view for an item owned at {@code level} of {@code max}: the next tier, or all of them. */
+    private static ProgressView priced(ProgressSlot slot, String at, int level, int max, String currency,
+                                       MineCatalog catalog, PriceLedger ledger, ResourceBalances balances,
+                                       Goal goal, boolean boss) {
         int target = level + 1;
         OptionalLong sheet = catalog.pieceTotal(at, slot.gear());
-        int max = maxLevel(ledger, catalog, at, slot.gear());
         boolean toMax = goal == Goal.TO_MAX && max > target;
         int toLevel = toMax ? max : target;
 
@@ -193,19 +219,202 @@ public final class ProgressPlanner {
                 ? costToMax(ledger, at, slot.gear(), level, max, sheet)
                 : tierPrice(ledger, at, slot.gear(), target, max, sheet);
 
-        // A price names its currency. Without one, the mine's own name is the best guess, which
-        // is what every observed tooltip so far has used ("Debris x1.96B" at Debris).
-        String currency = currencyOf(ledger, at, slot.gear(), max).orElse(at);
         OptionalLong have = balances.get(currency)
                 .map(r -> OptionalLong.of(r.amount())).orElse(OptionalLong.empty());
 
         if (cost.isEmpty()) {
             return new ProgressView(slot, at, slot.gear(), target, State.PRICE_UNKNOWN,
-                    OptionalLong.empty(), have, currency, 1, toLevel);
+                    OptionalLong.empty(), have, currency, 1, toLevel, boss);
         }
 
         State state = have.isPresent() && have.getAsLong() >= cost.getAsLong() ? State.FINISHED : State.TRACKING;
-        return new ProgressView(slot, at, slot.gear(), target, state, cost, have, currency, 1, toLevel);
+        return new ProgressView(slot, at, slot.gear(), target, state, cost, have, currency, 1, toLevel, boss);
+    }
+
+    /**
+     * The bar for boss gear: the boss piece of this kind being upgraded, priced in that boss's
+     * fragments rather than a mine's resource.
+     *
+     * The same rules as mine gear, along the bosses in world order instead of the mines: a copy
+     * short of its last tier first, else the latest boss owned from, moving on to the next boss
+     * once that one is maxed. With no boss piece owned, the boss of the world the player is
+     * mining in. Only bosses that sell this kind of item count; none sells an axe or a shovel.
+     */
+    public static ProgressView planBoss(ProgressSlot slot,
+                                        List<ShopItemParser.GearRef> owned,
+                                        MineCatalog catalog,
+                                        ProgressionLinks links,
+                                        Optional<Mine> currentMine,
+                                        PriceLedger ledger,
+                                        ResourceBalances balances,
+                                        Goal goal) {
+        List<Mine> bosses = slot.isTotal() ? List.of() : catalog.bosses().stream()
+                .filter(b -> b.pieceCost(slot.gear()) > 0L)
+                .toList();
+        if (bosses.isEmpty()) {
+            return emptyBoss(slot, State.ALL_MAXED, "");
+        }
+
+        List<ShopItemParser.GearRef> ofGear = owned.stream()
+                .filter(g -> slot.gear().equals(g.gear().toLowerCase(Locale.ROOT)))
+                .filter(g -> isBossGear(catalog, g.mine()))
+                .filter(g -> bossIndex(catalog, bosses, g.mine()) >= 0)
+                .toList();
+        List<ShopItemParser.GearRef> unfinished = ofGear.stream()
+                .filter(g -> g.level() < maxLevel(ledger, catalog, g.mine(), slot.gear()))
+                .toList();
+        List<ShopItemParser.GearRef> candidates = unfinished.isEmpty() ? ofGear : unfinished;
+
+        int index;
+        if (!candidates.isEmpty()) {
+            ShopItemParser.GearRef best = candidates.get(0);
+            for (ShopItemParser.GearRef g : candidates) {
+                int byOrder = Integer.compare(bossIndex(catalog, bosses, g.mine()),
+                        bossIndex(catalog, bosses, best.mine()));
+                if (byOrder > 0 || (byOrder == 0 && g.level() > best.level())) {
+                    best = g;
+                }
+            }
+            index = bossIndex(catalog, bosses, best.mine());
+        } else if (currentMine.isPresent()) {
+            index = bossOfWorld(catalog, bosses, currentMine.get());
+            if (index < 0) {
+                return emptyBoss(slot, State.ALL_MAXED, currentMine.get().name());
+            }
+        } else {
+            return emptyBoss(slot, State.NO_MINE, "");
+        }
+
+        while (true) {
+            Mine boss = bosses.get(index);
+            String name = bossName(boss, ofGear, catalog, links, ledger);
+            int max = maxLevel(ledger, catalog, name, slot.gear());
+            int level = bossLevel(catalog, ofGear, boss, max);
+            if (level < max) {
+                String currency = currencyOf(ledger, name, slot.gear(), max)
+                        .orElseGet(() -> fragmentCurrency(catalog, balances, boss, name));
+                return priced(slot, name, level, max, currency, catalog, ledger, balances, goal, true);
+            }
+            if (++index >= bosses.size()) {
+                return new ProgressView(slot, name, slot.gear(), level, State.ALL_MAXED,
+                        OptionalLong.empty(), OptionalLong.empty(), name, 1, level, true);
+            }
+        }
+    }
+
+    private static ProgressView emptyBoss(ProgressSlot slot, State state, String mine) {
+        return new ProgressView(slot, mine, slot.gear(), 0, state,
+                OptionalLong.empty(), OptionalLong.empty(), mine, 1, 0, true);
+    }
+
+    /** Position among the bosses that sell this item, or -1 for gear that is not theirs. */
+    private static int bossIndex(MineCatalog catalog, List<Mine> bosses, String gearMine) {
+        return catalog.boss(gearMine).map(b -> indexById(bosses, b)).orElse(-1);
+    }
+
+    private static int indexById(List<Mine> list, Mine m) {
+        for (int i = 0; i < list.size(); i++) {
+            if (java.util.Objects.equals(list.get(i).id(), m.id())
+                    && list.get(i).name().equals(m.name())) {
+                return i;
+            }
+        }
+        return -1;
+    }
+
+    /**
+     * The boss of the world this mine is in: the first boss the data lists after it, since each
+     * world's bosses follow its mines. -1 for a mine the data does not list, or past the last boss.
+     */
+    private static int bossOfWorld(MineCatalog catalog, List<Mine> bosses, Mine current) {
+        List<Mine> all = catalog.all();
+        int from = indexById(all, current);
+        if (from < 0) {
+            from = catalog.detectFrom(current.name()).map(m -> indexById(all, m)).orElse(-1);
+        }
+        if (from < 0) {
+            return -1;
+        }
+        for (int i = from + 1; i < all.size(); i++) {
+            int at = indexById(bosses, all.get(i));
+            if (at >= 0) {
+                return at;
+            }
+        }
+        return -1;
+    }
+
+    /**
+     * The name the shop sells this boss's gear under, which is what prices are stored by:
+     * "Archaeologist" for Angry Archaeologist. From gear owned, else from the learned order, else
+     * from prices and tier counts the ledger holds, else the boss's full name, which still finds
+     * the spreadsheet's figures.
+     */
+    private static String bossName(Mine boss, List<ShopItemParser.GearRef> owned, MineCatalog catalog,
+                                   ProgressionLinks links, PriceLedger ledger) {
+        for (ShopItemParser.GearRef g : owned) {
+            if (isBoss(catalog, g.mine(), boss)) {
+                return g.mine();
+            }
+        }
+        for (String key : links.export().keySet()) {
+            String mine = key.substring(key.indexOf('|') + 1);
+            if (isBossGear(catalog, mine) && isBoss(catalog, mine, boss)) {
+                return mine;
+            }
+        }
+        for (String mine : ledger.knownMines()) {
+            if (isBossGear(catalog, mine) && isBoss(catalog, mine, boss)) {
+                return titleCase(mine);
+            }
+        }
+        return boss.name();
+    }
+
+    private static boolean isBoss(MineCatalog catalog, String gearMine, Mine boss) {
+        return catalog.boss(gearMine).filter(b -> java.util.Objects.equals(b.id(), boss.id())
+                && b.name().equals(boss.name())).isPresent();
+    }
+
+    /** "archaeologist" as stored by the ledger, shown as "Archaeologist". */
+    private static String titleCase(String s) {
+        StringBuilder out = new StringBuilder(s.length());
+        boolean start = true;
+        for (char c : s.toCharArray()) {
+            out.append(start ? Character.toUpperCase(c) : c);
+            start = Character.isWhitespace(c);
+        }
+        return out.toString();
+    }
+
+    /**
+     * What this boss's gear is paid in when no price has said: a fragment balance already read
+     * for this boss, else "Archaeologist Fragment", the way the shop names it.
+     */
+    private static String fragmentCurrency(MineCatalog catalog, ResourceBalances balances, Mine boss, String name) {
+        for (String currency : balances.all().keySet()) {
+            String lower = currency.toLowerCase(Locale.ROOT);
+            if (lower.endsWith(" fragment")
+                    && isBoss(catalog, currency.substring(0, currency.length() - " fragment".length()), boss)) {
+                return currency;
+            }
+        }
+        return name + " Fragment";
+    }
+
+    /** The tier of the boss piece being upgraded, as {@link #ownedLevel} does for a mine's. */
+    private static int bossLevel(MineCatalog catalog, List<ShopItemParser.GearRef> owned, Mine boss, int max) {
+        int highest = 0;
+        int unfinished = 0;
+        for (ShopItemParser.GearRef g : owned) {
+            if (isBoss(catalog, g.mine(), boss)) {
+                highest = Math.max(highest, g.level());
+                if (g.level() < max) {
+                    unfinished = Math.max(unfinished, g.level());
+                }
+            }
+        }
+        return unfinished > 0 ? unfinished : highest;
     }
 
     private static final List<String> TOTAL_TOOLS = List.of("pickaxe", "axe", "shovel");
@@ -355,7 +564,7 @@ public final class ProgressPlanner {
         double bestOrder = -1;
         for (ShopItemParser.GearRef g : owned) {
             // Boss gear is not a mine to stand in, so it cannot be the mine the total is for.
-            if (catalog.exactly(g.mine()).isEmpty() && catalog.boss(g.mine()).isPresent()) {
+            if (isBossGear(catalog, g.mine())) {
                 continue;
             }
             double order = orderOf(catalog, links, g.gear().toLowerCase(Locale.ROOT), g.mine());
@@ -365,6 +574,11 @@ public final class ProgressPlanner {
             }
         }
         return Optional.ofNullable(best).map(catalog::serverName);
+    }
+
+    /** Gear named after a boss ("Archaeologist") rather than a mine. */
+    private static boolean isBossGear(MineCatalog catalog, String mine) {
+        return catalog.exactly(mine).isEmpty() && catalog.boss(mine).isPresent();
     }
 
     /**
@@ -434,7 +648,17 @@ public final class ProgressPlanner {
                 OptionalLong.empty(), OptionalLong.empty(), mine, 1, 0);
     }
 
+    /** Every boss piece the bundled table lists has two tiers. */
+    private static final int BOSS_TIERS = 2;
+
     private static int maxLevel(PriceLedger ledger, MineCatalog catalog, String mine, String gear) {
+        // A boss the table leaves out (Endor, Nekronos) would otherwise get the mines' guess of
+        // six, and a maxed piece would wait for a tier III that does not exist.
+        if (!"charm".equals(gear) && isBossGear(catalog, mine) && !ledger.knowsTierCount(mine, gear)
+                && ledger.observedTiers(mine, gear).isEmpty()
+                && ledger.price(mine, gear, BOSS_TIERS + 1).isEmpty()) {
+            return BOSS_TIERS;
+        }
         return ledger.maxLevel(mine, gear, catalog.pieceTotal(mine, gear));
     }
 

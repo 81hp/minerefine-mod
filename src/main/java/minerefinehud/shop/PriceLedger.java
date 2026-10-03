@@ -93,6 +93,11 @@ public final class PriceLedger {
         }
     }
 
+    /** Whether the bundled table gives this item's tier count. */
+    public boolean knowsTierCount(String mine, String gear) {
+        return knownTiers.containsKey(normalise(mine) + '|' + normalise(gear));
+    }
+
     /** Seeds a fallback price. Never overwrites something the client observed. */
     public void seed(String mine, String gear, int level, long amount, String currency) {
         prefill.put(key(mine, gear, level), new Price(amount, currency, Source.PREFILL, 0L));
@@ -268,6 +273,23 @@ public final class PriceLedger {
         for (String k : observed.keySet()) {
             if (k.startsWith(prefix)) {
                 out.add(k.substring(prefix.length(), k.lastIndexOf('|')));
+            }
+        }
+        return out;
+    }
+
+    /**
+     * Every mine, or boss, the ledger knows by the name its shop uses, from prices seen or seeded
+     * and from the bundled tier counts. Lower case, as stored.
+     */
+    public java.util.Set<String> knownMines() {
+        java.util.Set<String> out = new java.util.TreeSet<>();
+        for (java.util.Set<String> keys : List.of(observed.keySet(), prefill.keySet(), knownTiers.keySet())) {
+            for (String k : keys) {
+                int bar = k.indexOf('|');
+                if (bar > 0) {
+                    out.add(k.substring(0, bar));
+                }
             }
         }
         return out;

@@ -188,13 +188,27 @@ public final class SettingsScreen extends Screen {
             ModConfig.Bar bar = bars.get(i);
             int row = y(i);
 
+            // Bosses sell swords, pickaxes, armour and charms, never an axe, a shovel or a Total.
+            boolean bossable = bar.choice().map(SettingsScreen::bossesSell).orElse(false);
+            int itemWidth = bossable ? COLUMN_WIDTH - 46 : COLUMN_WIDTH;
             addDrawableChild(ButtonWidget.builder(Text.literal("Item: " + niceSlot(bar.slot)), b -> {
                         int at = bar.choice().map(Enum::ordinal).orElse(-1);
-                        bar.slot = slots[(at + 1) % slots.length].name();
+                        do {
+                            at = (at + 1) % slots.length;
+                        } while (bar.boss && !bossesSell(slots[at]));
+                        bar.slot = slots[at].name();
                         onChange.run();
                         clearAndInit();   // the Amount box comes and goes with Total
                     })
-                    .dimensions(x(0), row, COLUMN_WIDTH, 20).build());
+                    .dimensions(x(0), row, itemWidth, 20).build());
+            if (bossable) {
+                addDrawableChild(ButtonWidget.builder(Text.literal(bar.boss ? "Boss" : "Mine"), b -> {
+                            bar.boss = !bar.boss;
+                            onChange.run();
+                            clearAndInit();
+                        })
+                        .dimensions(x(0) + COLUMN_WIDTH - 42, row, 42, 20).build());
+            }
 
             // A whole mine is bought once, so a Total bar has no amount.
             if (!bar.choice().map(ProgressSlot::isTotal).orElse(false)) {
@@ -362,6 +376,10 @@ public final class SettingsScreen extends Screen {
 
     private Text goalLabel() {
         return Text.literal("Track: " + (config.progressToMax ? "to max" : "next tier"));
+    }
+
+    private static boolean bossesSell(ProgressSlot slot) {
+        return !slot.isTotal() && slot != ProgressSlot.AXE && slot != ProgressSlot.SHOVEL;
     }
 
     private static String niceSlot(String slot) {

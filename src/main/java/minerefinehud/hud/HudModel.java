@@ -261,10 +261,15 @@ public final class HudModel {
                         + (v.slot().isTotal() ? "prices" : "price"), Style.DIM));
             }
             case ALL_MAXED -> lines.add(Line.of(
-                    v.slot().label() + ": every known tier done", Style.GOOD));
+                    slotName(v) + ": every known tier done", Style.GOOD));
             case NO_MINE -> lines.add(Line.of(
-                    v.slot().label() + ": go to a mine to start", Style.DIM));
+                    slotName(v) + ": go to a mine to start", Style.DIM));
         }
+    }
+
+    /** "Chestplate", or "Boss chestplate" for a bar following boss gear. */
+    private static String slotName(ProgressPlanner.ProgressView v) {
+        return v.boss() ? "Boss " + v.slot().label().toLowerCase(java.util.Locale.ROOT) : v.slot().label();
     }
 
     // ------------------------------------------------------------------ mine

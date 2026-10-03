@@ -375,6 +375,186 @@ public final class ProgressTests {
                         new GearRef("Bjorn", "chestplate", 1)),
                 arcticToSculk, links, Optional.empty(), new PriceLedger(), new ResourceBalances());
         eq("boss gear still outranks the world before it", "Bjorn", fromBoss.mine());
+
+        bossGearIsNotTheSetBeingUpgraded();
+    }
+
+    /**
+     * Seen in game: End chestplates being upgraded while an Archaeologist (Ruins boss) chestplate
+     * short of its last tier was worn. Ruins comes after the End, so the boss piece took the bar.
+     */
+    private static void bossGearIsNotTheSetBeingUpgraded() {
+        Map<String, Long> fragments = new LinkedHashMap<>();
+        fragments.put("sword", 50L);
+        fragments.put("armor", 200L);
+        MineCatalog endToRuins = new MineCatalog(List.of(
+                mine("Endstone", "pickaxe"), mine("Relic", "pickaxe"),
+                new Mine("boss-ruins-angry-archaeologist", "boss", "Ruins", "Angry Archaeologist",
+                        fragments, null),
+                mine("Frost", "pickaxe")));
+        ProgressionLinks links = new ProgressionLinks();
+        links.learn("Archaeologist", "chestplate", "Relic");
+        links.learn("Frost", "chestplate", "Archaeologist");
+        PriceLedger ledger = new PriceLedger();
+        ledger.knowTierCount("Archaeologist", "chestplate", 2);
+        ledger.knowTierCount("Endstone", "chestplate", 4);
+        GearRef boss = new GearRef("Archaeologist", "chestplate", 1);
+        GearRef end = new GearRef("Endstone", "chestplate", 2);
+
+        for (List<GearRef> owned : List.of(List.of(end, boss), List.of(boss, end))) {
+            for (ProgressPlanner.Goal goal : ProgressPlanner.Goal.values()) {
+                var v = ProgressPlanner.plan(ProgressSlot.CHESTPLATE, owned, endToRuins, links,
+                        Optional.empty(), ledger, new ResourceBalances(), goal);
+                eq("mine gear being upgraded wins over unfinished boss gear (" + goal + ")",
+                        "Endstone", v.mine());
+                eq("its next tier (" + goal + ")", 3, v.targetLevel());
+            }
+        }
+
+        var maxedBoss = ProgressPlanner.plan(ProgressSlot.CHESTPLATE,
+                List.of(end, new GearRef("Archaeologist", "chestplate", 2)), endToRuins, links,
+                Optional.empty(), ledger, new ResourceBalances());
+        eq("a maxed boss piece does not take the bar either", "Endstone", maxedBoss.mine());
+
+        var onlyBoss = ProgressPlanner.plan(ProgressSlot.CHESTPLATE,
+                List.of(new GearRef("Endstone", "chestplate", 4), boss), endToRuins, links,
+                Optional.empty(), ledger, new ResourceBalances());
+        eq("with nothing else unfinished, the boss piece is still followed", "Archaeologist",
+                onlyBoss.mine());
+        eq("the boss piece's next tier", 2, onlyBoss.targetLevel());
+
+        bossBars();
+        fragmentsCountedFromInventory();
+    }
+
+    /** A bar set to Boss follows boss gear and counts that boss's fragments. */
+    private static void bossBars() {
+        Map<String, Long> endor = new LinkedHashMap<>();
+        endor.put("sword", 7L);
+        endor.put("armor", 28L);
+        Map<String, Long> archaeologist = new LinkedHashMap<>();
+        archaeologist.put("sword", 50L);
+        archaeologist.put("armor", 200L);
+        Mine relic = mine("Relic", "pickaxe");
+        MineCatalog catalog = new MineCatalog(List.of(
+                mine("Endstone", "pickaxe"),
+                new Mine("boss-end-endor", "boss", "End", "Endor", endor, null),
+                relic,
+                new Mine("boss-ruins-angry-archaeologist", "boss", "Ruins", "Angry Archaeologist",
+                        archaeologist, null),
+                mine("Frost", "pickaxe")));
+        ProgressionLinks links = new ProgressionLinks();
+        PriceLedger ledger = new PriceLedger();
+        ledger.knowTierCount("Archaeologist", "chestplate", 2);
+        ledger.knowTierCount("Endor", "chestplate", 2);
+        ledger.seed("Archaeologist", "chestplate", 1, 20L, "Archaeologist Fragment");
+        ledger.seed("Archaeologist", "chestplate", 2, 30L, "Archaeologist Fragment");
+        ResourceBalances balances = new ResourceBalances();
+        balances.update("Archaeologist Fragment", 12L, 1L);
+        GearRef archI = new GearRef("Archaeologist", "chestplate", 1);
+        GearRef archII = new GearRef("Archaeologist", "chestplate", 2);
+        GearRef endstone = new GearRef("Endstone", "chestplate", 2);
+
+        var v = ProgressPlanner.planBoss(ProgressSlot.CHESTPLATE, List.of(endstone, archI), catalog, links,
+                Optional.empty(), ledger, balances, ProgressPlanner.Goal.NEXT_TIER);
+        eq("boss bar follows the boss chestplate", "Archaeologist", v.mine());
+        eq("boss bar is marked as one", true, v.boss());
+        eq("boss bar next tier", 2, v.targetLevel());
+        eq("boss bar priced in fragments", 30L, v.cost().orElse(-1L));
+        eq("boss bar counts the fragments", 12L, v.have().orElse(-1L));
+        eq("boss bar tracking", State.TRACKING, v.state());
+        eq("boss bar label", "Archaeologist Chestplate II  12/30",
+                HudModel.progressPanel(List.of(v), HudModel.ProgressLines.all()).get(0).text());
+        eq("a quantity keeps it a boss bar", true, v.withQuantity(2).boss());
+        eq("a quantity multiplies the fragments", 60L, v.withQuantity(2).cost().orElse(-1L));
+
+        eq("the mine bar still follows mine gear", "Endstone",
+                ProgressPlanner.plan(ProgressSlot.CHESTPLATE, List.of(endstone, archI), catalog, links,
+                        Optional.empty(), ledger, balances).mine());
+
+        var fresh = ProgressPlanner.planBoss(ProgressSlot.CHESTPLATE, List.of(endstone), catalog, links,
+                catalog.byName("Relic"), ledger, balances, ProgressPlanner.Goal.TO_MAX);
+        eq("with no boss gear, the boss of the world being mined", "Archaeologist", fresh.mine());
+        eq("from its first tier", 1, fresh.targetLevel());
+        eq("to max covers every tier", 50L, fresh.cost().orElse(-1L));
+
+        var fromEnd = ProgressPlanner.planBoss(ProgressSlot.CHESTPLATE, List.of(), catalog, links,
+                catalog.byName("Endstone"), ledger, balances, ProgressPlanner.Goal.NEXT_TIER);
+        eq("in the End, the End's boss", "Endor", fromEnd.mine());
+
+        var moved = ProgressPlanner.planBoss(ProgressSlot.CHESTPLATE,
+                List.of(new GearRef("Endor", "chestplate", 2)), catalog, links, Optional.empty(), ledger,
+                balances, ProgressPlanner.Goal.NEXT_TIER);
+        eq("a maxed boss piece moves on to the next boss", "Archaeologist", moved.mine());
+        eq("at its first tier", 1, moved.targetLevel());
+
+        var older = ProgressPlanner.planBoss(ProgressSlot.CHESTPLATE,
+                List.of(archII, new GearRef("Endor", "chestplate", 1)), catalog, links, Optional.empty(),
+                ledger, balances, ProgressPlanner.Goal.NEXT_TIER);
+        eq("an unfinished boss piece wins over a later maxed one", "Endor", older.mine());
+
+        var done = ProgressPlanner.planBoss(ProgressSlot.CHESTPLATE, List.of(archII), catalog, links,
+                Optional.empty(), ledger, balances, ProgressPlanner.Goal.NEXT_TIER);
+        eq("the last boss maxed", State.ALL_MAXED, done.state());
+        eq("maxed boss label", "Boss chestplate: every known tier done",
+                HudModel.progressPanel(List.of(done), HudModel.ProgressLines.all()).get(0).text());
+
+        var axe = ProgressPlanner.planBoss(ProgressSlot.AXE, List.of(), catalog, links,
+                catalog.byName("Relic"), ledger, balances, ProgressPlanner.Goal.NEXT_TIER);
+        eq("no boss sells an axe", State.ALL_MAXED, axe.state());
+
+        eq("away from any mine with no boss gear", State.NO_MINE,
+                ProgressPlanner.planBoss(ProgressSlot.CHESTPLATE, List.of(), catalog, links, Optional.empty(),
+                        ledger, balances, ProgressPlanner.Goal.NEXT_TIER).state());
+
+        // No boss shop ever opened: the price comes from the sheet, the balance from the fragments.
+        PriceLedger unseen = new PriceLedger();
+        unseen.knowTierCount("Endor", "chestplate", 2);
+        ResourceBalances carried = new ResourceBalances();
+        carried.update("Endor Fragment", 5L, 1L);
+        var noShop = ProgressPlanner.planBoss(ProgressSlot.CHESTPLATE, List.of(), catalog, links,
+                catalog.byName("Endstone"), unseen, carried, ProgressPlanner.Goal.NEXT_TIER);
+        eq("no shop needed for a boss price", true, noShop.cost().isPresent());
+        eq("fragments counted without a shop", 5L, noShop.have().orElse(-1L));
+
+        // Endor is missing from the tier table; boss gear has two tiers, not the mines' six.
+        var endorMaxed = ProgressPlanner.planBoss(ProgressSlot.CHESTPLATE,
+                List.of(new GearRef("Endor", "chestplate", 2)), catalog, links, Optional.empty(),
+                new PriceLedger(), carried, ProgressPlanner.Goal.NEXT_TIER);
+        eq("an unlisted boss piece at II is maxed", "Angry Archaeologist", endorMaxed.mine());
+        eq("an unlisted boss piece at II does not hold a mine bar", "Endstone",
+                ProgressPlanner.plan(ProgressSlot.CHESTPLATE,
+                        List.of(new GearRef("Endstone", "chestplate", 4), new GearRef("Endor", "chestplate", 2)),
+                        catalog, links, Optional.empty(), new PriceLedger(), carried).mine());
+    }
+
+    private static void fragmentsCountedFromInventory() {
+        minerefinehud.progress.FragmentCounts counts = new minerefinehud.progress.FragmentCounts();
+        List<minerefinehud.mine.ResourcePickups.Item> carrying = List.of(
+                new minerefinehud.mine.ResourcePickups.Item("Archaeologist Fragment", List.of(), 5),
+                new minerefinehud.mine.ResourcePickups.Item("Archaeologist Fragment", List.of(), 3),
+                new minerefinehud.mine.ResourcePickups.Item("§6Watcher Fragment", List.of(), 2),
+                new minerefinehud.mine.ResourcePickups.Item("Zircon", List.of(), 10),
+                new minerefinehud.mine.ResourcePickups.Item("[Zircon Pickaxe] [II]", List.of(), 1));
+        Map<String, Long> first = counts.observe(carrying);
+        eq("stacks of one fragment add up", 8L, first.get("Archaeologist Fragment"));
+        eq("colour codes are ignored", 2L, first.get("Watcher Fragment"));
+        eq("only fragments are counted", 2, first.size());
+        eq("nothing changed, nothing reported", 0, counts.observe(carrying).size());
+
+        Map<String, Long> spent = counts.observe(carrying.subList(0, 2));
+        eq("fragments gone count as none", Map.of("Watcher Fragment", 0L), spent);
+        eq("and are reported once", 0, counts.observe(carrying.subList(0, 2)).size());
+
+        counts.reset();
+        eq("after a relog, an empty inventory reports nothing", 0, counts.observe(List.of()).size());
+
+        MineCatalog catalog = new MineCatalog(List.of(mine("Relic", "pickaxe")));
+        eq("a fragment with a world tag is not a mined resource", Optional.empty(),
+                minerefinehud.mine.ResourcePickups.resourceName("Archaeologist Fragment",
+                        List.of("RUINBOUND"), catalog));
+        eq("a resource with a world tag still is", Optional.of("Malice"),
+                minerefinehud.mine.ResourcePickups.resourceName("Malice", List.of("RUINBOUND"), catalog));
     }
 
     private static void learnedLinkLoopsDoNotHang() {

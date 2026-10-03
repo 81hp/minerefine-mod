@@ -39,6 +39,9 @@ public final class ResourcePickups {
 
     private static final Pattern WORLD_TAG = Pattern.compile("^[A-Z]+BOUND$");
 
+    /** "Archaeologist Fragment": paid for boss gear, never a mine's resource. */
+    private static final Pattern BOSS_FRAGMENT = Pattern.compile(".*\\sfragments?$", Pattern.CASE_INSENSITIVE);
+
     private Map<String, Integer> baseline;
     private Map<String, String> baselineResources = new HashMap<>();
 
@@ -98,6 +101,11 @@ public final class ResourcePickups {
         String clean = cleanName(name);
         String base = COMPRESSION.matcher(clean).replaceFirst("").trim();
         if (base.isEmpty() || base.contains("[")) {
+            return Optional.empty();
+        }
+        // Boss fragments drop while mining, since bosses spawn in the mines. Taken as the mined
+        // resource, they would name no mine and take over the mine's balance.
+        if (BOSS_FRAGMENT.matcher(base).matches()) {
             return Optional.empty();
         }
 
@@ -178,7 +186,7 @@ public final class ResourcePickups {
     private static final Pattern LEADING_GLYPHS = Pattern.compile("^[^\\p{L}\\p{N}\\[]+");
 
     /** Colour codes, sprites and leading glyphs removed, spaces collapsed. */
-    private static String cleanName(String name) {
+    public static String cleanName(String name) {
         String s = SPRITE.matcher(FORMATTING.matcher(name).replaceAll("")).replaceAll("")
                 .replaceAll("\\s+", " ").trim();
         return LEADING_GLYPHS.matcher(s).replaceFirst("").trim();

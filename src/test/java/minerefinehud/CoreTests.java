@@ -89,6 +89,15 @@ public final class CoreTests {
         check("hyphen survives",
                 BossMessageParser.parse("T-Gardener has spawned!"),
                 BossMessageParser.Kind.SPAWNED, "T-Gardener");
+
+        // A pair takes "have", and the ampersand is part of the name.
+        check("pair spawn",
+                BossMessageParser.parse("BOSS ALERT The King & Queen have spawned!"),
+                BossMessageParser.Kind.SPAWNED, "The King & Queen");
+
+        check("pair slain",
+                BossMessageParser.parse("⚔ The King & Queen have been slain! ⚔"),
+                BossMessageParser.Kind.SLAIN, "The King & Queen");
     }
 
     private static void parserIgnoresNoise() {

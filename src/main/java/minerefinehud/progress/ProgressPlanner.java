@@ -134,7 +134,7 @@ public final class ProgressPlanner {
                                     Goal goal) {
 
         if (slot.isTotal()) {
-            return planMineTotal(slot, owned, catalog, links, currentMine, ledger, balances);
+            return planMineTotal(slot, owned, catalog, links, currentMine, ledger, balances, goal);
         }
 
         List<ShopItemParser.GearRef> mine = owned.stream()
@@ -224,11 +224,15 @@ public final class ProgressPlanner {
      *
      * Unknown when any piece's remaining cost is, including a mine whose tool is not known yet:
      * a total that quietly leaves out a piece is worse than none, same rule as {@link MineCosts}.
+     *
+     * With {@link Goal#TO_MAX} it is instead the whole mine, every piece at full price whatever is
+     * owned: the mine panel's Total, so the two always show the same figure. That view is marked
+     * by {@code toLevel} above {@code targetLevel}, as a piece bar covering every tier is.
      */
     private static ProgressView planMineTotal(ProgressSlot slot, List<ShopItemParser.GearRef> owned,
                                               MineCatalog catalog, ProgressionLinks links,
                                               Optional<Mine> currentMine, PriceLedger ledger,
-                                              ResourceBalances balances) {
+                                              ResourceBalances balances, Goal goal) {
         Optional<String> at = currentMine.map(m -> catalog.serverName(m.name()))
                 .or(() -> furthestOwnedMine(owned.stream()
                         .filter(g -> g.level() < maxLevel(ledger, catalog, catalog.serverName(g.mine()),
@@ -239,6 +243,23 @@ public final class ProgressPlanner {
             return empty(slot, State.NO_MINE, "");
         }
         String name = at.get();
+
+        if (goal == Goal.TO_MAX) {
+            Optional<Mine> data = currentMine.or(() -> catalog.exactly(name));
+            MineCosts.View whole = MineCosts.of(name, data, ledger, false);
+            String paidIn = whole.pieces().stream()
+                    .map(p -> currencyOf(ledger, name, p.gear(), maxLevel(ledger, catalog, name, p.gear())))
+                    .flatMap(Optional::stream).findFirst().orElse(name);
+            OptionalLong have = balances.get(paidIn)
+                    .map(r -> OptionalLong.of(r.amount())).orElse(OptionalLong.empty());
+            if (whole.total().isEmpty()) {
+                return new ProgressView(slot, name, slot.gear(), 1, State.PRICE_UNKNOWN,
+                        OptionalLong.empty(), have, paidIn, 1, 2);
+            }
+            long cost = whole.total().getAsLong();
+            State state = have.isPresent() && have.getAsLong() >= cost ? State.FINISHED : State.TRACKING;
+            return new ProgressView(slot, name, slot.gear(), 1, state, OptionalLong.of(cost), have, paidIn, 1, 2);
+        }
 
         List<String> gears = new java.util.ArrayList<>();
         gears.add("sword");

@@ -660,7 +660,7 @@ public final class ProgressTests {
                 Optional.of(mineData), new PriceLedger(), balances);
         eq("whole-mine total sums applicable items", 510L, total.cost().orElse(-1L));
         eq("whole-mine total tracks its balance", State.TRACKING, total.state());
-        eq("total label", "Rust left to max  400/510",
+        eq("total label", "Rust still to buy  400/510",
                 HudModel.progressPanel(List.of(total), HudModel.ProgressLines.all()).get(0).text());
 
         balances.update("Rust", 510L, 2L);
@@ -719,6 +719,32 @@ public final class ProgressTests {
                         seen, balances).mine());
 
         noShopNeeded();
+        wholeMineTotalWhenTrackingToMax();
+    }
+
+    /** "Track: to max" makes the Total the whole mine at full price, the mine panel's figure. */
+    private static void wholeMineTotalWhenTrackingToMax() {
+        MineCatalog catalog = totalCatalog();
+        Optional<Mine> rusty = catalog.byName("Rusty");
+        ResourceBalances balances = new ResourceBalances();
+        balances.update("Rust", 400L, 1L);
+        List<GearRef> allMaxed = List.of(new GearRef("Rust", "sword", 6), new GearRef("Rust", "pickaxe", 6),
+                new GearRef("Rust", "helmet", 6), new GearRef("Rust", "chestplate", 6),
+                new GearRef("Rust", "leggings", 6), new GearRef("Rust", "boots", 6),
+                new GearRef("Rust", "charm", 1));
+
+        var whole = ProgressPlanner.plan(ProgressSlot.TOTAL, allMaxed, catalog, new ProgressionLinks(), rusty,
+                new PriceLedger(), balances, ProgressPlanner.Goal.TO_MAX);
+        eq("to-max total is the whole mine, gear owned or not", 510L, whole.cost().orElse(-1L));
+        eq("to-max total matches the mine panel",
+                MineCosts.of("Rust", rusty, new PriceLedger(), false).total().orElse(-2L), whole.cost().orElse(-1L));
+        eq("to-max total tracks the balance", State.TRACKING, whole.state());
+        eq("to-max total label", "Rust Total  400/510",
+                HudModel.progressPanel(List.of(whole), HudModel.ProgressLines.all()).get(0).text());
+
+        var left = ProgressPlanner.plan(ProgressSlot.TOTAL, allMaxed, catalog, new ProgressionLinks(), rusty,
+                new PriceLedger(), balances, ProgressPlanner.Goal.NEXT_TIER);
+        eq("next-tier total is what is still to buy", State.ALL_MAXED, left.state());
     }
 
     /** Tier counts from the bundled table and tier prices from the sheet, with no shop opened. */

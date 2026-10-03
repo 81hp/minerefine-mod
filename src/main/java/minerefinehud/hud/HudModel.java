@@ -227,10 +227,10 @@ public final class HudModel {
         String tiers = v.toLevel() > v.targetLevel()
                 ? romanish(v.targetLevel()) + "-" + romanish(v.toLevel())
                 : romanish(v.targetLevel());
-        // "left to max", not "Total": the mine panel's Total is the full price of everything, and
-        // two different figures under one name read as a contradiction.
+        // "Total" only for the whole mine, the mine panel's own figure; what is left after the
+        // gear already owned is "still to buy", so two different figures never share a name.
         String piece = v.slot().isTotal()
-            ? count + v.mine() + " left to max"
+            ? count + v.mine() + (v.toLevel() > v.targetLevel() ? " Total" : " still to buy")
             : count + v.mine() + " " + capitalise(v.gear()) + " " + tiers;
 
         switch (v.state()) {

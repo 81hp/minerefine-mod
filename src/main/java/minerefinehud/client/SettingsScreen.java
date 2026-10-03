@@ -242,9 +242,17 @@ public final class SettingsScreen extends Screen {
                     clearAndInit();   // the explanation under it changes too
                 })
                 .dimensions(x(0) + 2 * (third + 4), after, third, 20).build());
+        int explain = after + ROW_HEIGHT + 6;
         labels.add(new Label(config.progressToMax
                 ? "Each bar counts every tier left to max the piece at its mine."
-                : "Each bar counts only the next tier.", x(0), after + ROW_HEIGHT + 6));
+                : "Each bar counts only the next tier.", x(0), explain));
+        // Only with room above the Done button, which six bars at GUI scale 4 do not leave.
+        if (explain + 12 + 10 < this.height - 28
+                && bars.stream().anyMatch(b -> b.choice().map(ProgressSlot::isTotal).orElse(false))) {
+            labels.add(new Label(config.progressToMax
+                    ? "Total: the whole mine at full price, as in the mine panel."
+                    : "Total: what is still to buy at the mine, gear owned left out.", x(0), explain + 12));
+        }
     }
 
     private void panels() {

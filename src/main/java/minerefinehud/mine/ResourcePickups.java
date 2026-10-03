@@ -75,12 +75,14 @@ public final class ResourcePickups {
     }
 
     /**
-     * Whether a gain should say which mine the player is at. Only while mining, and only when
-     * the block being mined is not known already: a known block is the stronger evidence, and
-     * leftover items from the last mine (wood logs, typically) are picked up after moving on.
+     * Whether a gain should say which mine the player is at: whenever it comes from mining, even
+     * when the block's icon is known. The resource is named after its mine; an icon is not always
+     * one mine's, and a known icon used to win here, so mining Woodland Copper showed Rust, whose
+     * icon it shares. Leftover items from the last mine (wood logs, typically) can still name the
+     * old mine for a moment, until the next block's icon or pickup takes over.
      */
-    public static boolean namesTheMine(long gainAt, long lastMiningLineAt, long windowMs, boolean blockKnown) {
-        return !blockKnown && fromMining(gainAt, lastMiningLineAt, windowMs);
+    public static boolean namesTheMine(long gainAt, long lastMiningLineAt, long windowMs) {
+        return fromMining(gainAt, lastMiningLineAt, windowMs);
     }
 
     public Optional<String> lastWorldTag() {

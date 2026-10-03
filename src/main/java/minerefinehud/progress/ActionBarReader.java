@@ -87,8 +87,9 @@ public final class ActionBarReader {
     }
 
     /**
-     * Whose resource the total is: the mine the block belongs to, or the resource picked up with
-     * this very block. Nothing else.
+     * Whose resource the total is: the mine this block was found to be (see
+     * {@code MineDetector.minedMine}, where a pickup under this icon beats the icon), or else the
+     * resource picked up just now. Nothing else.
      *
      * The tool in hand and the detected mine used to fill in for an unknown block. Both are stale
      * exactly when the block is unknown, at a mine just walked into: mining Wind with a Lodestone

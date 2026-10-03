@@ -109,6 +109,18 @@ public final class MineDetector {
     }
 
     /**
+     * Which mine a mined block belongs to: the resource picked up with this same icon on screen,
+     * else what the icon is known as. The resource is named after its mine, so it wins; an icon
+     * can be shared, Woodland Copper's with Rust's. A pickup made under another icon is from the
+     * block before, possibly at the mine just left, and says nothing about this one.
+     *
+     * @param pickupWithThisIcon the resource last picked up, only if this icon was on screen then
+     */
+    public static Optional<String> minedMine(Optional<String> blockMine, Optional<String> pickupWithThisIcon) {
+        return pickupWithThisIcon.filter(m -> !m.isBlank()).or(() -> blockMine);
+    }
+
+    /**
      * The mine last seen being mined, updated for one more mined block.
      *
      * A known block names its mine. An unknown block cannot name one, but it does prove the

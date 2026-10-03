@@ -25,6 +25,21 @@ public final class ResourceBalances {
         byCurrency.put(key(currency), new Reading(amount, nowMs));
     }
 
+    /**
+     * Puts back what a currency held before a reading that turned out to be another resource's,
+     * or removes it if it held nothing.
+     */
+    public void restore(String currency, Optional<Reading> before) {
+        if (currency == null || currency.isBlank()) {
+            return;
+        }
+        if (before.isPresent()) {
+            byCurrency.put(key(currency), before.get());
+        } else {
+            byCurrency.remove(key(currency));
+        }
+    }
+
     public Optional<Reading> get(String currency) {
         if (currency == null) {
             return Optional.empty();

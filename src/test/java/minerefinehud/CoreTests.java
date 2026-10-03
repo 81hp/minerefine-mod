@@ -616,10 +616,54 @@ public final class CoreTests {
                 !learnedBlocks.teach("block/green_glazed_terracotta", "Scaffold"));
         assertEquals("still Sniffer Egg", "Sniffer Egg",
                 learnedBlocks.learned().get("block/green_glazed_terracotta"));
-        assertTrue("a pickup while mining a known block does not move the panel",
-                !ResourcePickups.namesTheMine(10_000L, 9_500L, 3_000L, true));
-        assertTrue("a pickup while mining an unknown block does",
-                ResourcePickups.namesTheMine(10_000L, 9_500L, 3_000L, false));
+        assertTrue("a pickup while mining names the mine, known block or not",
+                ResourcePickups.namesTheMine(10_000L, 9_500L, 3_000L));
+        assertTrue("a pickup long after the last block does not",
+                !ResourcePickups.namesTheMine(20_000L, 9_500L, 3_000L));
+
+        // Woodland Copper and Rust show the same icon. Seen in game, October 2026: mining Woodland
+        // Copper showed Rust after the icon had been filed under Rust.
+        MineCatalog woodsAndTrials = new MineCatalog(List.of(
+                mine("Woodland Copper", "Woodland", "pickaxe"), mine("Rusty", "Trials", "pickaxe")));
+        String copperOre = "block/deepslate_copper_ore";
+        assertEquals("the resource picked up under the icon wins", Optional.of("Woodland Copper"),
+                MineDetector.minedMine(Optional.of("Rust"), Optional.of("Woodland Copper")));
+        assertEquals("without one the icon still names it", Optional.of("Rust"),
+                MineDetector.minedMine(Optional.of("Rust"), Optional.empty()));
+
+        MiningBlocks sharedIcon = new MiningBlocks();
+        sharedIcon.teach(copperOre, "Woodland Copper");
+        assertTrue("one other pickup is not enough",
+                !sharedIcon.onPickup(copperOre, "Rust", woodsAndTrials, 0L));
+        assertTrue("nor a quick handful, like leftover logs",
+                !sharedIcon.onPickup(copperOre, "Rust", woodsAndTrials, 1_000L)
+                        && !sharedIcon.onPickup(copperOre, "Rust", woodsAndTrials, 2_000L));
+        assertTrue("still Woodland Copper's", !sharedIcon.isShared(copperOre));
+        assertTrue("disagreeing for twenty seconds marks it shared",
+                sharedIcon.onPickup(copperOre, "Rust", woodsAndTrials, 21_000L));
+        assertTrue("so it names no mine by itself",
+                sharedIcon.lookup(copperOre, woodsAndTrials).isEmpty());
+        assertTrue("and no shop visit or pickup files it under one mine again",
+                !sharedIcon.teach(copperOre, "Woodland Copper") && !sharedIcon.learned().containsKey(copperOre));
+        assertTrue("an agreeing pickup resets the count",
+                resetsOnAgreement(woodsAndTrials, copperOre));
+        MiningBlocks restoredShared = new MiningBlocks();
+        restoredShared.importShared(sharedIcon.shared());
+        restoredShared.importLearned(Map.of(copperOre, "Rust"));
+        assertTrue("shared survives a restart, over an old learned entry",
+                restoredShared.lookup(copperOre, woodsAndTrials).isEmpty());
+        assertTrue("forget clears it", restoredShared.forget(copperOre) && !restoredShared.isShared(copperOre));
+
+        // The icon's total was filed under the wrong mine: the pickup puts that balance back.
+        minerefinehud.progress.ResourceBalances wallet = new minerefinehud.progress.ResourceBalances();
+        wallet.update("Woodland Copper", 500L, 0L);
+        var before = wallet.get("Woodland Copper");
+        wallet.update("Woodland Copper", 9_000L, 1_000L);
+        wallet.restore("Woodland Copper", before);
+        assertEquals("misfiled reading undone", 500L, wallet.get("Woodland Copper").orElseThrow().amount());
+        wallet.update("Rust", 9_000L, 1_000L);
+        wallet.restore("Rust", Optional.empty());
+        assertTrue("a currency that held nothing goes back to nothing", wallet.get("Rust").isEmpty());
 
         // Boss gear is sold under a short name; its spreadsheet totals are still found.
         Map<String, Long> fragments = new LinkedHashMap<>();
@@ -767,5 +811,17 @@ public final class CoreTests {
     private static void fail(String what, String expected, String actual) {
         failed++;
         System.out.println("  FAIL " + what + "  expected <" + expected + "> got <" + actual + ">");
+    }
+
+    /** Two other-mine pickups, then one that agrees, then two more: never shared. */
+    private static boolean resetsOnAgreement(MineCatalog catalog, String sprite) {
+        MiningBlocks b = new MiningBlocks();
+        b.teach(sprite, "Woodland Copper");
+        b.onPickup(sprite, "Rust", catalog, 0L);
+        b.onPickup(sprite, "Rust", catalog, 10_000L);
+        b.onPickup(sprite, "Woodland Copper", catalog, 15_000L);
+        b.onPickup(sprite, "Rust", catalog, 25_000L);
+        b.onPickup(sprite, "Rust", catalog, 30_000L);
+        return !b.isShared(sprite);
     }
 }

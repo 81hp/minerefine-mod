@@ -108,6 +108,10 @@ public final class MinerefineHudClient implements ClientModInitializer {
     private final ResourcePickups resourcePickups = new ResourcePickups();
     private Optional<String> lastPickup = Optional.empty();
     private long lastPickupAt;
+    /** The block icon on screen when the last resource was picked up. */
+    private Optional<String> lastPickupSprite = Optional.empty();
+    /** What the last mining total replaced, so it can be put back if a pickup proves it misfiled. */
+    private Optional<ResourceBalances.Reading> balanceBeforeLastReading = Optional.empty();
     private long lastActionBarAt;
 
     /**
@@ -148,6 +152,7 @@ public final class MinerefineHudClient implements ClientModInitializer {
 
         config = ModConfig.load(configFile);
         config.save(configFile);
+        miningBlocks.importShared(config.sharedBlocks);
         miningBlocks.importLearned(config.minedBlocks);
 
         links.importAll(config.learnedProgression);
@@ -357,6 +362,7 @@ public final class MinerefineHudClient implements ClientModInitializer {
             lastShopAt = 0L;
             lastMinedMine = Optional.empty();
             lastPickup = Optional.empty();
+            lastPickupSprite = Optional.empty();
             currentWorld = Optional.empty();
             lastUnknownBlockAt = 0L;
             resourcePickups.reset();
@@ -726,7 +732,8 @@ public final class MinerefineHudClient implements ClientModInitializer {
         }
 
         Optional<MiningBlocks.Match> blockMine = miningBlocks.lookup(r.sprite(), catalog);
-        if (blockMine.isEmpty()) {
+        boolean shared = miningBlocks.isShared(r.sprite());
+        if (blockMine.isEmpty() && !shared) {
             // Mined resources are a balance here, not items, so pickups rarely teach a block.
             // A balance already known for this session usually can.
             Map<String, Long> known = new java.util.HashMap<>();
@@ -736,17 +743,21 @@ public final class MinerefineHudClient implements ClientModInitializer {
                 blockMine = miningBlocks.lookup(r.sprite(), catalog);
             }
         }
-        lastUnknownBlockAt = blockMine.isEmpty() ? now : 0L;
         boolean pickupNow = lastPickup.isPresent() && now - lastPickupAt <= SAME_BLOCK_MS;
-        lastMinedMine = MineDetector.afterMining(lastMinedMine,
-                blockMine.map(MiningBlocks.Match::mine), pickupNow);
+        // The resource picked up under this icon names the mine, over what the icon is known as.
+        Optional<String> mined = MineDetector.minedMine(blockMine.map(MiningBlocks.Match::mine),
+                pickupNow && lastPickupSprite.equals(Optional.of(r.sprite())) ? lastPickup : Optional.empty());
+        // A shared icon is not unknown: it just cannot say which of its mines this is, so the
+        // mine last named by a pickup stays rather than being dropped for the tool in hand.
+        lastUnknownBlockAt = mined.isEmpty() && !shared ? now : 0L;
+        lastMinedMine = MineDetector.afterMining(lastMinedMine, mined, pickupNow || shared);
         lastMineCheck = 0L;   // re-detect now: what is being mined just changed or was confirmed
 
-        Optional<String> currency = ActionBarReader.currencyFor(
-                blockMine.map(MiningBlocks.Match::mine), pickupNow ? lastPickup : Optional.empty());
+        Optional<String> currency = ActionBarReader.currencyFor(mined, pickupNow ? lastPickup : Optional.empty());
 
         lastActionBarReading = reading;
         lastActionBarCurrency = currency;
+        balanceBeforeLastReading = currency.flatMap(balances::get);
         currency.ifPresent(c -> {
             balances.update(c, r.amount(), now);
             lastProgressCheck = 0L;
@@ -755,6 +766,7 @@ public final class MinerefineHudClient implements ClientModInitializer {
 
     private void saveLearnedBlocks() {
         config.minedBlocks = new java.util.LinkedHashMap<>(miningBlocks.learned());
+        config.sharedBlocks = new java.util.ArrayList<>(new java.util.TreeSet<>(miningBlocks.shared()));
         config.save(configFile);
     }
 
@@ -785,22 +797,40 @@ public final class MinerefineHudClient implements ClientModInitializer {
      * MiningBlocks so the mine is known from the block alone next time, even with a full inventory.
      */
     private void scanPickups(MinecraftClient client, long now) {
-        Optional<String> gained = resourcePickups.observe(inventoryItems(client), catalogSource.catalog());
+        var catalog = catalogSource.catalog();
+        Optional<String> gained = resourcePickups.observe(inventoryItems(client), catalog);
         // Still observed above, so the inventory baseline stays current, but a gain while not
         // mining (compressing, a backpack, a sale) says nothing about where the player is.
-        boolean blockKnown = lastActionBarReading
-                .flatMap(r -> miningBlocks.lookup(r.sprite(), catalogSource.catalog())).isPresent();
-        if (gained.isEmpty() || !ResourcePickups.namesTheMine(now, lastActionBarAt, SAME_BLOCK_MS, blockKnown)) {
+        if (gained.isEmpty() || !ResourcePickups.namesTheMine(now, lastActionBarAt, SAME_BLOCK_MS)) {
             return;
         }
+        String resource = gained.get();
         lastPickup = gained;
         lastPickupAt = now;
+        lastPickupSprite = lastActionBarReading.map(ActionBarReader.Reading::sprite);
         lastMinedMine = gained;
         lastMineCheck = 0L;
 
-        if (lastActionBarReading.isPresent()
-                && miningBlocks.teach(lastActionBarReading.get().sprite(), gained.get())) {
+        if (lastActionBarReading.isEmpty()) {
+            return;
+        }
+        ActionBarReader.Reading r = lastActionBarReading.get();
+        if (miningBlocks.onPickup(r.sprite(), resource, catalog, now)) {
             saveLearnedBlocks();
+        }
+        // The total on screen is this resource's. If the icon filed it under another mine, put
+        // that mine's balance back and file it here, or that mine's bar shows this one's total.
+        boolean misfiled = lastActionBarCurrency
+                .filter(c -> !catalog.serverName(c).equalsIgnoreCase(catalog.serverName(resource)))
+                .isPresent();
+        if (misfiled) {
+            balances.restore(lastActionBarCurrency.get(), balanceBeforeLastReading);
+        }
+        if (misfiled || lastActionBarCurrency.isEmpty()) {
+            balances.update(resource, r.amount(), lastActionBarAt);
+            lastActionBarCurrency = gained;
+            balanceBeforeLastReading = Optional.empty();
+            lastProgressCheck = 0L;
         }
     }
 
@@ -909,7 +939,7 @@ public final class MinerefineHudClient implements ClientModInitializer {
             return "[MineRefine] Mine a block first, then run this again.";
         }
         String sprite = lastActionBarReading.get().sprite();
-        String was = miningBlocks.learned().get(sprite);
+        String was = miningBlocks.isShared(sprite) ? "shared by several mines" : miningBlocks.learned().get(sprite);
         if (!miningBlocks.forget(sprite)) {
             return "[MineRefine] " + sprite + " was not learned yet, nothing to forget.";
         }
@@ -974,12 +1004,16 @@ public final class MinerefineHudClient implements ClientModInitializer {
         out.add(" mining: " + lastActionBarReading.map(r -> r.sprite() + " -> "
                 + miningBlocks.lookup(r.sprite(), catalogSource.catalog())
                         .map(m -> m.mine() + (m.how() == MiningBlocks.How.LEARNED ? " (learned)" : " (by name)"))
-                        .orElse("not known yet: open this mine's shop once while here"))
+                        .orElse(miningBlocks.isShared(r.sprite()) ? "shared by several mines, the pickup decides"
+                                : "not known yet: open this mine's shop once while here"))
                 .orElse("nothing mined yet"));
         out.add(" last pickup: " + lastPickup.map(p -> p + " ("
-                + (System.currentTimeMillis() - lastPickupAt) / 1000L + "s ago)").orElse("none yet"));
+                + (System.currentTimeMillis() - lastPickupAt) / 1000L + "s ago, under "
+                + lastPickupSprite.orElse("no icon") + ")").orElse("none yet"));
         out.add(" learned blocks: " + (miningBlocks.learned().isEmpty() ? "none"
                 : miningBlocks.learned().toString()));
+        out.add(" shared icons, the pickup decides: " + (miningBlocks.shared().isEmpty() ? "none"
+                : String.join(", ", new java.util.TreeSet<>(miningBlocks.shared()))));
 
         String held = "";
         List<String> heldLore = List.of();

@@ -87,10 +87,11 @@ public final class ModConfig {
     public java.util.Map<String, String> minedBlocks = new java.util.LinkedHashMap<>();
 
     /**
-     * Block sprites more than one mine shows, e.g. Woodland Copper's and Rust's. These never name
-     * a mine by themselves; the resource picked up does. Written by the mod.
+     * Block sprites more than one mine shows, with those mines, e.g. "block/deepslate_copper_ore":
+     * ["Woodland Copper", "Rust"]. Each block is then decided by which mine's balance the total
+     * continues. Written by the mod; the mod also knows some by itself.
      */
-    public java.util.List<String> sharedBlocks = new java.util.ArrayList<>();
+    public java.util.Map<String, java.util.List<String>> sharedIcons = new java.util.LinkedHashMap<>();
 
     /**
      * Which mine comes before which, read from shop prerequisites, e.g. "shovel|Debris":
@@ -296,8 +297,8 @@ public final class ModConfig {
         if (minedBlocks == null) {
             minedBlocks = new java.util.LinkedHashMap<>();
         }
-        if (sharedBlocks == null) {
-            sharedBlocks = new java.util.ArrayList<>();
+        if (sharedIcons == null) {
+            sharedIcons = new java.util.LinkedHashMap<>();
         }
         if (learnedProgression == null) {
             learnedProgression = new java.util.LinkedHashMap<>();

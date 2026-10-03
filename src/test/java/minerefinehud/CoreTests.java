@@ -654,6 +654,34 @@ public final class CoreTests {
                 restoredShared.lookup(copperOre, woodsAndTrials).isEmpty());
         assertTrue("forget clears it", restoredShared.forget(copperOre) && !restoredShared.isShared(copperOre));
 
+        // As played, no pickups at all: Copper shop, mine; Rust shop, mine; back to Woodland Copper.
+        MiningBlocks played = new MiningBlocks();
+        played.onShopBalance("Woodland Copper", 2_000_000_000L, 0L);
+        played.onMining(copperOre, 2_010_000_000L, 10_000L);
+        assertEquals("the Copper shop teaches the icon", "Woodland Copper", played.learned().get(copperOre));
+        played.onShopBalance("Rust", 700_000_000L, 300_000L);
+        played.onMining(copperOre, 701_000_000L, 310_000L);
+        assertTrue("the Rust shop no longer takes it over: shared by both",
+                played.isShared(copperOre) && played.shared().get(copperOre).size() == 2);
+        Map<String, Long> bothKnown = Map.of("woodland copper", 2_010_000_000L, "rust", 701_000_000L);
+        assertEquals("back at Woodland Copper its balance decides", Optional.of("Woodland Copper"),
+                played.sharedByBalance(copperOre, 2_020_000_000L, bothKnown, woodsAndTrials));
+        assertEquals("and at Rust, Rust", Optional.of("Rust"),
+                played.sharedByBalance(copperOre, 702_000_000L, bothKnown, woodsAndTrials));
+        assertTrue("a total matching neither is not guessed from balances",
+                played.sharedByBalance(copperOre, 50_000L, bothKnown, woodsAndTrials).isEmpty());
+        assertEquals("with no balance known the tool in hand hints", Optional.of("Woodland Copper"),
+                played.sharedByHint(copperOre, Optional.of("Woodland Copper"), Optional.of("Rust"), woodsAndTrials));
+        assertEquals("then the mine last mined", Optional.of("Rust"),
+                played.sharedByHint(copperOre, Optional.of("Zircon"), Optional.of("Rust"), woodsAndTrials));
+
+        // Built in, so it works before either shop is opened, over an old entry saying Rust.
+        MiningBlocks fresh = new MiningBlocks();
+        fresh.importShared(MiningBlocks.KNOWN_SHARED);
+        fresh.importLearned(Map.of(copperOre, "Rust"));
+        assertTrue("deepslate copper ore is known shared", fresh.isShared(copperOre)
+                && fresh.lookup(copperOre, woodsAndTrials).isEmpty());
+
         // The icon's total was filed under the wrong mine: the pickup puts that balance back.
         minerefinehud.progress.ResourceBalances wallet = new minerefinehud.progress.ResourceBalances();
         wallet.update("Woodland Copper", 500L, 0L);

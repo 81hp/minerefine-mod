@@ -14,47 +14,66 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.Optional;
 
-/** User settings. Changed in the settings screen and F6, or by hand in config.json. */
+/**
+ * User settings. Changed in the settings screen and F6, or by hand in
+ * config.json.
+ */
 public final class ModConfig {
 
     private static final Gson GSON = new GsonBuilder().setPrettyPrinting().create();
 
-    public static final HudLayout.Placement DEFAULT_MINE_PLACEMENT =
-            new HudLayout.Placement(Anchor.TOP_LEFT, 4, 4);
-
-    /** Middle left is empty in vanilla: chat is bottom left, effects and the sidebar are right. */
-    public static final HudLayout.Placement DEFAULT_BOSS_PLACEMENT =
-            new HudLayout.Placement(Anchor.MIDDLE_LEFT, 4, 0);
+    public static final HudLayout.Placement DEFAULT_MINE_PLACEMENT = new HudLayout.Placement(Anchor.TOP_LEFT, 4, 4);
 
     /**
-     * Which corner or edge the mine panel is pinned to. Named hud* because it predates the boss
-     * panel having its own position, and renaming it would silently reset existing configs.
+     * Middle left is empty in vanilla: chat is bottom left, effects and the sidebar
+     * are right.
+     */
+    public static final HudLayout.Placement DEFAULT_BOSS_PLACEMENT = new HudLayout.Placement(Anchor.MIDDLE_LEFT, 4, 0);
+
+    /**
+     * Which corner or edge the mine panel is pinned to. Named hud* because it
+     * predates the boss
+     * panel having its own position, and renaming it would silently reset existing
+     * configs.
      *
-     * Stored as a string so a hand-edited config with a typo degrades to the default instead of
+     * Stored as a string so a hand-edited config with a typo degrades to the
+     * default instead of
      * refusing to parse and wiping every other setting with it.
      */
     public String hudAnchor = DEFAULT_MINE_PLACEMENT.anchor().name();
 
-    /** Nudge away from that anchor, in pixels. Set by dragging in the position screen. */
+    /**
+     * Nudge away from that anchor, in pixels. Set by dragging in the position
+     * screen.
+     */
     public int hudX = DEFAULT_MINE_PLACEMENT.offsetX();
     public int hudY = DEFAULT_MINE_PLACEMENT.offsetY();
 
-    /** Same again for the boss timers, which can sit anywhere independently of the mine panel. */
+    /**
+     * Same again for the boss timers, which can sit anywhere independently of the
+     * mine panel.
+     */
     public String bossAnchor = DEFAULT_BOSS_PLACEMENT.anchor().name();
     public int bossX = DEFAULT_BOSS_PLACEMENT.offsetX();
     public int bossY = DEFAULT_BOSS_PLACEMENT.offsetY();
 
-    /** Bottom right is clear in vanilla, and well away from the other two panels' defaults. */
-    public static final HudLayout.Placement DEFAULT_PROGRESS_PLACEMENT =
-            new HudLayout.Placement(Anchor.BOTTOM_RIGHT, -4, -4);
+    /**
+     * Bottom right is clear in vanilla, and well away from the other two panels'
+     * defaults.
+     */
+    public static final HudLayout.Placement DEFAULT_PROGRESS_PLACEMENT = new HudLayout.Placement(Anchor.BOTTOM_RIGHT,
+            -4, -4);
 
     /**
-     * Before several bars existed, the one bar's item: SWORD, PICKAXE ... CHARM, or OFF. Only read
+     * Before several bars existed, the one bar's item: SWORD, PICKAXE ... CHARM, or
+     * OFF. Only read
      * to carry an old config over into {@link #progressBars}, then set to OFF.
      */
     public String progressSlot = "OFF";
 
-    /** One progress bar: the item it follows and how many are being bought together. */
+    /**
+     * One progress bar: the item it follows and how many are being bought together.
+     */
     public static final class Bar {
         /** A gear slot, or TOTAL for the whole mine. */
         public String slot = "SWORD";
@@ -77,18 +96,25 @@ public final class ModConfig {
     /** At most this many bars. More stops being a glance. */
     public static final int MAX_BARS = 6;
 
-    /** The progress bars, stacked in one panel in this order. Edited in the settings screen. */
+    /**
+     * The progress bars, stacked in one panel in this order. Edited in the settings
+     * screen.
+     */
     public java.util.List<Bar> progressBars = new java.util.ArrayList<>();
 
     /**
-     * Block sprite to mine, learned by matching a shop balance against the mining total, e.g.
-     * "block/cobblestone": "Rubble". Written by the mod; delete an entry to make it relearn.
+     * Block sprite to mine, learned by matching a shop balance against the mining
+     * total, e.g.
+     * "block/cobblestone": "Rubble". Written by the mod; delete an entry to make it
+     * relearn.
      */
     public java.util.Map<String, String> minedBlocks = new java.util.LinkedHashMap<>();
 
     /**
-     * Which mine comes before which, read from shop prerequisites, e.g. "shovel|Debris":
-     * "Suspicious Sand". Written by the mod; lets the progress bar follow dimensions newer than
+     * Which mine comes before which, read from shop prerequisites, e.g.
+     * "shovel|Debris":
+     * "Suspicious Sand". Written by the mod; lets the progress bar follow
+     * dimensions newer than
      * the bundled data.
      */
     public java.util.Map<String, String> learnedProgression = new java.util.LinkedHashMap<>();
@@ -105,7 +131,9 @@ public final class ModConfig {
     /** Also show costs converted to credits. */
     public boolean showCredits = false;
 
-    /** The job calculator's "block rate" field, in millions of blocks per credit. */
+    /**
+     * The job calculator's "block rate" field, in millions of blocks per credit.
+     */
     public double blocksPerCreditMillions = 200.0;
 
     public int maxBosses = 5;
@@ -126,7 +154,10 @@ public final class ModConfig {
     public boolean showAllBossWorlds = false;
 
     public boolean showProgressText = true;
-    /** Bars count every tier left to max the piece at its mine, not just the next tier. */
+    /**
+     * Bars count every tier left to max the piece at its mine, not just the next
+     * tier.
+     */
     public boolean progressToMax = false;
     public boolean showProgressBar = true;
 
@@ -139,13 +170,15 @@ public final class ModConfig {
     /** 0 to 100. */
     public int bossReminderVolume = 100;
 
-    public static final HudLayout.Placement DEFAULT_ALERT_PLACEMENT =
-            new HudLayout.Placement(Anchor.TOP_CENTER, 0, 40);
+    public static final HudLayout.Placement DEFAULT_ALERT_PLACEMENT = new HudLayout.Placement(Anchor.TOP_CENTER, 0, 40);
     public String alertAnchor = DEFAULT_ALERT_PLACEMENT.anchor().name();
     public int alertX = DEFAULT_ALERT_PLACEMENT.offsetX();
     public int alertY = DEFAULT_ALERT_PLACEMENT.offsetY();
 
-    /** Bosses the spreadsheet does not list, mapped to the world they were heard in. Written by the mod. */
+    /**
+     * Bosses the spreadsheet does not list, mapped to the world they were heard in.
+     * Written by the mod.
+     */
     public java.util.Map<String, String> bossWorlds = new java.util.LinkedHashMap<>();
 
     // ----------------------------------------------------------------- looks
@@ -172,7 +205,10 @@ public final class ModConfig {
     /** The reminder is meant to be noticed, so it starts out large. */
     public Look alertLook = new Look(2.0);
 
-    /** Colours as "#RRGGBB". A value that does not parse falls back to the default for that colour. */
+    /**
+     * Colours as "#RRGGBB". A value that does not parse falls back to the default
+     * for that colour.
+     */
     public String colorHeader = Theme.format(Theme.defaults().header());
     public String colorLabel = Theme.format(Theme.defaults().label());
     public String colorValue = Theme.format(Theme.defaults().value());
@@ -210,7 +246,9 @@ public final class ModConfig {
         colorBarTrack = fresh.colorBarTrack;
     }
 
-    /** Hide the overlay entirely. Also toggled by the keybind in Options, Controls. */
+    /**
+     * Hide the overlay entirely. Also toggled by the keybind in Options, Controls.
+     */
     public boolean enabled = true;
 
     public HudLayout.Placement minePlacement() {
@@ -267,7 +305,8 @@ public final class ModConfig {
     }
 
     /**
-     * Repairs whatever a hand edit or an older version left behind: missing sections, the old
+     * Repairs whatever a hand edit or an older version left behind: missing
+     * sections, the old
      * single progress bar, out-of-range numbers. Run after every load.
      */
     void normalise() {
@@ -320,8 +359,7 @@ public final class ModConfig {
     public static ModConfig load(Path file) {
         try {
             if (Files.isRegularFile(file)) {
-                ModConfig loaded =
-                        GSON.fromJson(Files.readString(file, StandardCharsets.UTF_8), ModConfig.class);
+                ModConfig loaded = GSON.fromJson(Files.readString(file, StandardCharsets.UTF_8), ModConfig.class);
                 if (loaded != null) {
                     loaded.normalise();
                     return loaded;

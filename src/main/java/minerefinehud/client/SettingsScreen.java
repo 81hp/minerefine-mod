@@ -191,21 +191,24 @@ public final class SettingsScreen extends Screen {
             addDrawableChild(ButtonWidget.builder(Text.literal("Item: " + niceSlot(bar.slot)), b -> {
                         int at = bar.choice().map(Enum::ordinal).orElse(-1);
                         bar.slot = slots[(at + 1) % slots.length].name();
-                        b.setMessage(Text.literal("Item: " + niceSlot(bar.slot)));
                         onChange.run();
+                        clearAndInit();   // the Amount box comes and goes with Total
                     })
                     .dimensions(x(0), row, COLUMN_WIDTH, 20).build());
 
-            labels.add(new Label("Amount", x(1), row + 6));
-            addDrawableChild(field(x(1) + 40, row, 40, String.valueOf(bar.quantity), 3,
-                    s -> s.matches("[0-9]{0,3}"),
-                    s -> {
-                        if (!s.isEmpty()) {
-                            bar.quantity = Math.max(1, Math.min(ProgressPlanner.ProgressView.MAX_QUANTITY,
-                                    Integer.parseInt(s)));
-                            onChange.run();
-                        }
-                    }));
+            // A whole mine is bought once, so a Total bar has no amount.
+            if (!bar.choice().map(ProgressSlot::isTotal).orElse(false)) {
+                labels.add(new Label("Amount", x(1), row + 6));
+                addDrawableChild(field(x(1) + 40, row, 40, String.valueOf(bar.quantity), 3,
+                        s -> s.matches("[0-9]{0,3}"),
+                        s -> {
+                            if (!s.isEmpty()) {
+                                bar.quantity = Math.max(1, Math.min(ProgressPlanner.ProgressView.MAX_QUANTITY,
+                                        Integer.parseInt(s)));
+                                onChange.run();
+                            }
+                        }));
+            }
 
             addDrawableChild(ButtonWidget.builder(Text.literal("Remove"), b -> {
                         bars.remove(bar);

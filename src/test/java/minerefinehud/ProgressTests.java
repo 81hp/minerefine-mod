@@ -66,6 +66,7 @@ public final class ProgressTests {
         maxedThreeTierArmourMovesOn();
         newAreaWithoutSpreadsheet();
         barCanTrackEverythingLeftToMax();
+        mineTotalProgressBar();
 
         System.out.println();
         System.out.println("passed: " + passed + "   failed: " + failed);
@@ -643,6 +644,147 @@ public final class ProgressTests {
 
         eq("panel shows the count", "12x Debris Chestplate IV  5b/12b",
                 HudModel.progressPanel(List.of(twelve), HudModel.ProgressLines.all()).get(0).text());
+    }
+
+    private static void mineTotalProgressBar() {
+        Map<String, Long> items = new LinkedHashMap<>();
+        items.put("sword", 10L);
+        items.put("pickaxe", 20L);
+        items.put("armor", 450L);
+        items.put("charm", 30L);
+        Mine mineData = new Mine("mine-rusty", "mine", "Ruins", "Rusty", items, null);
+        MineCatalog catalog = new MineCatalog(List.of(mineData));
+        ResourceBalances balances = new ResourceBalances();
+        balances.update("Rust", 400L, 1L);
+        var total = ProgressPlanner.plan(ProgressSlot.TOTAL, List.of(), catalog,
+                Optional.of(mineData), new PriceLedger(), balances);
+        eq("whole-mine total sums applicable items", 510L, total.cost().orElse(-1L));
+        eq("whole-mine total tracks its balance", State.TRACKING, total.state());
+        eq("total label", "Rust left to max  400/510",
+                HudModel.progressPanel(List.of(total), HudModel.ProgressLines.all()).get(0).text());
+
+        balances.update("Rust", 510L, 2L);
+        var affordable = ProgressPlanner.plan(ProgressSlot.TOTAL, List.of(), catalog,
+                Optional.of(mineData), new PriceLedger(), balances);
+        eq("whole-mine total finishes when affordable", State.FINISHED, affordable.state());
+
+        mineTotalCountsWhatIsLeft();
+        secondSetIsTheOneUpgraded();
+    }
+
+    /** A maxed set worn while a second one is upgraded, or the other way round. */
+    private static void secondSetIsTheOneUpgraded() {
+        MineCatalog catalog = totalCatalog();
+        Optional<Mine> rusty = catalog.byName("Rusty");
+        ResourceBalances balances = new ResourceBalances();
+        GearRef maxed = new GearRef("Rust", "chestplate", 6);
+        GearRef second = new GearRef("Rust", "chestplate", 2);
+
+        // Inventory comes first in the list, worn armour last; both orders must agree.
+        for (List<GearRef> owned : List.of(List.of(second, maxed), List.of(maxed, second))) {
+            var bar = ProgressPlanner.plan(ProgressSlot.CHESTPLATE, owned, catalog, Optional.empty(),
+                    new PriceLedger(), balances);
+            eq("bar follows the unfinished set, not the maxed one", "Rust", bar.mine());
+            eq("bar targets the unfinished set's next tier", 3, bar.targetLevel());
+        }
+
+        eq("bar moves on once every copy is maxed", "Marrow",
+                ProgressPlanner.plan(ProgressSlot.CHESTPLATE, List.of(maxed), catalog, Optional.empty(),
+                        new PriceLedger(), balances).mine());
+
+        // The total counts what the second chestplate still needs: 140 less the 30 paid.
+        PriceLedger seen = new PriceLedger();
+        seen.seed("Rust", "chestplate", 1, 10L, "Rust");
+        seen.seed("Rust", "chestplate", 2, 20L, "Rust");
+        eq("total counts the set being upgraded", 480L,
+                ProgressPlanner.plan(ProgressSlot.TOTAL, List.of(maxed, second), catalog, rusty, seen, balances)
+                        .cost().orElse(-1L));
+    }
+
+    /** Sheet: Rusty 10/20/450/30 and Marrow ten times that. Armour splits 9:14:12:10. */
+    private static MineCatalog totalCatalog() {
+        return new MineCatalog(List.of(totalMine("Rusty", 1L), totalMine("Marrow", 10L)));
+    }
+
+    private static Mine totalMine(String name, long factor) {
+        Map<String, Long> items = new LinkedHashMap<>();
+        items.put("sword", 10L * factor);
+        items.put("pickaxe", 20L * factor);
+        items.put("armor", 450L * factor);
+        items.put("charm", 30L * factor);
+        return new Mine("mine-" + name.toLowerCase(), "mine", "Ruins", name, items, null);
+    }
+
+    private static ProgressPlanner.ProgressView total(List<GearRef> owned, Optional<Mine> at,
+                                                      PriceLedger ledger, ResourceBalances balances) {
+        MineCatalog catalog = totalCatalog();
+        return ProgressPlanner.plan(ProgressSlot.TOTAL, owned, catalog, at, ledger, balances);
+    }
+
+    private static void mineTotalCountsWhatIsLeft() {
+        Optional<Mine> rusty = totalCatalog().byName("Rusty");
+        ResourceBalances balances = new ResourceBalances();
+        balances.update("Rust", 400L, 1L);
+
+        // Sword II owned, tiers I and II cost 1 and 2: 7 of the sword's 10 still to pay.
+        PriceLedger seen = new PriceLedger();
+        seen.seed("Rust", "sword", 1, 1L, "Rust");
+        seen.seed("Rust", "sword", 2, 2L, "Rust");
+        eq("total leaves out tiers already bought", 507L,
+                total(List.of(new GearRef("Rust", "sword", 2)), rusty, seen, balances).cost().orElse(-1L));
+
+        // Everything but the charm bought: the 30 left is affordable. Against the full 510 the
+        // bar could never finish, since the balance had gone on the gear.
+        List<GearRef> allButCharm = List.of(new GearRef("Rust", "sword", 6),
+                new GearRef("Rust", "pickaxe", 6), new GearRef("Rust", "helmet", 6),
+                new GearRef("Rust", "chestplate", 6), new GearRef("Rust", "leggings", 6),
+                new GearRef("Rust", "boots", 6));
+        var nearlyDone = total(allButCharm, rusty, new PriceLedger(), balances);
+        eq("total counts only what is left", 30L, nearlyDone.cost().orElse(-1L));
+        eq("total finishes on what is left", State.FINISHED, nearlyDone.state());
+
+        List<GearRef> everything = new java.util.ArrayList<>(allButCharm);
+        everything.add(new GearRef("Rust", "charm", 1));
+        eq("total done when every piece is maxed", State.ALL_MAXED,
+                total(everything, rusty, new PriceLedger(), balances).state());
+
+        // A Marrow sword makes the Rust one pointless.
+        eq("total skips a piece owned from a later mine", 500L,
+                total(List.of(new GearRef("Marrow", "sword", 1)), rusty, new PriceLedger(), balances)
+                        .cost().orElse(-1L));
+
+        // Away from any mine: the furthest mine owned from, here Marrow.
+        PriceLedger marrowSeen = new PriceLedger();
+        marrowSeen.seed("Marrow", "sword", 1, 10L, "Marrow");
+        var away = total(List.of(new GearRef("Rust", "helmet", 2), new GearRef("Marrow", "sword", 1)),
+                Optional.empty(), marrowSeen, balances);
+        eq("total away from a mine follows the furthest one", "Marrow", away.mine());
+        eq("total away from a mine counts what is left there", 5_090L, away.cost().orElse(-1L));
+        eq("total with nothing owned and no mine", State.NO_MINE,
+                total(List.of(), Optional.empty(), new PriceLedger(), balances).state());
+
+        // Sword I owned but its price never seen: what is left of the sword cannot be worked out.
+        var gap = total(List.of(new GearRef("Rust", "sword", 1)), rusty, new PriceLedger(), balances);
+        eq("total unknown when a piece is", State.PRICE_UNKNOWN, gap.state());
+        eq("total asks for the shop", "open the Rust shop once for the prices",
+                HudModel.progressPanel(List.of(gap), HudModel.ProgressLines.all()).get(1).text());
+
+        // A mine whose tool is not known yet cannot have a total.
+        Map<String, Long> noTool = new LinkedHashMap<>();
+        noTool.put("sword", 10L);
+        noTool.put("armor", 450L);
+        noTool.put("charm", 30L);
+        Mine bare = new Mine("mine-bare", "mine", "Ruins", "Bare", noTool, null);
+        eq("total unknown without the mine's tool", State.PRICE_UNKNOWN,
+                ProgressPlanner.plan(ProgressSlot.TOTAL, List.of(), new MineCatalog(List.of(bare)),
+                        Optional.of(bare), new PriceLedger(), balances).state());
+
+        // The currency the shop names wins over the mine's name.
+        PriceLedger dust = new PriceLedger();
+        dust.seed("Rust", "sword", 1, 1L, "Rust Dust");
+        balances.update("Rust Dust", 999L, 3L);
+        eq("total reads the shop's currency", 999L,
+                total(List.of(), rusty, dust, balances).have().orElse(-1L));
     }
 
     private static void severalBarsStack() {

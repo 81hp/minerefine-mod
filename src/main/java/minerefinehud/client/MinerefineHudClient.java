@@ -921,7 +921,9 @@ public final class MinerefineHudClient implements ClientModInitializer {
     private List<ProgressPlanner.ProgressView> planAllProgress() {
         List<ProgressPlanner.ProgressView> out = new java.util.ArrayList<>();
         for (ModConfig.Bar bar : config.progressBars) {
-            bar.choice().ifPresent(slot -> out.add(planProgress(slot).withQuantity(bar.quantity)));
+            // A Total bar ignores any amount left over from when it tracked a single piece.
+            bar.choice().ifPresent(slot -> out.add(planProgress(slot)
+                    .withQuantity(slot.isTotal() ? 1 : bar.quantity)));
         }
         return out;
     }

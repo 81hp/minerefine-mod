@@ -20,7 +20,8 @@ public enum ProgressSlot {
     CHESTPLATE("chestplate"),
     LEGGINGS("leggings"),
     BOOTS("boots"),
-    CHARM("charm");
+    CHARM("charm"),
+    TOTAL("total");
 
     private final String gear;
 
@@ -35,6 +36,10 @@ public enum ProgressSlot {
 
     public boolean isTool() {
         return this == PICKAXE || this == AXE || this == SHOVEL;
+    }
+
+    public boolean isTotal() {
+        return this == TOTAL;
     }
 
     public String label() {

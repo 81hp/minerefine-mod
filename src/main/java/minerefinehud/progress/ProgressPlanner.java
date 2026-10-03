@@ -133,6 +133,10 @@ public final class ProgressPlanner {
                                     ResourceBalances balances,
                                     Goal goal) {
 
+        if (slot.isTotal()) {
+            return planMineTotal(slot, owned, catalog, links, currentMine, ledger, balances);
+        }
+
         List<ShopItemParser.GearRef> mine = owned.stream()
                 .filter(g -> slot.gear().equals(g.gear().toLowerCase(Locale.ROOT)))
                 .toList();
@@ -157,17 +161,17 @@ public final class ProgressPlanner {
             return empty(slot, State.NO_MINE, "");
         }
 
-        int level = ownedLevel(catalog, mine, at);
+        int level = ownedLevel(catalog, mine, at, maxLevel(ledger, catalog, at, slot.gear()));
         // Bounded: learned links come from saved data, and a loop in them must not hang a tick.
         int hops = 0;
-        while (level >= ledger.maxLevel(at, slot.gear(), catalog.pieceTotal(at, slot.gear()))) {
+        while (level >= maxLevel(ledger, catalog, at, slot.gear())) {
             Optional<String> next = nextMine(slot, catalog, links, at);
             if (next.isEmpty() || ++hops > catalog.mines().size() + MAX_LINK_STEPS) {
                 return new ProgressView(slot, at, slot.gear(), level, State.ALL_MAXED,
                         OptionalLong.empty(), OptionalLong.empty(), at, 1, level);
             }
             at = next.get();
-            level = ownedLevel(catalog, mine, at);
+            level = ownedLevel(catalog, mine, at, maxLevel(ledger, catalog, at, slot.gear()));
         }
 
         int target = level + 1;
@@ -194,6 +198,136 @@ public final class ProgressPlanner {
 
         State state = have.isPresent() && have.getAsLong() >= cost.getAsLong() ? State.FINISHED : State.TRACKING;
         return new ProgressView(slot, at, slot.gear(), target, state, cost, have, currency, 1, toLevel);
+    }
+
+    private static final List<String> TOTAL_TOOLS = List.of("pickaxe", "axe", "shovel");
+    private static final List<String> TOTAL_ARMOR = List.of("helmet", "chestplate", "leggings", "boots");
+
+    /**
+     * Everything still to buy at one mine: for each piece, the tiers above the one owned, as a
+     * TO_MAX bar would count them. A piece already owned from a later mine is skipped, because
+     * nobody buys an older sword. Counting what is left rather than the full price keeps the bar
+     * moving forward as tiers are bought; against the full price, every purchase spent the
+     * balance while the target stayed put, and the bar went backwards.
+     *
+     * The mine is the one the player stands in, or, away from any mine, the furthest one they own
+     * gear from, so the bar does not blank out on the way back from the hub.
+     *
+     * Unknown when any piece's remaining cost is, including a mine whose tool is not known yet:
+     * a total that quietly leaves out a piece is worse than none, same rule as {@link MineCosts}.
+     */
+    private static ProgressView planMineTotal(ProgressSlot slot, List<ShopItemParser.GearRef> owned,
+                                              MineCatalog catalog, ProgressionLinks links,
+                                              Optional<Mine> currentMine, PriceLedger ledger,
+                                              ResourceBalances balances) {
+        Optional<String> at = currentMine.map(m -> catalog.serverName(m.name()))
+                .or(() -> furthestOwnedMine(owned, catalog, links));
+        if (at.isEmpty()) {
+            return empty(slot, State.NO_MINE, "");
+        }
+        String name = at.get();
+
+        List<String> gears = new java.util.ArrayList<>();
+        gears.add("sword");
+        java.util.Set<String> tools = new java.util.LinkedHashSet<>(currentMine
+                .or(() -> catalog.exactly(name))
+                .map(Mine::toolKeys).orElse(List.of()));
+        for (String gear : ledger.observedGears(name)) {
+            if (TOTAL_TOOLS.contains(gear)) {
+                tools.add(gear);
+            }
+        }
+        for (ShopItemParser.GearRef g : owned) {
+            String gear = g.gear().toLowerCase(Locale.ROOT);
+            if (TOTAL_TOOLS.contains(gear) && sameMine(catalog, g.mine(), name)) {
+                tools.add(gear);
+            }
+        }
+        boolean toolUnknown = tools.isEmpty();
+        gears.addAll(tools);
+        gears.addAll(TOTAL_ARMOR);
+        gears.add("charm");
+
+        long left = 0L;
+        boolean unknown = toolUnknown;
+        Optional<String> currency = Optional.empty();
+        for (String gear : gears) {
+            OptionalLong sheet = catalog.pieceTotal(name, gear);
+            int max = ledger.maxLevel(name, gear, sheet);
+            if (currency.isEmpty()) {
+                currency = currencyOf(ledger, name, gear, max);
+            }
+            if (ownsLater(owned, catalog, links, gear, name)) {
+                continue;
+            }
+            List<ShopItemParser.GearRef> ofGear = owned.stream()
+                    .filter(g -> gear.equals(g.gear().toLowerCase(Locale.ROOT)))
+                    .toList();
+            int level = ownedLevel(catalog, ofGear, name, max);
+            if (level >= max) {
+                continue;
+            }
+            OptionalLong cost = costToMax(ledger, name, gear, level, max, sheet);
+            if (cost.isEmpty()) {
+                unknown = true;
+            } else {
+                left += cost.getAsLong();
+            }
+        }
+
+        String paidIn = currency.orElse(name);
+        OptionalLong have = balances.get(paidIn)
+                .map(r -> OptionalLong.of(r.amount())).orElse(OptionalLong.empty());
+        if (unknown) {
+            return new ProgressView(slot, name, slot.gear(), 1, State.PRICE_UNKNOWN,
+                    OptionalLong.empty(), have, paidIn, 1, 1);
+        }
+        if (left == 0L) {
+            return new ProgressView(slot, name, slot.gear(), 1, State.ALL_MAXED,
+                    OptionalLong.empty(), have, paidIn, 1, 1);
+        }
+        State state = have.isPresent() && have.getAsLong() >= left ? State.FINISHED : State.TRACKING;
+        return new ProgressView(slot, name, slot.gear(), 1, state, OptionalLong.of(left), have, paidIn, 1, 1);
+    }
+
+    private static boolean sameMine(MineCatalog catalog, String a, String b) {
+        return catalog.serverName(a).equalsIgnoreCase(catalog.serverName(b));
+    }
+
+    /** True when the player holds this kind of item from a mine after this one in progression. */
+    private static boolean ownsLater(List<ShopItemParser.GearRef> owned, MineCatalog catalog,
+                                     ProgressionLinks links, String gear, String mine) {
+        double here = orderOf(catalog, links, gear, mine);
+        if (here < 0) {
+            // A mine the data does not place: nothing can be shown to come after it.
+            return false;
+        }
+        for (ShopItemParser.GearRef g : owned) {
+            if (gear.equals(g.gear().toLowerCase(Locale.ROOT)) && !sameMine(catalog, g.mine(), mine)
+                    && orderOf(catalog, links, gear, g.mine()) > here) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    /** The latest mine in progression the player owns any gear from. */
+    private static Optional<String> furthestOwnedMine(List<ShopItemParser.GearRef> owned,
+                                                      MineCatalog catalog, ProgressionLinks links) {
+        String best = null;
+        double bestOrder = -1;
+        for (ShopItemParser.GearRef g : owned) {
+            // Boss gear is not a mine to stand in, so it cannot be the mine the total is for.
+            if (catalog.exactly(g.mine()).isEmpty() && catalog.boss(g.mine()).isPresent()) {
+                continue;
+            }
+            double order = orderOf(catalog, links, g.gear().toLowerCase(Locale.ROOT), g.mine());
+            if (best == null || order > bestOrder) {
+                best = g.mine();
+                bestOrder = order;
+            }
+        }
+        return Optional.ofNullable(best).map(catalog::serverName);
     }
 
     /**
@@ -238,14 +372,31 @@ public final class ProgressPlanner {
                 OptionalLong.empty(), OptionalLong.empty(), mine, 1, 0);
     }
 
-    private static int ownedLevel(MineCatalog catalog, List<ShopItemParser.GearRef> owned, String mine) {
-        int best = 0;
+    private static int maxLevel(PriceLedger ledger, MineCatalog catalog, String mine, String gear) {
+        return ledger.maxLevel(mine, gear, catalog.pieceTotal(mine, gear));
+    }
+
+    /**
+     * The tier of the copy being upgraded, among the player's copies of one item from this mine.
+     * A copy short of {@code max} wins over a maxed one: players keep their maxed set on while
+     * they upgrade a second one in the inventory, or the other way round, and the bar must
+     * follow the unfinished set whichever of the two is worn. Taking the highest tier left the
+     * worn maxed set in charge, so the bar moved on to the next mine. Of several unfinished
+     * copies, the furthest along. 0 with none.
+     */
+    private static int ownedLevel(MineCatalog catalog, List<ShopItemParser.GearRef> owned, String mine,
+                                  int max) {
+        int highest = 0;
+        int unfinished = 0;
         for (ShopItemParser.GearRef g : owned) {
-            if (catalog.serverName(g.mine()).equalsIgnoreCase(catalog.serverName(mine))) {
-                best = Math.max(best, g.level());
+            if (sameMine(catalog, g.mine(), mine)) {
+                highest = Math.max(highest, g.level());
+                if (g.level() < max) {
+                    unfinished = Math.max(unfinished, g.level());
+                }
             }
         }
-        return best;
+        return unfinished > 0 ? unfinished : highest;
     }
 
     /** Position in the bundled data, or -1 for a mine it does not list. */

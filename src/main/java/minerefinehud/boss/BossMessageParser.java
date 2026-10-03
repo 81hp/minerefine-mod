@@ -16,6 +16,7 @@ import java.util.regex.Pattern;
  *   "BOSS ALERT"
  *   "Angry Archaeologist has spawned!"
  *   "(X) Angry Archaeologist has been slain! (X)"
+ *   "The King & Queen have spawned!" (a pair takes "have")
  */
 public final class BossMessageParser {
 
@@ -30,15 +31,17 @@ public final class BossMessageParser {
     /**
      * Anything that cannot legitimately appear inside a boss name. Unicode letters are kept so
      * names like "Bjorn Gear" survive, as are apostrophes and hyphens for "Guardian 'o Toole"
-     * and "T-Gardener". The exclamation mark is kept because the trigger phrase needs it.
+     * and "T-Gardener", and ampersands for "The King & Queen". The exclamation mark is kept
+     * because the trigger phrase needs it.
      */
-    private static final Pattern DECORATION = Pattern.compile("[^\\p{L}\\p{N} '\\-.!]");
+    private static final Pattern DECORATION = Pattern.compile("[^\\p{L}\\p{N} '\\-.!&]");
 
+    /** "has" for one boss, "have" for a pair like "The King & Queen". */
     private static final Pattern SPAWNED =
-            Pattern.compile("^(?<name>.+?)\\s+has\\s+spawned!", Pattern.CASE_INSENSITIVE);
+            Pattern.compile("^(?<name>.+?)\\s+ha(?:s|ve)\\s+spawned!", Pattern.CASE_INSENSITIVE);
 
     private static final Pattern SLAIN =
-            Pattern.compile("^(?<name>.+?)\\s+has\\s+been\\s+slain!", Pattern.CASE_INSENSITIVE);
+            Pattern.compile("^(?<name>.+?)\\s+ha(?:s|ve)\\s+been\\s+slain!", Pattern.CASE_INSENSITIVE);
 
     /**
      * Banner words the server puts on the same line as the name. Order matters: longest first,

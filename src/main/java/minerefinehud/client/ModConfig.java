@@ -87,6 +87,12 @@ public final class ModConfig {
     public java.util.Map<String, String> minedBlocks = new java.util.LinkedHashMap<>();
 
     /**
+     * Block sprites more than one mine shows, e.g. Woodland Copper's and Rust's. These never name
+     * a mine by themselves; the resource picked up does. Written by the mod.
+     */
+    public java.util.List<String> sharedBlocks = new java.util.ArrayList<>();
+
+    /**
      * Which mine comes before which, read from shop prerequisites, e.g. "shovel|Debris":
      * "Suspicious Sand". Written by the mod; lets the progress bar follow dimensions newer than
      * the bundled data.
@@ -289,6 +295,9 @@ public final class ModConfig {
 
         if (minedBlocks == null) {
             minedBlocks = new java.util.LinkedHashMap<>();
+        }
+        if (sharedBlocks == null) {
+            sharedBlocks = new java.util.ArrayList<>();
         }
         if (learnedProgression == null) {
             learnedProgression = new java.util.LinkedHashMap<>();

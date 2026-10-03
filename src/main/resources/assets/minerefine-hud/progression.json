@@ -2118,5 +2118,77 @@
       "boots": 50
     },
     "fragmentsPerCredit": 1.0
+  },
+  {
+    "id": "mine-darkwater-palace-frost",
+    "type": "mine",
+    "world": "Darkwater Palace",
+    "name": "Frost"
+  },
+  {
+    "id": "mine-darkwater-palace-slush",
+    "type": "mine",
+    "world": "Darkwater Palace",
+    "name": "Slush"
+  },
+  {
+    "id": "mine-darkwater-palace-icicle",
+    "type": "mine",
+    "world": "Darkwater Palace",
+    "name": "Icicle"
+  },
+  {
+    "id": "mine-darkwater-palace-cobalt",
+    "type": "mine",
+    "world": "Darkwater Palace",
+    "name": "Cobalt"
+  },
+  {
+    "id": "mine-darkwater-palace-driftwood",
+    "type": "mine",
+    "world": "Darkwater Palace",
+    "name": "Driftwood"
+  },
+  {
+    "id": "mine-darkwater-palace-mosaic",
+    "type": "mine",
+    "world": "Darkwater Palace",
+    "name": "Mosaic"
+  },
+  {
+    "id": "mine-darkwater-palace-silt",
+    "type": "mine",
+    "world": "Darkwater Palace",
+    "name": "Silt"
+  },
+  {
+    "id": "mine-darkwater-palace-platinum",
+    "type": "mine",
+    "world": "Darkwater Palace",
+    "name": "Platinum"
+  },
+  {
+    "id": "mine-darkwater-palace-crystalite",
+    "type": "mine",
+    "world": "Darkwater Palace",
+    "name": "Crystalite"
+  },
+  {
+    "id": "mine-darkwater-palace-duskwood",
+    "type": "mine",
+    "world": "Darkwater Palace",
+    "name": "Duskwood"
+  },
+  {
+    "id": "mine-darkwater-palace-throne",
+    "type": "mine",
+    "world": "Darkwater Palace",
+    "name": "Throne"
+  },
+  {
+    "id": "boss-darkwater-palace-the-king-queen",
+    "type": "boss",
+    "world": "Darkwater Palace",
+    "name": "The King & Queen"
   }
 ]

@@ -26,6 +26,11 @@ import java.util.Optional;
  *   never guesses; it just saves a shop visit where the server's naming is obvious.
  *
  * Learned beats by-name, and learned mappings are meant to be persisted by the caller.
+ *
+ * An icon is not always one mine's. Woodland Copper and Rust can show the same block, and a single
+ * icon-to-mine entry then flips between them with every shop visit, taking the panel along. Once
+ * a resource pickup proves an icon belongs to two mines, it is marked shared: it no longer names a
+ * mine by itself, is never learned again, and the resource picked up decides instead.
  */
 public final class MiningBlocks {
 
@@ -52,12 +57,13 @@ public final class MiningBlocks {
     private record Mined(String sprite, long amount, long at) {}
 
     private final Map<String, String> learned = new LinkedHashMap<>();
+    private final java.util.Set<String> shared = new java.util.LinkedHashSet<>();
     private final Map<String, Snapshot> shopBalances = new HashMap<>();
     private Mined lastMined;
 
     /** The mine for a block sprite, if learned or obvious from its name. */
     public Optional<Match> lookup(String sprite, MineCatalog catalog) {
-        if (sprite == null || sprite.isBlank()) {
+        if (sprite == null || sprite.isBlank() || shared.contains(sprite)) {
             return Optional.empty();
         }
         String mine = learned.get(sprite);
@@ -127,7 +133,8 @@ public final class MiningBlocks {
      * @return true if a mapping was learned
      */
     public boolean inferFromBalances(String sprite, long total, Map<String, Long> known) {
-        if (sprite == null || sprite.isBlank() || learned.containsKey(sprite) || total <= 0L) {
+        if (sprite == null || sprite.isBlank() || learned.containsKey(sprite) || shared.contains(sprite)
+                || total <= 0L) {
             return false;
         }
         java.util.Set<String> taken = new java.util.HashSet<>();
@@ -162,15 +169,96 @@ public final class MiningBlocks {
         // axe mine are picked up after walking on, and one such pickup alongside Sniffer Egg's
         // block relabelled that block as Scaffold. A shop balance, exact to the block, may still
         // correct a mapping; a pickup may not.
-        if (learned.containsKey(sprite) || hasIcon(mine)) {
+        if (learned.containsKey(sprite) || shared.contains(sprite) || hasIcon(mine)) {
             return false;
         }
         return learn(sprite, mine);
     }
 
+    /**
+     * Pickups of another mine's resource needed before an icon counts as shared, and the time
+     * they must span. A pile of leftover logs from the mine just left is picked up in a second or
+     * two; mining a mine that really shows this icon keeps disagreeing block after block.
+     */
+    static final int SHARED_AFTER_PICKUPS = 3;
+    static final long SHARED_AFTER_MS = 20_000L;
+
+    private record Conflict(String mine, long firstAt, int count) {}
+
+    private final Map<String, Conflict> conflicts = new HashMap<>();
+
+    /**
+     * A resource picked up while this icon was on screen. Teaches the icon when it is unknown.
+     * When it is known as a different mine, that is counted, and once it keeps happening the
+     * icon is marked shared.
+     *
+     * @param pickupMine the resource's name, which is its mine's server spelling
+     * @return true if what is learned changed, so the caller knows to save
+     */
+    public boolean onPickup(String sprite, String pickupMine, MineCatalog catalog, long nowMs) {
+        if (sprite == null || sprite.isBlank() || pickupMine == null || pickupMine.isBlank()
+                || shared.contains(sprite)) {
+            return false;
+        }
+        Optional<Match> known = lookup(sprite, catalog);
+        if (known.isEmpty()) {
+            return teach(sprite, pickupMine);
+        }
+        if (catalog.serverName(known.get().mine()).equalsIgnoreCase(catalog.serverName(pickupMine))) {
+            conflicts.remove(sprite);
+            return false;
+        }
+        Conflict c = conflicts.get(sprite);
+        if (c == null || !c.mine().equalsIgnoreCase(pickupMine)) {
+            c = new Conflict(pickupMine, nowMs, 0);
+        }
+        c = new Conflict(c.mine(), c.firstAt(), c.count() + 1);
+        if (c.count() >= SHARED_AFTER_PICKUPS && nowMs - c.firstAt() >= SHARED_AFTER_MS) {
+            conflicts.remove(sprite);
+            return markShared(sprite);
+        }
+        conflicts.put(sprite, c);
+        return false;
+    }
+
     /** Forgets one icon, so it is learned again from scratch. For /mrhud forget. */
     public boolean forget(String sprite) {
-        return sprite != null && learned.remove(sprite) != null;
+        if (sprite == null) {
+            return false;
+        }
+        boolean wasShared = shared.remove(sprite);
+        return learned.remove(sprite) != null || wasShared;
+    }
+
+    /**
+     * Marks an icon as shown by more than one mine, because a resource from another mine was
+     * picked up while mining it. Drops what it was learned as. Returns true if it was new.
+     */
+    public boolean markShared(String sprite) {
+        if (sprite == null || sprite.isBlank()) {
+            return false;
+        }
+        learned.remove(sprite);
+        return shared.add(sprite);
+    }
+
+    public boolean isShared(String sprite) {
+        return sprite != null && shared.contains(sprite);
+    }
+
+    public java.util.Set<String> shared() {
+        return java.util.Set.copyOf(shared);
+    }
+
+    public void importShared(java.util.Collection<String> saved) {
+        if (saved != null) {
+            for (String sprite : saved) {
+                if (sprite != null && !sprite.isBlank()) {
+                    shared.add(sprite);
+                    learned.remove(sprite);
+                }
+            }
+        }
     }
 
     private boolean hasIcon(String mine) {
@@ -185,7 +273,7 @@ public final class MiningBlocks {
     public void importLearned(Map<String, String> saved) {
         if (saved != null) {
             saved.forEach((sprite, mine) -> {
-                if (sprite != null && mine != null && !mine.isBlank()) {
+                if (sprite != null && mine != null && !mine.isBlank() && !shared.contains(sprite)) {
                     learned.put(sprite, mine);
                 }
             });
@@ -203,6 +291,9 @@ public final class MiningBlocks {
      * Learning Debris's real icon this way frees Zircon's, which had been filed under Debris.
      */
     private boolean claim(String sprite, String mine) {
+        if (shared.contains(sprite)) {
+            return false;
+        }
         String m = mine.toLowerCase(Locale.ROOT).trim();
         boolean dropped = learned.entrySet().removeIf(e -> !e.getKey().equals(sprite)
                 && e.getValue().toLowerCase(Locale.ROOT).trim().equals(m));

@@ -255,7 +255,8 @@ public final class HudModel {
                 lines.add(Line.of(piece, Style.VALUE));
                 // The tier is known from the inventory; only its price is missing, and opening
                 // that shop once fixes it for good.
-                lines.add(Line.of("open the " + v.mine() + " shop once for the price", Style.DIM));
+                lines.add(Line.of("open the " + v.mine() + " shop once for the "
+                        + (v.slot().isTotal() ? "prices" : "price"), Style.DIM));
             }
             case ALL_MAXED -> lines.add(Line.of(
                     v.slot().label() + ": every known tier done", Style.GOOD));

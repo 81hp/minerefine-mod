@@ -21,15 +21,11 @@ import java.util.function.Predicate;
 import java.util.function.Supplier;
 
 /**
- * Every setting that is not a position, in one screen, applied the moment it
- * changes.
+ * Every setting that is not a position, in one screen, applied the moment it changes.
  *
- * VERSION SENSITIVE for the Screen, ButtonWidget and TextFieldWidget API only.
- * Built from vanilla
- * widgets on purpose: no Cloth Config or Mod Menu dependency to keep in step
- * with Lunar. The
- * screen only reads and writes {@link ModConfig}; nothing here decides
- * anything.
+ * VERSION SENSITIVE for the Screen, ButtonWidget and TextFieldWidget API only. Built from vanilla
+ * widgets on purpose: no Cloth Config or Mod Menu dependency to keep in step with Lunar. The
+ * screen only reads and writes {@link ModConfig}; nothing here decides anything.
  */
 public final class SettingsScreen extends Screen {
 
@@ -56,11 +52,9 @@ public final class SettingsScreen extends Screen {
 
     private Tab tab = Tab.GENERAL;
 
-    private record Label(String text, int x, int y) {
-    }
+    private record Label(String text, int x, int y) {}
 
-    private record Swatch(Supplier<String> hex, int fallback, int x, int y) {
-    }
+    private record Swatch(Supplier<String> hex, int fallback, int x, int y) {}
 
     private final List<Label> labels = new ArrayList<>();
     private final List<Swatch> swatches = new ArrayList<>();
@@ -100,9 +94,9 @@ public final class SettingsScreen extends Screen {
         for (int i = 0; i < tabs.length; i++) {
             Tab t = tabs[i];
             ButtonWidget b = ButtonWidget.builder(Text.literal(t.label), w -> {
-                tab = t;
-                clearAndInit();
-            })
+                        tab = t;
+                        clearAndInit();
+                    })
                     .dimensions(tabLeft + i * (tabWidth + 2), 28, tabWidth, 20).build();
             b.active = t != tab;
             addDrawableChild(b);
@@ -146,16 +140,16 @@ public final class SettingsScreen extends Screen {
         addDrawableChild(rate);
 
         addDrawableChild(ButtonWidget.builder(Text.literal("Move and resize panels..."), b -> {
-            onChange.run();
-            openPositions.run();
-        })
+                    onChange.run();
+                    openPositions.run();
+                })
                 .dimensions(x(0), y(4), COLUMN_WIDTH * 2 + 10, 20).build());
         addDrawableChild(ButtonWidget.builder(Text.literal("Turret size calculator..."), b -> {
-            onChange.run();
-            if (this.client != null) {
-                this.client.setScreen(new TurretScreen(this));
-            }
-        })
+                    onChange.run();
+                    if (this.client != null) {
+                        this.client.setScreen(new TurretScreen(this));
+                    }
+                })
                 .dimensions(x(0), y(5), COLUMN_WIDTH * 2 + 10, 20).build());
     }
 
@@ -195,11 +189,11 @@ public final class SettingsScreen extends Screen {
             int row = y(i);
 
             addDrawableChild(ButtonWidget.builder(Text.literal("Item: " + niceSlot(bar.slot)), b -> {
-                int at = bar.choice().map(Enum::ordinal).orElse(-1);
-                bar.slot = slots[(at + 1) % slots.length].name();
-                b.setMessage(Text.literal("Item: " + niceSlot(bar.slot)));
-                onChange.run();
-            })
+                        int at = bar.choice().map(Enum::ordinal).orElse(-1);
+                        bar.slot = slots[(at + 1) % slots.length].name();
+                        b.setMessage(Text.literal("Item: " + niceSlot(bar.slot)));
+                        onChange.run();
+                    })
                     .dimensions(x(0), row, COLUMN_WIDTH, 20).build());
 
             labels.add(new Label("Amount", x(1), row + 6));
@@ -215,10 +209,10 @@ public final class SettingsScreen extends Screen {
             addDrawableChild(quantity);
 
             addDrawableChild(ButtonWidget.builder(Text.literal("Remove"), b -> {
-                bars.remove(bar);
-                onChange.run();
-                clearAndInit();
-            })
+                        bars.remove(bar);
+                        onChange.run();
+                        clearAndInit();
+                    })
                     .dimensions(x(1) + 86, row, 64, 20).build());
         }
 
@@ -227,25 +221,24 @@ public final class SettingsScreen extends Screen {
             labels.add(new Label("No progress bars yet.", x(0), below + 6));
         }
         ButtonWidget add = ButtonWidget.builder(Text.literal("Add bar"), b -> {
-            bars.add(new ModConfig.Bar(ProgressSlot.SWORD.name(), 1));
-            onChange.run();
-            clearAndInit();
-        })
+                    bars.add(new ModConfig.Bar(ProgressSlot.SWORD.name(), 1));
+                    onChange.run();
+                    clearAndInit();
+                })
                 .dimensions(x(1), below, COLUMN_WIDTH, 20).build();
         add.active = bars.size() < ModConfig.MAX_BARS;
         addDrawableChild(add);
 
-        // Three to a row, so six bars plus these still clear the Done button at GUI
-        // scale 4.
+        // Three to a row, so six bars plus these still clear the Done button at GUI scale 4.
         int after = below + ROW_HEIGHT;
         int third = (COLUMN_WIDTH * 2 + 10 - 8) / 3;
         toggleAt(x(0), after, third, "Text", () -> config.showProgressText, v -> config.showProgressText = v);
         toggleAt(x(0) + third + 4, after, third, "Bar", () -> config.showProgressBar, v -> config.showProgressBar = v);
         addDrawableChild(ButtonWidget.builder(goalLabel(), b -> {
-            config.progressToMax = !config.progressToMax;
-            onChange.run();
-            clearAndInit(); // the explanation under it changes too
-        })
+                    config.progressToMax = !config.progressToMax;
+                    onChange.run();
+                    clearAndInit();   // the explanation under it changes too
+                })
                 .dimensions(x(0) + 2 * (third + 4), after, third, 20).build());
         labels.add(new Label(config.progressToMax
                 ? "Each bar counts every tier left to max the piece at its mine."
@@ -262,11 +255,11 @@ public final class SettingsScreen extends Screen {
 
     private void background(int row, String name, ModConfig.Look look) {
         cycle(0, row, name + " background", () -> look.background ? look.opacity : 0, v -> {
-            look.background = v > 0;
-            if (v > 0) {
-                look.opacity = v;
-            }
-        },
+                    look.background = v > 0;
+                    if (v > 0) {
+                        look.opacity = v;
+                    }
+                },
                 new int[] { 0, 25, 50, 75, 100 }, v -> v == 0 ? "off" : v + "%");
     }
 
@@ -278,16 +271,14 @@ public final class SettingsScreen extends Screen {
         colour(0, 2, "Warnings", () -> config.colorWarn, v -> config.colorWarn = v, Theme.defaults().warn());
         colour(1, 2, "Dim text", () -> config.colorDim, v -> config.colorDim = v, Theme.defaults().dim());
         colour(0, 3, "Bar", () -> config.colorBar, v -> config.colorBar = v, Theme.defaults().barFill());
-        colour(1, 3, "Bar finished", () -> config.colorBarDone, v -> config.colorBarDone = v,
-                Theme.defaults().barDone());
-        colour(0, 4, "Bar track", () -> config.colorBarTrack, v -> config.colorBarTrack = v,
-                Theme.defaults().barTrack());
+        colour(1, 3, "Bar finished", () -> config.colorBarDone, v -> config.colorBarDone = v, Theme.defaults().barDone());
+        colour(0, 4, "Bar track", () -> config.colorBarTrack, v -> config.colorBarTrack = v, Theme.defaults().barTrack());
 
         addDrawableChild(ButtonWidget.builder(Text.literal("Reset colours"), b -> {
-            config.resetColors();
-            onChange.run();
-            clearAndInit();
-        })
+                    config.resetColors();
+                    onChange.run();
+                    clearAndInit();
+                })
                 .dimensions(x(1), y(4), COLUMN_WIDTH, 20).build());
         labels.add(new Label("Type a colour as #RRGGBB.", x(0), y(6)));
     }
@@ -322,27 +313,24 @@ public final class SettingsScreen extends Screen {
 
     private void toggleAt(int x, int y, int width, String label, BooleanSupplier get, Consumer<Boolean> set) {
         addDrawableChild(ButtonWidget.builder(onOff(label, get.getAsBoolean()), b -> {
-            set.accept(!get.getAsBoolean());
-            b.setMessage(onOff(label, get.getAsBoolean()));
-            onChange.run();
-        })
+                    set.accept(!get.getAsBoolean());
+                    b.setMessage(onOff(label, get.getAsBoolean()));
+                    onChange.run();
+                })
                 .dimensions(x, y, width, 20).build());
     }
 
     private void cycle(int column, int row, String label, IntSupplier get, IntConsumer set,
-            int[] values, IntFunction<String> show) {
+                       int[] values, IntFunction<String> show) {
         addDrawableChild(ButtonWidget.builder(Text.literal(label + ": " + show.apply(get.getAsInt())), b -> {
-            set.accept(next(values, get.getAsInt()));
-            b.setMessage(Text.literal(label + ": " + show.apply(get.getAsInt())));
-            onChange.run();
-        })
+                    set.accept(next(values, get.getAsInt()));
+                    b.setMessage(Text.literal(label + ": " + show.apply(get.getAsInt())));
+                    onChange.run();
+                })
                 .dimensions(x(column), y(row), COLUMN_WIDTH, 20).build());
     }
 
-    /**
-     * The next value up, wrapping round. A hand-edited value between steps lands on
-     * the next step.
-     */
+    /** The next value up, wrapping round. A hand-edited value between steps lands on the next step. */
     static int next(int[] values, int current) {
         for (int v : values) {
             if (v > current) {
@@ -353,7 +341,7 @@ public final class SettingsScreen extends Screen {
     }
 
     private TextFieldWidget field(int x, int y, int width, String text, int maxLength,
-            Predicate<String> allowed, Consumer<String> changed) {
+                                  Predicate<String> allowed, Consumer<String> changed) {
         TextFieldWidget f = new TextFieldWidget(this.textRenderer, x, y, width, 20, Text.empty());
         f.setMaxLength(maxLength);
         f.setText(text);
@@ -374,8 +362,7 @@ public final class SettingsScreen extends Screen {
 
     @Override
     public void render(DrawContext context, int mouseX, int mouseY, float delta) {
-        // Background is drawn by renderWithTooltip; see HudPositionScreen for why not
-        // here.
+        // Background is drawn by renderWithTooltip; see HudPositionScreen for why not here.
         super.render(context, mouseX, mouseY, delta);
 
         context.drawCenteredTextWithShadow(this.textRenderer, this.title, this.width / 2, 12, 0xFFFFFFFF);

@@ -14,10 +14,8 @@ import java.util.Optional;
 /**
  * Builds exactly what the overlay should say, as plain strings.
  *
- * All the decisions live here rather than in the renderer, so the overlay can
- * be tested without
- * a game running and so a Minecraft rendering API change never touches the
- * logic.
+ * All the decisions live here rather than in the renderer, so the overlay can be tested without
+ * a game running and so a Minecraft rendering API change never touches the logic.
  */
 public final class HudModel {
 
@@ -52,12 +50,9 @@ public final class HudModel {
         }
     }
 
-    /**
-     * Which rows each panel shows. Every one defaults to on, so nothing disappears
-     * by upgrading.
-     */
+    /** Which rows each panel shows. Every one defaults to on, so nothing disappears by upgrading. */
     public record MineLines(boolean sword, boolean tool, boolean armor, boolean charm,
-            boolean total, boolean upgrade) {
+                            boolean total, boolean upgrade) {
 
         public static MineLines all() {
             return new MineLines(true, true, true, true, true, true);
@@ -65,9 +60,8 @@ public final class HudModel {
     }
 
     /**
-     * @param upTimers "Boss: UP (1:20)" rows for bosses currently alive
-     * @param learning rows for bosses whose timer is not known yet ("learning...",
-     *                 "unknown")
+     * @param upTimers  "Boss: UP (1:20)" rows for bosses currently alive
+     * @param learning  rows for bosses whose timer is not known yet ("learning...", "unknown")
      */
     public record BossLines(boolean upTimers, boolean learning) {
 
@@ -76,10 +70,7 @@ public final class HudModel {
         }
     }
 
-    /**
-     * @param text the "Debris Shovel IV 3.1b/4.39b" row; @param bar the bar under
-     *             it
-     */
+    /** @param text the "Debris Shovel IV  3.1b/4.39b" row; @param bar the bar under it */
     public record ProgressLines(boolean text, boolean bar) {
 
         public static ProgressLines all() {
@@ -88,14 +79,14 @@ public final class HudModel {
     }
 
     public record Options(boolean showMine,
-            boolean showArmorPieces,
-            boolean showCredits,
-            double blocksPerCreditMillions,
-            boolean showBosses,
-            int maxBosses,
-            MineLines mineLines,
-            BossLines bossLines,
-            ProgressLines progressLines) {
+                          boolean showArmorPieces,
+                          boolean showCredits,
+                          double blocksPerCreditMillions,
+                          boolean showBosses,
+                          int maxBosses,
+                          MineLines mineLines,
+                          BossLines bossLines,
+                          ProgressLines progressLines) {
 
         public static Options defaults() {
             return new Options(true, false, false, 200.0, true, 5,
@@ -104,14 +95,13 @@ public final class HudModel {
     }
 
     /**
-     * The player's progress on one gear slot, from the item they are carrying and
-     * the prices the
+     * The player's progress on one gear slot, from the item they are carrying and the prices the
      * client has observed.
      */
     public record UpgradeView(String mine, String gear, int currentLevel, int maxLevel,
-            java.util.OptionalLong nextCost,
-            java.util.OptionalLong remaining,
-            boolean fromObservation) {
+                              java.util.OptionalLong nextCost,
+                              java.util.OptionalLong remaining,
+                              boolean fromObservation) {
 
         public boolean maxed() {
             return currentLevel >= maxLevel;
@@ -122,18 +112,18 @@ public final class HudModel {
     }
 
     public static List<Line> build(Optional<Mine> currentMine,
-            List<BossTracker.BossView> bosses,
-            Options options,
-            long nowMs) {
+                                   List<BossTracker.BossView> bosses,
+                                   Options options,
+                                   long nowMs) {
         return build(currentMine, Optional.empty(), bosses, options, nowMs);
     }
 
     /** Both panels stacked as one, separated by a blank line. */
     public static List<Line> build(Optional<Mine> currentMine,
-            Optional<UpgradeView> upgrade,
-            List<BossTracker.BossView> bosses,
-            Options options,
-            long nowMs) {
+                                   Optional<UpgradeView> upgrade,
+                                   List<BossTracker.BossView> bosses,
+                                   Options options,
+                                   long nowMs) {
         List<Line> lines = new ArrayList<>(minePanel(currentMine, upgrade, options));
         List<Line> boss = bossPanel(bosses, options);
         if (!lines.isEmpty() && !boss.isEmpty()) {
@@ -144,28 +134,22 @@ public final class HudModel {
     }
 
     /**
-     * The mine costs and the upgrade for the gear in hand. Kept together because
-     * both answer
-     * "what does progressing here cost", and separate from the bosses so each can
-     * be placed on
+     * The mine costs and the upgrade for the gear in hand. Kept together because both answer
+     * "what does progressing here cost", and separate from the bosses so each can be placed on
      * its own.
      */
     public static List<Line> minePanel(Optional<Mine> currentMine,
-            Optional<UpgradeView> upgrade,
-            Options options) {
-        // From the bundled data alone, with no shop prices. The game passes the full
-        // view instead.
+                                       Optional<UpgradeView> upgrade,
+                                       Options options) {
+        // From the bundled data alone, with no shop prices. The game passes the full view instead.
         return costPanel(currentMine.map(m -> MineCosts.of(m.name(), Optional.of(m),
                 new PriceLedger(), options.showArmorPieces())), upgrade, options);
     }
 
-    /**
-     * The mine panel from costs already combined with shop prices, see
-     * {@link MineCosts}.
-     */
+    /** The mine panel from costs already combined with shop prices, see {@link MineCosts}. */
     public static List<Line> costPanel(Optional<MineCosts.View> costs,
-            Optional<UpgradeView> upgrade,
-            Options options) {
+                                       Optional<UpgradeView> upgrade,
+                                       Options options) {
         List<Line> lines = new ArrayList<>();
 
         if (options.showMine()) {
@@ -183,8 +167,7 @@ public final class HudModel {
     }
 
     /**
-     * Boss timers on their own. Empty until a boss has been seen, and empty again
-     * if every row
+     * Boss timers on their own. Empty until a boss has been seen, and empty again if every row
      * is switched off, so a lone header is never drawn.
      */
     public static List<Line> bossPanel(List<BossTracker.BossView> bosses, Options options) {
@@ -196,10 +179,8 @@ public final class HudModel {
     }
 
     /**
-     * The respawn reminder, one line per boss, drawn as its own panel so it can be
-     * placed and
-     * sized apart from the timers. Usually one boss; two only if their windows
-     * overlap.
+     * The respawn reminder, one line per boss, drawn as its own panel so it can be placed and
+     * sized apart from the timers. Usually one boss; two only if their windows overlap.
      */
     public static List<Line> alertPanel(List<String> bossNames) {
         List<Line> lines = new ArrayList<>();
@@ -214,13 +195,13 @@ public final class HudModel {
     /**
      * One upgrade and how close the player is to affording it:
      *
-     * Debris Shovel IV 3.1b/4.39b
-     * [=========-----]
+     *   Debris Shovel IV  3.1b/4.39b
+     *   [=========-----]
      *
      * and once affordable:
      *
-     * Debris Shovel IV finished 5.02b
-     * [==============]
+     *   Debris Shovel IV  finished  5.02b
+     *   [==============]
      *
      * Empty when the bar is switched off, so nothing is drawn.
      */
@@ -229,10 +210,8 @@ public final class HudModel {
     }
 
     /**
-     * Every tracked upgrade stacked in one panel, each as its own row and bar. A
-     * quantity shows
-     * in front, "12x Rafter Chestplate IV", and the figures are for all twelve
-     * together.
+     * Every tracked upgrade stacked in one panel, each as its own row and bar. A quantity shows
+     * in front, "12x Rafter Chestplate IV", and the figures are for all twelve together.
      */
     public static List<Line> progressPanel(List<ProgressPlanner.ProgressView> views, ProgressLines show) {
         List<Line> lines = new ArrayList<>();
@@ -249,8 +228,8 @@ public final class HudModel {
                 ? romanish(v.targetLevel()) + "-" + romanish(v.toLevel())
                 : romanish(v.targetLevel());
         String piece = v.slot().isTotal()
-                ? count + v.mine() + " Total"
-                : count + v.mine() + " " + capitalise(v.gear()) + " " + tiers;
+            ? count + v.mine() + " Total"
+            : count + v.mine() + " " + capitalise(v.gear()) + " " + tiers;
 
         switch (v.state()) {
             case TRACKING -> {
@@ -298,8 +277,7 @@ public final class HudModel {
         lines.add(Line.of((view.mine() + "  " + view.world()).trim(), Style.HEADER));
 
         if (!view.anyKnown()) {
-            // A new mine, or one the data has no prices for. Saying so beats zeros, which
-            // would
+            // A new mine, or one the data has no prices for. Saying so beats zeros, which would
             // read as "free", and beats "unknown", which reads as broken.
             lines.add(Line.of("no prices yet, open this mine's shop", Style.DIM));
             return;
@@ -319,8 +297,7 @@ public final class HudModel {
                 lines.add(costLine(label, piece.cost().getAsLong(), "* (" + piece.tiers() + ")", options));
                 continue;
             }
-            // A star marks a figure read from the shop rather than taken from the
-            // spreadsheet.
+            // A star marks a figure read from the shop rather than taken from the spreadsheet.
             String mark = piece.source() == MineCosts.Source.SHOP ? "*" : "";
             lines.add(costLine(label, piece.cost().getAsLong(), mark, options));
         }
@@ -328,8 +305,7 @@ public final class HudModel {
         if (!options.mineLines().total()) {
             return;
         }
-        // Always the whole mine, even with some rows hidden: hiding a row changes what
-        // is shown,
+        // Always the whole mine, even with some rows hidden: hiding a row changes what is shown,
         // not what the mine costs.
         if (view.total().isPresent()) {
             lines.add(costLine("Total", view.total().getAsLong(), "", options).withStyle(Style.HEADER));
@@ -343,7 +319,7 @@ public final class HudModel {
             case "sword" -> show.sword();
             case "charm" -> show.charm();
             case "armor", "helmet", "chestplate", "leggings", "boots" -> show.armor();
-            default -> show.tool(); // pickaxe, axe, shovel, or "tool" before it is known
+            default -> show.tool();   // pickaxe, axe, shovel, or "tool" before it is known
         };
     }
 
@@ -352,7 +328,7 @@ public final class HudModel {
         sb.append(label).append(": ").append(Formatting.blocks(blocks)).append(mark);
         if (options.showCredits()) {
             sb.append("  (").append(Formatting.credits(blocks, options.blocksPerCreditMillions()))
-                    .append(')');
+              .append(')');
         }
         return Line.of(sb.toString(), Style.VALUE);
     }
@@ -370,10 +346,8 @@ public final class HudModel {
         }
 
         if (u.nextCost().isPresent()) {
-            // A star marks a price the client read from a shop tooltip rather than one
-            // seeded
-            // from the spreadsheet, so a stale seed never looks as authoritative as a real
-            // one.
+            // A star marks a price the client read from a shop tooltip rather than one seeded
+            // from the spreadsheet, so a stale seed never looks as authoritative as a real one.
             String mark = u.fromObservation() ? "*" : "";
             lines.add(Line.of("Next: " + Formatting.blocks(u.nextCost().getAsLong()) + mark,
                     Style.VALUE));
@@ -395,8 +369,8 @@ public final class HudModel {
     // ----------------------------------------------------------------- boss
 
     private static void appendBosses(List<Line> lines,
-            List<BossTracker.BossView> bosses,
-            Options options) {
+                                     List<BossTracker.BossView> bosses,
+                                     Options options) {
         lines.add(Line.of("Bosses", Style.HEADER));
 
         int shown = 0;
@@ -437,8 +411,7 @@ public final class HudModel {
                     yield Line.of(name + ": due now", Style.WARN);
                 }
                 String eta = Formatting.duration(boss.etaMs().orElse(0L));
-                // A single sample is a guess, not a measurement. Say so rather than look
-                // certain.
+                // A single sample is a guess, not a measurement. Say so rather than look certain.
                 String marker = boss.intervalConfident() ? "" : " ?";
                 yield Line.of(name + ": " + eta + marker, Style.VALUE);
             }

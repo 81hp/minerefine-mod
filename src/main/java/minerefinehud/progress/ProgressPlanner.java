@@ -13,23 +13,17 @@ import java.util.OptionalLong;
 /**
  * Works out the single upgrade the progress bar should show.
  *
- * Stateless on purpose: it is recomputed from the player's inventory every
- * time, so the bar
- * advances by itself when they buy a tier, moves to the next mine when the
- * piece is maxed, and
- * can never get out of step with what they actually own after a relog or a
- * crash.
+ * Stateless on purpose: it is recomputed from the player's inventory every time, so the bar
+ * advances by itself when they buy a tier, moves to the next mine when the piece is maxed, and
+ * can never get out of step with what they actually own after a relog or a crash.
  *
  * The rules:
  *
- * 1. Start from the most advanced item of the chosen kind the player holds
- * (latest mine in
- * progression, then highest tier). With none, start at the mine they are
- * standing in.
- * 2. If that item is at its last tier, move to the next mine that sells this
- * kind of item and
- * start from whatever tier is owned there, usually none.
- * 3. The target is one tier above that.
+ *   1. Start from the most advanced item of the chosen kind the player holds (latest mine in
+ *      progression, then highest tier). With none, start at the mine they are standing in.
+ *   2. If that item is at its last tier, move to the next mine that sells this kind of item and
+ *      start from whatever tier is owned there, usually none.
+ *   3. The target is one tier above that.
  */
 public final class ProgressPlanner {
 
@@ -50,37 +44,27 @@ public final class ProgressPlanner {
     public enum Goal {
         /** The next tier only. */
         NEXT_TIER,
-        /**
-         * Every tier still to buy at this mine, up to the last: a chestplate at II of
-         * IV counts III and IV.
-         */
+        /** Every tier still to buy at this mine, up to the last: a chestplate at II of IV counts III and IV. */
         TO_MAX
     }
 
     /**
      * @param targetLevel the next tier to buy
-     * @param toLevel     the last tier the cost covers: {@code targetLevel} for the
-     *                    next tier only,
+     * @param toLevel     the last tier the cost covers: {@code targetLevel} for the next tier only,
      *                    the item's last tier when tracking the way to max
-     * @param quantity    how many of this piece are being bought together, e.g. 12
-     *                    chestplates;
+     * @param quantity    how many of this piece are being bought together, e.g. 12 chestplates;
      *                    {@code cost} is already multiplied by it
      */
     public record ProgressView(ProgressSlot slot, String mine, String gear, int targetLevel,
-            State state, OptionalLong cost, OptionalLong have, String currency,
-            int quantity, int toLevel) {
+                               State state, OptionalLong cost, OptionalLong have, String currency,
+                               int quantity, int toLevel) {
 
-        /**
-         * Most anyone buys at once. Far beyond 12, and keeps the multiplication well
-         * inside a long.
-         */
+        /** Most anyone buys at once. Far beyond 12, and keeps the multiplication well inside a long. */
         public static final int MAX_QUANTITY = 999;
 
         /**
-         * The same upgrade bought this many times over: one bar for the combined cost
-         * rather than
-         * one bar per piece. Saturates instead of overflowing, though no real price
-         * gets close.
+         * The same upgrade bought this many times over: one bar for the combined cost rather than
+         * one bar per piece. Saturates instead of overflowing, though no real price gets close.
          */
         public ProgressView withQuantity(int count) {
             int q = Math.max(1, Math.min(MAX_QUANTITY, count));
@@ -117,41 +101,37 @@ public final class ProgressPlanner {
     }
 
     public static ProgressView plan(ProgressSlot slot,
-            List<ShopItemParser.GearRef> owned,
-            MineCatalog catalog,
-            Optional<Mine> currentMine,
-            PriceLedger ledger,
-            ResourceBalances balances) {
+                                    List<ShopItemParser.GearRef> owned,
+                                    MineCatalog catalog,
+                                    Optional<Mine> currentMine,
+                                    PriceLedger ledger,
+                                    ResourceBalances balances) {
         return plan(slot, owned, catalog, new ProgressionLinks(), currentMine, ledger, balances);
     }
 
     /**
-     * @param links mine order learned from shop prerequisites, which carries the
-     *              bar past the end
+     * @param links mine order learned from shop prerequisites, which carries the bar past the end
      *              of the bundled data into dimensions added since
      */
     public static ProgressView plan(ProgressSlot slot,
-            List<ShopItemParser.GearRef> owned,
-            MineCatalog catalog,
-            ProgressionLinks links,
-            Optional<Mine> currentMine,
-            PriceLedger ledger,
-            ResourceBalances balances) {
+                                    List<ShopItemParser.GearRef> owned,
+                                    MineCatalog catalog,
+                                    ProgressionLinks links,
+                                    Optional<Mine> currentMine,
+                                    PriceLedger ledger,
+                                    ResourceBalances balances) {
         return plan(slot, owned, catalog, links, currentMine, ledger, balances, Goal.NEXT_TIER);
     }
 
-    /**
-     * @param goal the next tier, or everything still to buy for this item at this
-     *             mine
-     */
+    /** @param goal the next tier, or everything still to buy for this item at this mine */
     public static ProgressView plan(ProgressSlot slot,
-            List<ShopItemParser.GearRef> owned,
-            MineCatalog catalog,
-            ProgressionLinks links,
-            Optional<Mine> currentMine,
-            PriceLedger ledger,
-            ResourceBalances balances,
-            Goal goal) {
+                                    List<ShopItemParser.GearRef> owned,
+                                    MineCatalog catalog,
+                                    ProgressionLinks links,
+                                    Optional<Mine> currentMine,
+                                    PriceLedger ledger,
+                                    ResourceBalances balances,
+                                    Goal goal) {
 
         if (slot.isTotal()) {
             return planMineTotal(slot, catalog, currentMine, ledger, balances);
@@ -182,8 +162,7 @@ public final class ProgressPlanner {
         }
 
         int level = ownedLevel(catalog, mine, at);
-        // Bounded: learned links come from saved data, and a loop in them must not hang
-        // a tick.
+        // Bounded: learned links come from saved data, and a loop in them must not hang a tick.
         int hops = 0;
         while (level >= ledger.maxLevel(at, slot.gear(), catalog.pieceTotal(at, slot.gear()))) {
             Optional<String> next = nextMine(slot, catalog, links, at);
@@ -206,8 +185,7 @@ public final class ProgressPlanner {
                 : ledger.price(at, slot.gear(), target)
                         .map(p -> OptionalLong.of(p.amount())).orElse(OptionalLong.empty());
 
-        // A price names its currency. Without one, the mine's own name is the best
-        // guess, which
+        // A price names its currency. Without one, the mine's own name is the best guess, which
         // is what every observed tooltip so far has used ("Debris x1.96B" at Debris).
         String currency = currencyOf(ledger, at, slot.gear(), max).orElse(at);
         OptionalLong have = balances.get(currency)
@@ -223,8 +201,8 @@ public final class ProgressPlanner {
     }
 
     private static ProgressView planMineTotal(ProgressSlot slot, MineCatalog catalog,
-            Optional<Mine> currentMine, PriceLedger ledger,
-            ResourceBalances balances) {
+                                              Optional<Mine> currentMine, PriceLedger ledger,
+                                              ResourceBalances balances) {
         if (currentMine.isEmpty()) {
             return empty(slot, State.NO_MINE, "");
         }
@@ -239,17 +217,13 @@ public final class ProgressPlanner {
     }
 
     /**
-     * Everything still to buy, tiers {@code level + 1} to {@code max}. From the
-     * shop when every one
-     * of those tiers has been seen. Otherwise from the spreadsheet: the whole piece
-     * minus the tiers
-     * already owned, which needs only the owned tiers' prices, and nothing at all
-     * for a piece not
-     * started yet. Empty when neither works, rather than a total that leaves
-     * something out.
+     * Everything still to buy, tiers {@code level + 1} to {@code max}. From the shop when every one
+     * of those tiers has been seen. Otherwise from the spreadsheet: the whole piece minus the tiers
+     * already owned, which needs only the owned tiers' prices, and nothing at all for a piece not
+     * started yet. Empty when neither works, rather than a total that leaves something out.
      */
     static OptionalLong costToMax(PriceLedger ledger, String mine, String gear, int level, int max,
-            OptionalLong sheet) {
+                                  OptionalLong sheet) {
         OptionalLong fromShop = ledger.remainingCost(mine, gear, level, max);
         if (fromShop.isPresent() || sheet.isEmpty()) {
             return fromShop;
@@ -263,15 +237,11 @@ public final class ProgressPlanner {
             paid += p.get().amount();
         }
         long left = sheet.getAsLong() - paid;
-        // Owned tiers costing as much as the whole piece means the sheet is out of
-        // date.
+        // Owned tiers costing as much as the whole piece means the sheet is out of date.
         return left > 0L ? OptionalLong.of(left) : OptionalLong.empty();
     }
 
-    /**
-     * The currency this item is priced in, from whichever of its tiers has been
-     * seen.
-     */
+    /** The currency this item is priced in, from whichever of its tiers has been seen. */
     private static Optional<String> currencyOf(PriceLedger ledger, String mine, String gear, int max) {
         for (int l = 1; l <= Math.max(max, PriceLedger.DEFAULT_MAX_LEVEL); l++) {
             Optional<String> c = ledger.price(mine, gear, l).map(PriceLedger.Price::currency)
@@ -304,25 +274,16 @@ public final class ProgressPlanner {
         return known.map(m -> catalog.mines().indexOf(m)).orElse(-1);
     }
 
-    /**
-     * Longest chain of learned links followed, so a bad loop in saved data cannot
-     * hang a tick.
-     */
+    /** Longest chain of learned links followed, so a bad loop in saved data cannot hang a tick. */
     private static final int MAX_LINK_STEPS = 64;
 
     /**
-     * Position in progression. A mine the data does not list is placed just after
-     * the listed mine
-     * its learned links lead back to, a fraction further on for each link, so it
-     * sorts before the
-     * next listed mine. That is right for a boss, whose gear sits between the last
-     * mine of one
-     * world and the first of the next (Aurora, then Bjorn, then Darkstone), and for
-     * a newly added
-     * dimension, which leads back to the last listed mine and so still sorts after
-     * everything.
-     * Placing every such mine after all listed ones made a leftover boss chestplate
-     * outrank the
+     * Position in progression. A mine the data does not list is placed just after the listed mine
+     * its learned links lead back to, a fraction further on for each link, so it sorts before the
+     * next listed mine. That is right for a boss, whose gear sits between the last mine of one
+     * world and the first of the next (Aurora, then Bjorn, then Darkstone), and for a newly added
+     * dimension, which leads back to the last listed mine and so still sorts after everything.
+     * Placing every such mine after all listed ones made a leftover boss chestplate outrank the
      * Darkstone one, and the bar followed the boss. Otherwise -1.
      */
     private static double orderOf(MineCatalog catalog, ProgressionLinks links, String gear, String mineName) {
@@ -349,10 +310,7 @@ public final class ProgressPlanner {
         return !slot.isTool() || mine.toolKeys().contains(slot.gear());
     }
 
-    /**
-     * The current mine if it sells this kind of item, otherwise the next one that
-     * does.
-     */
+    /** The current mine if it sells this kind of item, otherwise the next one that does. */
     private static Optional<String> startMine(ProgressSlot slot, MineCatalog catalog, Mine current) {
         int index = orderOf(catalog, current.name());
         if (index < 0) {
@@ -369,12 +327,11 @@ public final class ProgressPlanner {
     }
 
     /**
-     * The next mine after this one that sells this kind of item. What the shop says
-     * wins over the
+     * The next mine after this one that sells this kind of item. What the shop says wins over the
      * bundled order, because the shop is the server itself.
      */
     static Optional<String> nextMine(ProgressSlot slot, MineCatalog catalog, ProgressionLinks links,
-            String after) {
+                                     String after) {
         Optional<String> learned = links.next(catalog.serverName(after), slot.gear());
         if (learned.isPresent()) {
             return learned;

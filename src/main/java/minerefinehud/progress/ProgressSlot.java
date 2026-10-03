@@ -6,12 +6,9 @@ import java.util.Optional;
 /**
  * The gear piece the progress bar follows.
  *
- * Tools are three separate choices rather than one "tool", because the server
- * chains them by
- * type: Debris Shovel I requires Suspicious Sand Shovel VI, skipping the four
- * pickaxe and axe
- * mines in between. A single "tool" slot would send a shovel player to a
- * pickaxe mine.
+ * Tools are three separate choices rather than one "tool", because the server chains them by
+ * type: Debris Shovel I requires Suspicious Sand Shovel VI, skipping the four pickaxe and axe
+ * mines in between. A single "tool" slot would send a shovel player to a pickaxe mine.
  */
 public enum ProgressSlot {
 
@@ -32,10 +29,7 @@ public enum ProgressSlot {
         this.gear = gear;
     }
 
-    /**
-     * The gear word as it appears in item names, e.g. "shovel" in "[Debris Shovel]
-     * [VI]".
-     */
+    /** The gear word as it appears in item names, e.g. "shovel" in "[Debris Shovel] [VI]". */
     public String gear() {
         return gear;
     }
@@ -52,10 +46,7 @@ public enum ProgressSlot {
         return name().charAt(0) + name().substring(1).toLowerCase(Locale.ROOT);
     }
 
-    /**
-     * Tolerant lookup for the config file. Anything unrecognised, including "OFF",
-     * is empty.
-     */
+    /** Tolerant lookup for the config file. Anything unrecognised, including "OFF", is empty. */
     public static Optional<ProgressSlot> parse(String raw) {
         if (raw == null) {
             return Optional.empty();

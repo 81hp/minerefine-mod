@@ -790,6 +790,33 @@ public final class CoreTests {
         pickups.reset();
         assertTrue("after a relog the first scan only records again",
                 pickups.observe(start, catalog).isEmpty());
+
+        // Seen in game, October 2026: "◆ Very Compressed Rust", lore "4,096 RUST" and "TRIALBOUND".
+        MineCatalog trials = new MineCatalog(List.of(
+                mine("Rusty", "Trials", "pickaxe"), mine("Woodland Copper", "Woodland", "pickaxe")));
+        List<String> trialbound = List.of("4,096 RUST", "TRIALBOUND");
+        assertEquals("the glyph and the compression are stripped", "Rust",
+                ResourcePickups.resourceName("◆ Very Compressed Rust", trialbound, trials).orElseThrow());
+        assertEquals("plain compressed Woodland Copper", "Woodland Copper",
+                ResourcePickups.resourceName("◆ Compressed Woodland Copper", List.of("WOODBOUND"), trials)
+                        .orElseThrow());
+
+        ResourcePickups atRust = new ResourcePickups();
+        atRust.observe(List.of(new ResourcePickups.Item("◆ Compressed Rust", trialbound, 63),
+                new ResourcePickups.Item("◆ Compressed Woodland Copper", trialbound, 5)), trials);
+        assertEquals("a compressed Rust coming in is Rust", "Rust",
+                atRust.observe(List.of(new ResourcePickups.Item("◆ Compressed Rust", trialbound, 64),
+                        new ResourcePickups.Item("◆ Compressed Woodland Copper", trialbound, 5)), trials)
+                        .orElseThrow());
+        assertTrue("the server merging 64 into one Very Compressed is not a pickup",
+                atRust.observe(List.of(new ResourcePickups.Item("◆ Very Compressed Rust", trialbound, 1),
+                        new ResourcePickups.Item("◆ Compressed Woodland Copper", trialbound, 5)), trials)
+                        .isEmpty());
+        assertEquals("the next one after the merge counts again", "Rust",
+                atRust.observe(List.of(new ResourcePickups.Item("◆ Very Compressed Rust", trialbound, 1),
+                        new ResourcePickups.Item("◆ Compressed Rust", trialbound, 1),
+                        new ResourcePickups.Item("◆ Compressed Woodland Copper", trialbound, 5)), trials)
+                        .orElseThrow());
     }
 
     private static Mine mine(String name, String world, String toolKey) {

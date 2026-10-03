@@ -24,7 +24,8 @@ public final class MineSpots {
     /** Where a mine was last mined: the dimension id and the block coordinates. */
     public record Spot(String dimension, double x, double z) {
 
-        double distanceTo(Spot o) {
+        /** Blocks between the two on x/z, or infinite in another dimension. */
+        public double distanceTo(Spot o) {
             if (dimension == null || !dimension.equals(o.dimension)) {
                 return Double.POSITIVE_INFINITY;
             }

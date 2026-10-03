@@ -40,6 +40,7 @@ public final class ResourcePickups {
     private static final Pattern WORLD_TAG = Pattern.compile("^[A-Z]+BOUND$");
 
     private Map<String, Integer> baseline;
+    private Map<String, String> baselineResources = new HashMap<>();
 
     /** World tag of the resource that last went up, e.g. "RUINBOUND". */
     private Optional<String> lastWorldTag = Optional.empty();
@@ -94,8 +95,7 @@ public final class ResourcePickups {
         if (name == null) {
             return Optional.empty();
         }
-        String clean = SPRITE.matcher(FORMATTING.matcher(name).replaceAll("")).replaceAll("")
-                .replaceAll("\\s+", " ").trim();
+        String clean = cleanName(name);
         String base = COMPRESSION.matcher(clean).replaceFirst("").trim();
         if (base.isEmpty() || base.contains("[")) {
             return Optional.empty();
@@ -111,40 +111,77 @@ public final class ResourcePickups {
     }
 
     /**
-     * Compares this scan with the last one. Returns the resource that increased the most, if any.
+     * Compares this scan with the last one. Returns the resource of the item that increased the
+     * most, if any: "Very Compressed Rust" going up is Rust.
+     *
+     * Counted per item name, so per compression level, not summed per resource. Mining here gives
+     * compressed items, and the server merges them up a level as they fill: 64 Compressed Rust
+     * become 1 Very Compressed Rust. Summed, that is a drop of 63 and no pickup at all, which hid
+     * nearly every pickup. Per level, the Very Compressed count went up, and that is Rust.
      */
     public Optional<String> observe(List<Item> inventory, MineCatalog catalog) {
         Map<String, Integer> counts = new HashMap<>();
+        Map<String, String> resourceOf = new HashMap<>();
         Map<String, String> tags = new HashMap<>();
         for (Item item : inventory) {
             resourceName(item.name(), item.lore(), catalog).ifPresent(r -> {
-                counts.merge(r, Math.max(0, item.count()), Integer::sum);
+                String level = itemKey(item.name());
+                counts.merge(level, Math.max(0, item.count()), Integer::sum);
+                resourceOf.put(level, r);
                 worldTag(item.lore()).ifPresent(tag -> tags.putIfAbsent(r, tag));
             });
         }
 
         Map<String, Integer> previous = baseline;
+        Map<String, String> previousResources = baselineResources;
         baseline = counts;
+        baselineResources = resourceOf;
         if (previous == null) {
             return Optional.empty();
         }
 
-        // Per compression level would be overkill: compressing 64 Zircon into 1 Compressed
-        // Zircon lowers the summed count, which is simply not a gain, and the next block mined
-        // raises it again.
+        // A level of a resource going down in the same scan means a stack was compressed, by the
+        // player or the server, not mined, so that resource's rise this scan says nothing. Without
+        // this, compressing a Rust stack while mining Woodland Copper would name Rust.
+        java.util.Set<String> compressedNow = new java.util.HashSet<>();
+        for (Map.Entry<String, Integer> e : previous.entrySet()) {
+            String r = previousResources.get(e.getKey());
+            if (r != null && counts.getOrDefault(e.getKey(), 0) < e.getValue()) {
+                compressedNow.add(r);
+            }
+        }
+
         String best = null;
         int bestGain = 0;
         for (Map.Entry<String, Integer> e : counts.entrySet()) {
+            if (compressedNow.contains(resourceOf.get(e.getKey()))) {
+                continue;
+            }
             int gain = e.getValue() - previous.getOrDefault(e.getKey(), 0);
             if (gain > bestGain) {
                 bestGain = gain;
-                best = e.getKey();
+                best = resourceOf.get(e.getKey());
             }
         }
         if (best != null && tags.containsKey(best)) {
             lastWorldTag = Optional.of(tags.get(best));
         }
         return Optional.ofNullable(best);
+    }
+
+    /** The item's name as shown, colours and sprites removed: one key per compression level. */
+    private static String itemKey(String name) {
+        return cleanName(name).toLowerCase(java.util.Locale.ROOT);
+    }
+
+    /** Glyphs in front of a name, like the diamond before "Very Compressed Rust". */
+    private static final Pattern LEADING_GLYPHS = Pattern.compile("^[^\\p{L}\\p{N}\\[]+");
+
+    /** Colour codes, sprites and leading glyphs removed, spaces collapsed. */
+    private static String cleanName(String name) {
+        String s = SPRITE.matcher(FORMATTING.matcher(name).replaceAll("")).replaceAll("")
+                .replaceAll("\\s+", " ").trim();
+        return LEADING_GLYPHS.matcher(s).replaceFirst("").trim();
     }
 
     /** Forget the inventory, so a relog or world change is not read as a pickup. */

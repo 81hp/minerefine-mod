@@ -111,6 +111,8 @@ public final class MinerefineHudClient implements ClientModInitializer {
     private long lastPickupAt;
     /** The block icon on screen when the last resource was picked up. */
     private Optional<String> lastPickupSprite = Optional.empty();
+    /** Where the player stood for the last pickup. */
+    private Optional<MineSpots.Spot> lastPickupSpot = Optional.empty();
     /** What the last mining total replaced, so it can be put back if a pickup proves it misfiled. */
     private Optional<ResourceBalances.Reading> balanceBeforeLastReading = Optional.empty();
     private long lastActionBarAt;
@@ -375,6 +377,7 @@ public final class MinerefineHudClient implements ClientModInitializer {
             lastMinedMine = Optional.empty();
             lastPickup = Optional.empty();
             lastPickupSprite = Optional.empty();
+            lastPickupSpot = Optional.empty();
             currentWorld = Optional.empty();
             lastUnknownBlockAt = 0L;
             resourcePickups.reset();
@@ -774,21 +777,20 @@ public final class MinerefineHudClient implements ClientModInitializer {
             }
         }
         boolean pickupNow = lastPickup.isPresent() && now - lastPickupAt <= SAME_BLOCK_MS;
-        // The resource picked up under this icon names the mine, over what the icon is known as.
-        Optional<String> mined = MineDetector.minedMine(blockMine.map(MiningBlocks.Match::mine),
-                pickupNow && lastPickupSprite.equals(Optional.of(r.sprite())) ? lastPickup : Optional.empty());
+        // The resource last picked up names the mine, over anything the icon says, for as long as
+        // the same block is being mined in the same place. "Very Compressed Rust" is Rust.
+        Optional<String> pickupHere = pickupStillApplies(r.sprite(), now) ? lastPickup : Optional.empty();
+        Optional<String> mined = MineDetector.minedMine(blockMine.map(MiningBlocks.Match::mine), pickupHere);
         // A shared icon is not unknown: it just cannot say which of its mines this is, so the
         // mine last named by a pickup stays rather than being dropped for the tool in hand.
         lastUnknownBlockAt = mined.isEmpty() && !shared ? now : 0L;
         lastMinedMine = MineDetector.afterMining(lastMinedMine, mined, pickupNow || shared);
         lastMineCheck = 0L;   // re-detect now: what is being mined just changed or was confirmed
 
-        Optional<String> pickupHere = pickupNow && lastPickupSprite.equals(Optional.of(r.sprite()))
-                ? lastPickup : Optional.empty();
         // A shared icon decided only by a hint shows a mine but files nothing: guessed wrong, the
         // other mine's balance would take this total and the balance check would follow it.
-        Optional<String> currency = shared
-                ? (pickupHere.isPresent() ? pickupHere : sharedDecided)
+        Optional<String> currency = pickupHere.isPresent() ? pickupHere
+                : shared ? sharedDecided
                 : ActionBarReader.currencyFor(mined, pickupNow ? lastPickup : Optional.empty());
 
         // Every block a mine is recognised by for certain says where that mine is.
@@ -805,6 +807,28 @@ public final class MinerefineHudClient implements ClientModInitializer {
             balances.update(c, r.amount(), now);
             lastProgressCheck = 0L;
         });
+    }
+
+    /** Further than this from where the last resource was picked up, and it may be another mine. */
+    private static final double PICKUP_RANGE = 48.0;
+
+    /**
+     * Whether the last resource picked up still names the mine for this block: the same block icon
+     * as when it was picked up, and the player still near where that was. Mining hands out a
+     * compressed resource only every so many blocks, so the name has to carry over the blocks in
+     * between; a fixed few seconds let the icon decide most of the time. Leaving the spot or a
+     * different icon ends it, so a warp from Rust to Woodland Copper (the same icon) does not carry
+     * Rust over. Without a known position, only the few seconds around the pickup count.
+     */
+    private boolean pickupStillApplies(String sprite, long now) {
+        if (lastPickup.isEmpty() || !lastPickupSprite.equals(Optional.of(sprite))) {
+            return false;
+        }
+        Optional<MineSpots.Spot> here = playerSpot();
+        if (here.isEmpty() || lastPickupSpot.isEmpty()) {
+            return now - lastPickupAt <= SAME_BLOCK_MS;
+        }
+        return lastPickupSpot.get().distanceTo(here.get()) <= PICKUP_RANGE;
     }
 
     /** The player's dimension and position, or empty when not in a world. */
@@ -872,6 +896,7 @@ public final class MinerefineHudClient implements ClientModInitializer {
         lastPickup = gained;
         lastPickupAt = now;
         lastPickupSprite = lastActionBarReading.map(ActionBarReader.Reading::sprite);
+        lastPickupSpot = playerSpot();
         lastMinedMine = gained;
         lastMineCheck = 0L;
 

@@ -161,17 +161,17 @@ public final class ProgressPlanner {
             return empty(slot, State.NO_MINE, "");
         }
 
-        int level = ownedLevel(catalog, mine, at);
+        int level = ownedLevel(catalog, mine, at, maxLevel(ledger, catalog, at, slot.gear()));
         // Bounded: learned links come from saved data, and a loop in them must not hang a tick.
         int hops = 0;
-        while (level >= ledger.maxLevel(at, slot.gear(), catalog.pieceTotal(at, slot.gear()))) {
+        while (level >= maxLevel(ledger, catalog, at, slot.gear())) {
             Optional<String> next = nextMine(slot, catalog, links, at);
             if (next.isEmpty() || ++hops > catalog.mines().size() + MAX_LINK_STEPS) {
                 return new ProgressView(slot, at, slot.gear(), level, State.ALL_MAXED,
                         OptionalLong.empty(), OptionalLong.empty(), at, 1, level);
             }
             at = next.get();
-            level = ownedLevel(catalog, mine, at);
+            level = ownedLevel(catalog, mine, at, maxLevel(ledger, catalog, at, slot.gear()));
         }
 
         int target = level + 1;
@@ -263,7 +263,7 @@ public final class ProgressPlanner {
             List<ShopItemParser.GearRef> ofGear = owned.stream()
                     .filter(g -> gear.equals(g.gear().toLowerCase(Locale.ROOT)))
                     .toList();
-            int level = ownedLevel(catalog, ofGear, name);
+            int level = ownedLevel(catalog, ofGear, name, max);
             if (level >= max) {
                 continue;
             }
@@ -372,14 +372,31 @@ public final class ProgressPlanner {
                 OptionalLong.empty(), OptionalLong.empty(), mine, 1, 0);
     }
 
-    private static int ownedLevel(MineCatalog catalog, List<ShopItemParser.GearRef> owned, String mine) {
-        int best = 0;
+    private static int maxLevel(PriceLedger ledger, MineCatalog catalog, String mine, String gear) {
+        return ledger.maxLevel(mine, gear, catalog.pieceTotal(mine, gear));
+    }
+
+    /**
+     * The tier of the copy being upgraded, among the player's copies of one item from this mine.
+     * A copy short of {@code max} wins over a maxed one: players keep their maxed set on while
+     * they upgrade a second one in the inventory, or the other way round, and the bar must
+     * follow the unfinished set whichever of the two is worn. Taking the highest tier left the
+     * worn maxed set in charge, so the bar moved on to the next mine. Of several unfinished
+     * copies, the furthest along. 0 with none.
+     */
+    private static int ownedLevel(MineCatalog catalog, List<ShopItemParser.GearRef> owned, String mine,
+                                  int max) {
+        int highest = 0;
+        int unfinished = 0;
         for (ShopItemParser.GearRef g : owned) {
-            if (catalog.serverName(g.mine()).equalsIgnoreCase(catalog.serverName(mine))) {
-                best = Math.max(best, g.level());
+            if (sameMine(catalog, g.mine(), mine)) {
+                highest = Math.max(highest, g.level());
+                if (g.level() < max) {
+                    unfinished = Math.max(unfinished, g.level());
+                }
             }
         }
-        return best;
+        return unfinished > 0 ? unfinished : highest;
     }
 
     /** Position in the bundled data, or -1 for a mine it does not list. */

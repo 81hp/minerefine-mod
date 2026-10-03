@@ -660,7 +660,7 @@ public final class ProgressTests {
                 Optional.of(mineData), new PriceLedger(), balances);
         eq("whole-mine total sums applicable items", 510L, total.cost().orElse(-1L));
         eq("whole-mine total tracks its balance", State.TRACKING, total.state());
-        eq("total label", "Rust Total  400/510",
+        eq("total label", "Rust left to max  400/510",
                 HudModel.progressPanel(List.of(total), HudModel.ProgressLines.all()).get(0).text());
 
         balances.update("Rust", 510L, 2L);
@@ -669,6 +669,36 @@ public final class ProgressTests {
         eq("whole-mine total finishes when affordable", State.FINISHED, affordable.state());
 
         mineTotalCountsWhatIsLeft();
+        secondSetIsTheOneUpgraded();
+    }
+
+    /** A maxed set worn while a second one is upgraded, or the other way round. */
+    private static void secondSetIsTheOneUpgraded() {
+        MineCatalog catalog = totalCatalog();
+        Optional<Mine> rusty = catalog.byName("Rusty");
+        ResourceBalances balances = new ResourceBalances();
+        GearRef maxed = new GearRef("Rust", "chestplate", 6);
+        GearRef second = new GearRef("Rust", "chestplate", 2);
+
+        // Inventory comes first in the list, worn armour last; both orders must agree.
+        for (List<GearRef> owned : List.of(List.of(second, maxed), List.of(maxed, second))) {
+            var bar = ProgressPlanner.plan(ProgressSlot.CHESTPLATE, owned, catalog, Optional.empty(),
+                    new PriceLedger(), balances);
+            eq("bar follows the unfinished set, not the maxed one", "Rust", bar.mine());
+            eq("bar targets the unfinished set's next tier", 3, bar.targetLevel());
+        }
+
+        eq("bar moves on once every copy is maxed", "Marrow",
+                ProgressPlanner.plan(ProgressSlot.CHESTPLATE, List.of(maxed), catalog, Optional.empty(),
+                        new PriceLedger(), balances).mine());
+
+        // The total counts what the second chestplate still needs: 140 less the 30 paid.
+        PriceLedger seen = new PriceLedger();
+        seen.seed("Rust", "chestplate", 1, 10L, "Rust");
+        seen.seed("Rust", "chestplate", 2, 20L, "Rust");
+        eq("total counts the set being upgraded", 480L,
+                ProgressPlanner.plan(ProgressSlot.TOTAL, List.of(maxed, second), catalog, rusty, seen, balances)
+                        .cost().orElse(-1L));
     }
 
     /** Sheet: Rusty 10/20/450/30 and Marrow ten times that. Armour splits 9:14:12:10. */

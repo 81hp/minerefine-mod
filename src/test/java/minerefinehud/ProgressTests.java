@@ -423,8 +423,59 @@ public final class ProgressTests {
                 onlyBoss.mine());
         eq("the boss piece's next tier", 2, onlyBoss.targetLevel());
 
+        maxedOlderPieceDoesNotHoldTheBarBack();
         bossBars();
         fragmentsCountedFromInventory();
+    }
+
+    /**
+     * Seen in game: mining in Throne for Throne chestplates not owned yet, wearing the maxed
+     * Archaeologist chestplate. The bar moved on from that to Frost, the first mine after Ruins,
+     * and only showed Throne once the chestplate was taken off.
+     */
+    private static void maxedOlderPieceDoesNotHoldTheBarBack() {
+        Map<String, Long> fragments = new LinkedHashMap<>();
+        fragments.put("sword", 50L);
+        fragments.put("armor", 200L);
+        MineCatalog catalog = new MineCatalog(List.of(
+                mine("Relic", "pickaxe"),
+                new Mine("boss-ruins-angry-archaeologist", "boss", "Ruins", "Angry Archaeologist",
+                        fragments, null),
+                mine("Frost", "pickaxe"), mine("Slush", "pickaxe"), mine("Throne", "pickaxe")));
+        ProgressionLinks links = new ProgressionLinks();
+        links.learn("Archaeologist", "chestplate", "Relic");
+        links.learn("Frost", "chestplate", "Archaeologist");
+        PriceLedger ledger = new PriceLedger();
+        ledger.knowTierCount("Archaeologist", "chestplate", 2);
+        for (String m : List.of("Relic", "Frost", "Slush", "Throne")) {
+            ledger.knowTierCount(m, "chestplate", 4);
+        }
+        GearRef worn = new GearRef("Archaeologist", "chestplate", 2);
+        Optional<Mine> throne = catalog.byName("Throne");
+
+        for (ProgressPlanner.Goal goal : ProgressPlanner.Goal.values()) {
+            var v = ProgressPlanner.plan(ProgressSlot.CHESTPLATE, List.of(worn), catalog, links, throne, ledger,
+                    new ResourceBalances(), goal);
+            eq("in Throne, a maxed Ruins chestplate does not send the bar to Frost (" + goal + ")",
+                    "Throne", v.mine());
+            eq("Throne from its first tier (" + goal + ")", 1, v.targetLevel());
+        }
+        eq("taken off, the same", "Throne", ProgressPlanner.plan(ProgressSlot.CHESTPLATE, List.of(), catalog,
+                links, throne, ledger, new ResourceBalances()).mine());
+        eq("in Relic it still moves on past the Ruins", "Frost", ProgressPlanner.plan(ProgressSlot.CHESTPLATE,
+                List.of(worn), catalog, links, catalog.byName("Relic"), ledger, new ResourceBalances()).mine());
+        eq("away from a mine it moves on from the maxed piece", "Frost",
+                ProgressPlanner.plan(ProgressSlot.CHESTPLATE, List.of(worn), catalog, links, Optional.empty(),
+                        ledger, new ResourceBalances()).mine());
+        eq("a set being upgraded still wins over the mine stood in", "Slush",
+                ProgressPlanner.plan(ProgressSlot.CHESTPLATE, List.of(worn, new GearRef("Slush", "chestplate", 2)),
+                        catalog, links, throne, ledger, new ResourceBalances()).mine());
+        eq("a maxed copy from a mine not placed yet is not overruled", "Mystery",
+                ProgressPlanner.plan(ProgressSlot.CHESTPLATE, List.of(new GearRef("Mystery", "chestplate", 9)),
+                        catalog, links, catalog.byName("Relic"), ledger, new ResourceBalances()).mine());
+        eq("a maxed copy further on than the mine stood in still counts", State.ALL_MAXED,
+                ProgressPlanner.plan(ProgressSlot.CHESTPLATE, List.of(new GearRef("Throne", "chestplate", 4)),
+                        catalog, links, catalog.byName("Frost"), ledger, new ResourceBalances()).state());
     }
 
     /** A bar set to Boss follows boss gear and counts that boss's fragments. */

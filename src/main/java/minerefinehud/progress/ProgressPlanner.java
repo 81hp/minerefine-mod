@@ -177,6 +177,18 @@ public final class ProgressPlanner {
                 }
             }
             at = catalog.serverName(best.mine());
+            // Nothing being upgraded: the bar is for a piece not owned yet, and the mine the
+            // player is in says which, when it is further on. Moving on from the furthest maxed
+            // copy alone sent a player in Throne, wearing a maxed Ruins chestplate, to Frost, the
+            // first mine after Ruins, instead of the Throne chestplate they were mining for.
+            // A copy from a mine not placed yet cannot be shown to be behind, so it is left alone.
+            double ownedOrder = orderOf(catalog, links, slot.gear(), at);
+            if (unfinishedFromMines.isEmpty() && currentMine.isPresent() && ownedOrder >= 0) {
+                Optional<String> here = startMine(slot, catalog, currentMine.get());
+                if (here.isPresent() && orderOf(catalog, links, slot.gear(), here.get()) > ownedOrder) {
+                    at = here.get();
+                }
+            }
         } else if (currentMine.isPresent()) {
             at = startMine(slot, catalog, currentMine.get()).orElse(null);
             if (at == null) {
@@ -276,6 +288,10 @@ public final class ProgressPlanner {
                 }
             }
             index = bossIndex(catalog, bosses, best.mine());
+            // As for mine gear: with nothing being upgraded, a later world's boss wins.
+            if (unfinished.isEmpty() && currentMine.isPresent()) {
+                index = Math.max(index, bossOfWorld(catalog, bosses, currentMine.get()));
+            }
         } else if (currentMine.isPresent()) {
             index = bossOfWorld(catalog, bosses, currentMine.get());
             if (index < 0) {

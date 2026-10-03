@@ -197,7 +197,7 @@ public final class SettingsScreen extends Screen {
                     .dimensions(x(0), row, COLUMN_WIDTH, 20).build());
 
             labels.add(new Label("Amount", x(1), row + 6));
-            addDrawableChild(field(x(1) + 40, row, 40, String.valueOf(bar.quantity), 3,
+            var quantity = field(x(1) + 40, row, 40, String.valueOf(bar.quantity), 3,
                     s -> s.matches("[0-9]{0,3}"),
                     s -> {
                         if (!s.isEmpty()) {
@@ -205,7 +205,8 @@ public final class SettingsScreen extends Screen {
                                     Integer.parseInt(s)));
                             onChange.run();
                         }
-                    }));
+                    });
+            addDrawableChild(quantity);
 
             addDrawableChild(ButtonWidget.builder(Text.literal("Remove"), b -> {
                         bars.remove(bar);

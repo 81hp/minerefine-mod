@@ -227,7 +227,9 @@ public final class HudModel {
         String tiers = v.toLevel() > v.targetLevel()
                 ? romanish(v.targetLevel()) + "-" + romanish(v.toLevel())
                 : romanish(v.targetLevel());
-        String piece = count + v.mine() + " " + capitalise(v.gear()) + " " + tiers;
+        String piece = v.slot().isTotal()
+            ? count + v.mine() + " Total"
+            : count + v.mine() + " " + capitalise(v.gear()) + " " + tiers;
 
         switch (v.state()) {
             case TRACKING -> {

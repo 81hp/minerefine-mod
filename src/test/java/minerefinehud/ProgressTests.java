@@ -66,6 +66,7 @@ public final class ProgressTests {
         maxedThreeTierArmourMovesOn();
         newAreaWithoutSpreadsheet();
         barCanTrackEverythingLeftToMax();
+        mineTotalProgressBar();
 
         System.out.println();
         System.out.println("passed: " + passed + "   failed: " + failed);
@@ -643,6 +644,33 @@ public final class ProgressTests {
 
         eq("panel shows the count", "12x Debris Chestplate IV  5b/12b",
                 HudModel.progressPanel(List.of(twelve), HudModel.ProgressLines.all()).get(0).text());
+    }
+
+    private static void mineTotalProgressBar() {
+        Map<String, Long> items = new LinkedHashMap<>();
+        items.put("sword", 10L);
+        items.put("pickaxe", 20L);
+        items.put("armor", 450L);
+        items.put("charm", 30L);
+        Mine mineData = new Mine("mine-rusty", "mine", "Ruins", "Rusty", items, null);
+        MineCatalog catalog = new MineCatalog(List.of(mineData));
+        ResourceBalances balances = new ResourceBalances();
+        balances.update("Rust", 400L, 1L);
+        var total = ProgressPlanner.plan(ProgressSlot.TOTAL, List.of(), catalog,
+                Optional.of(mineData), new PriceLedger(), balances);
+        eq("whole-mine total sums applicable items", 510L, total.cost().orElse(-1L));
+        eq("whole-mine total tracks its balance", State.TRACKING, total.state());
+        var dozen = total.withQuantity(12);
+        eq("total cost multiplies by quantity", 6_120L, dozen.cost().orElse(-1L));
+        eq("total quantity is retained", 12, dozen.quantity());
+        eq("quantity appears in total label", true,
+                HudModel.progressPanel(List.of(dozen), HudModel.ProgressLines.all()).get(0).text()
+                        .startsWith("12x Rust Total  400/"));
+
+        balances.update("Rust", 510L, 2L);
+        var affordable = ProgressPlanner.plan(ProgressSlot.TOTAL, List.of(), catalog,
+                Optional.of(mineData), new PriceLedger(), balances);
+        eq("whole-mine total finishes when affordable", State.FINISHED, affordable.state());
     }
 
     private static void severalBarsStack() {

@@ -56,7 +56,7 @@ public final class ModConfig {
 
     /** One progress bar: the item it follows and how many are being bought together. */
     public static final class Bar {
-        /** SWORD, PICKAXE, AXE, SHOVEL, HELMET, CHESTPLATE, LEGGINGS, BOOTS or CHARM. */
+        /** A gear slot, or TOTAL for the whole mine. */
         public String slot = "SWORD";
         /** 1 for a single piece. 12 for twelve chestplates bought at the same tier. */
         public int quantity = 1;

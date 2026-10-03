@@ -133,6 +133,10 @@ public final class ProgressPlanner {
                                     ResourceBalances balances,
                                     Goal goal) {
 
+        if (slot.isTotal()) {
+            return planMineTotal(slot, catalog, currentMine, ledger, balances);
+        }
+
         List<ShopItemParser.GearRef> mine = owned.stream()
                 .filter(g -> slot.gear().equals(g.gear().toLowerCase(Locale.ROOT)))
                 .toList();
@@ -194,6 +198,22 @@ public final class ProgressPlanner {
 
         State state = have.isPresent() && have.getAsLong() >= cost.getAsLong() ? State.FINISHED : State.TRACKING;
         return new ProgressView(slot, at, slot.gear(), target, state, cost, have, currency, 1, toLevel);
+    }
+
+    private static ProgressView planMineTotal(ProgressSlot slot, MineCatalog catalog,
+                                              Optional<Mine> currentMine, PriceLedger ledger,
+                                              ResourceBalances balances) {
+        if (currentMine.isEmpty()) {
+            return empty(slot, State.NO_MINE, "");
+        }
+        Mine mine = currentMine.get();
+        String name = catalog.serverName(mine.name());
+        OptionalLong cost = MineCosts.of(name, Optional.of(mine), ledger, false).total();
+        OptionalLong have = balances.get(name)
+                .map(r -> OptionalLong.of(r.amount())).orElse(OptionalLong.empty());
+        State state = cost.isEmpty() ? State.PRICE_UNKNOWN
+                : have.isPresent() && have.getAsLong() >= cost.getAsLong() ? State.FINISHED : State.TRACKING;
+        return new ProgressView(slot, name, slot.gear(), 1, state, cost, have, name, 1, 1);
     }
 
     /**

@@ -699,6 +699,64 @@ public final class ProgressTests {
         eq("total counts the set being upgraded", 480L,
                 ProgressPlanner.plan(ProgressSlot.TOTAL, List.of(maxed, second), catalog, rusty, seen, balances)
                         .cost().orElse(-1L));
+
+        // The maxed main set is from a later mine, the set being upgraded from an earlier one.
+        GearRef mainSet = new GearRef("Marrow", "chestplate", 6);
+        for (List<GearRef> owned : List.of(List.of(second, mainSet), List.of(mainSet, second))) {
+            var bar = ProgressPlanner.plan(ProgressSlot.CHESTPLATE, owned, catalog, Optional.empty(),
+                    new PriceLedger(), balances);
+            eq("bar follows an older set being upgraded over a later maxed one", "Rust", bar.mine());
+            eq("bar targets the older set's next tier", 3, bar.targetLevel());
+        }
+        eq("total counts an older set being upgraded despite a later one", 480L,
+                ProgressPlanner.plan(ProgressSlot.TOTAL, List.of(mainSet, second), catalog, rusty, seen, balances)
+                        .cost().orElse(-1L));
+        eq("total still skips a piece owned only from a later mine", 370L,
+                ProgressPlanner.plan(ProgressSlot.TOTAL, List.of(mainSet), catalog, rusty, seen, balances)
+                        .cost().orElse(-1L));
+        eq("away from a mine, the total follows the set being upgraded", "Rust",
+                ProgressPlanner.plan(ProgressSlot.TOTAL, List.of(mainSet, second), catalog, Optional.empty(),
+                        seen, balances).mine());
+
+        noShopNeeded();
+    }
+
+    /** Tier counts from the bundled table and tier prices from the sheet, with no shop opened. */
+    private static void noShopNeeded() {
+        Map<String, Long> items = new LinkedHashMap<>();
+        items.put("sword", 1_000_000L);
+        items.put("pickaxe", 1_000_000L);
+        items.put("armor", 1_000_000L);
+        items.put("charm", 1_000_000L);
+        Mine woodland = new Mine("mine-woodland-copper", "mine", "Woodland", "Woodland Copper", items, null);
+        MineCatalog catalog = new MineCatalog(List.of(woodland));
+        ResourceBalances balances = new ResourceBalances();
+
+        PriceLedger ledger = new PriceLedger();
+        ledger.knowTierCount("Woodland Copper", "chestplate", 3);
+        eq("tier count from the table", 3, ledger.maxLevel("Woodland Copper", "chestplate"));
+
+        // Chestplate III of three is maxed, so the bar moves on rather than waiting for a tier IV.
+        var maxed = ProgressPlanner.plan(ProgressSlot.CHESTPLATE,
+                List.of(new GearRef("Woodland Copper", "chestplate", 3)), catalog, Optional.empty(), ledger, balances);
+        eq("three-tier armour maxed at III without a shop", State.ALL_MAXED, maxed.state());
+
+        // Sword II of six, nothing priced: tier III and the rest estimated from the 1M piece.
+        long nextTier = minerefinehud.progress.TierCurve.estimate(1_000_000L, 6, 3);
+        var next = ProgressPlanner.plan(ProgressSlot.SWORD,
+                List.of(new GearRef("Woodland Copper", "sword", 2)), catalog, Optional.empty(), ledger, balances);
+        eq("next tier priced from the sheet", nextTier, next.cost().orElse(-1L));
+        yes("next tier estimate is about a sixth of the piece", nextTier > 160_000L && nextTier < 175_000L);
+
+        long rest = 0L;
+        for (int l = 3; l <= 6; l++) {
+            rest += minerefinehud.progress.TierCurve.estimate(1_000_000L, 6, l);
+        }
+        var toMax = ProgressPlanner.plan(ProgressSlot.SWORD, List.of(new GearRef("Woodland Copper", "sword", 2)),
+                catalog, new ProgressionLinks(), Optional.empty(), ledger, balances, ProgressPlanner.Goal.TO_MAX);
+        eq("to-max priced from the sheet", rest, toMax.cost().orElse(-1L));
+        yes("tiers I and II are about a fifth of a six-tier piece",
+                1_000_000L - rest > 205_000L && 1_000_000L - rest < 225_000L);
     }
 
     /** Sheet: Rusty 10/20/450/30 and Marrow ten times that. Armour splits 9:14:12:10. */
@@ -763,11 +821,9 @@ public final class ProgressTests {
         eq("total with nothing owned and no mine", State.NO_MINE,
                 total(List.of(), Optional.empty(), new PriceLedger(), balances).state());
 
-        // Sword I owned but its price never seen: what is left of the sword cannot be worked out.
-        var gap = total(List.of(new GearRef("Rust", "sword", 1)), rusty, new PriceLedger(), balances);
-        eq("total unknown when a piece is", State.PRICE_UNKNOWN, gap.state());
-        eq("total asks for the shop", "open the Rust shop once for the prices",
-                HudModel.progressPanel(List.of(gap), HudModel.ProgressLines.all()).get(1).text());
+        // Sword I owned, its price never seen: estimated from the sheet, no shop needed.
+        eq("total with an owned tier never priced still counts", State.TRACKING,
+                total(List.of(new GearRef("Rust", "sword", 1)), rusty, new PriceLedger(), balances).state());
 
         // A mine whose tool is not known yet cannot have a total.
         Map<String, Long> noTool = new LinkedHashMap<>();
@@ -775,9 +831,11 @@ public final class ProgressTests {
         noTool.put("armor", 450L);
         noTool.put("charm", 30L);
         Mine bare = new Mine("mine-bare", "mine", "Ruins", "Bare", noTool, null);
-        eq("total unknown without the mine's tool", State.PRICE_UNKNOWN,
-                ProgressPlanner.plan(ProgressSlot.TOTAL, List.of(), new MineCatalog(List.of(bare)),
-                        Optional.of(bare), new PriceLedger(), balances).state());
+        var gap = ProgressPlanner.plan(ProgressSlot.TOTAL, List.of(), new MineCatalog(List.of(bare)),
+                Optional.of(bare), new PriceLedger(), balances);
+        eq("total unknown without the mine's tool", State.PRICE_UNKNOWN, gap.state());
+        eq("total asks for the shop", "open the Bare shop once for the prices",
+                HudModel.progressPanel(List.of(gap), HudModel.ProgressLines.all()).get(1).text());
 
         // The currency the shop names wins over the mine's name.
         PriceLedger dust = new PriceLedger();

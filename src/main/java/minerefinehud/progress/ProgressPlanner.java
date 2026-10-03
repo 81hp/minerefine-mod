@@ -141,10 +141,19 @@ public final class ProgressPlanner {
                 .filter(g -> slot.gear().equals(g.gear().toLowerCase(Locale.ROOT)))
                 .toList();
 
+        // A copy still being upgraded wins over every maxed one, wherever each is from: players
+        // keep their maxed main set on while they upgrade an older one in the inventory (a
+        // Woodland set behind a maxed set from the next world). Following the furthest copy
+        // instead sent the bar on to the next world and left the set being upgraded untracked.
+        List<ShopItemParser.GearRef> unfinished = mine.stream()
+                .filter(g -> g.level() < maxLevel(ledger, catalog, catalog.serverName(g.mine()), slot.gear()))
+                .toList();
+        List<ShopItemParser.GearRef> candidates = unfinished.isEmpty() ? mine : unfinished;
+
         String at;
-        if (!mine.isEmpty()) {
-            ShopItemParser.GearRef best = mine.get(0);
-            for (ShopItemParser.GearRef g : mine) {
+        if (!candidates.isEmpty()) {
+            ShopItemParser.GearRef best = candidates.get(0);
+            for (ShopItemParser.GearRef g : candidates) {
                 int byOrder = Double.compare(orderOf(catalog, links, slot.gear(), g.mine()),
                         orderOf(catalog, links, slot.gear(), best.mine()));
                 if (byOrder > 0 || (byOrder == 0 && g.level() > best.level())) {
@@ -176,14 +185,13 @@ public final class ProgressPlanner {
 
         int target = level + 1;
         OptionalLong sheet = catalog.pieceTotal(at, slot.gear());
-        int max = ledger.maxLevel(at, slot.gear(), sheet);
+        int max = maxLevel(ledger, catalog, at, slot.gear());
         boolean toMax = goal == Goal.TO_MAX && max > target;
         int toLevel = toMax ? max : target;
 
         OptionalLong cost = toMax
                 ? costToMax(ledger, at, slot.gear(), level, max, sheet)
-                : ledger.price(at, slot.gear(), target)
-                        .map(p -> OptionalLong.of(p.amount())).orElse(OptionalLong.empty());
+                : tierPrice(ledger, at, slot.gear(), target, max, sheet);
 
         // A price names its currency. Without one, the mine's own name is the best guess, which
         // is what every observed tooltip so far has used ("Debris x1.96B" at Debris).
@@ -205,13 +213,14 @@ public final class ProgressPlanner {
 
     /**
      * Everything still to buy at one mine: for each piece, the tiers above the one owned, as a
-     * TO_MAX bar would count them. A piece already owned from a later mine is skipped, because
+     * TO_MAX bar would count them. A piece owned only from a later mine is skipped, because
      * nobody buys an older sword. Counting what is left rather than the full price keeps the bar
      * moving forward as tiers are bought; against the full price, every purchase spent the
      * balance while the target stayed put, and the bar went backwards.
      *
-     * The mine is the one the player stands in, or, away from any mine, the furthest one they own
-     * gear from, so the bar does not blank out on the way back from the hub.
+     * The mine is the one the player stands in, or, away from any mine, the one of the set being
+     * upgraded (else the furthest one they own gear from), so the bar does not blank out on the
+     * way back from the hub.
      *
      * Unknown when any piece's remaining cost is, including a mine whose tool is not known yet:
      * a total that quietly leaves out a piece is worse than none, same rule as {@link MineCosts}.
@@ -221,6 +230,10 @@ public final class ProgressPlanner {
                                               Optional<Mine> currentMine, PriceLedger ledger,
                                               ResourceBalances balances) {
         Optional<String> at = currentMine.map(m -> catalog.serverName(m.name()))
+                .or(() -> furthestOwnedMine(owned.stream()
+                        .filter(g -> g.level() < maxLevel(ledger, catalog, catalog.serverName(g.mine()),
+                                g.gear().toLowerCase(Locale.ROOT)))
+                        .toList(), catalog, links))
                 .or(() -> furthestOwnedMine(owned, catalog, links));
         if (at.isEmpty()) {
             return empty(slot, State.NO_MINE, "");
@@ -253,16 +266,19 @@ public final class ProgressPlanner {
         Optional<String> currency = Optional.empty();
         for (String gear : gears) {
             OptionalLong sheet = catalog.pieceTotal(name, gear);
-            int max = ledger.maxLevel(name, gear, sheet);
+            int max = maxLevel(ledger, catalog, name, gear);
             if (currency.isEmpty()) {
                 currency = currencyOf(ledger, name, gear, max);
-            }
-            if (ownsLater(owned, catalog, links, gear, name)) {
-                continue;
             }
             List<ShopItemParser.GearRef> ofGear = owned.stream()
                     .filter(g -> gear.equals(g.gear().toLowerCase(Locale.ROOT)))
                     .toList();
+            // A copy from this mine is the one being upgraded here, even with a better one
+            // from a later mine worn; only without one does the later copy make it pointless.
+            boolean ownedHere = ofGear.stream().anyMatch(g -> sameMine(catalog, g.mine(), name));
+            if (!ownedHere && ownsLater(owned, catalog, links, gear, name)) {
+                continue;
+            }
             int level = ownedLevel(catalog, ofGear, name, max);
             if (level >= max) {
                 continue;
@@ -333,8 +349,9 @@ public final class ProgressPlanner {
     /**
      * Everything still to buy, tiers {@code level + 1} to {@code max}. From the shop when every one
      * of those tiers has been seen. Otherwise from the spreadsheet: the whole piece minus the tiers
-     * already owned, which needs only the owned tiers' prices, and nothing at all for a piece not
-     * started yet. Empty when neither works, rather than a total that leaves something out.
+     * already owned when their prices are known, else each missing tier estimated from the whole
+     * piece by {@link TierCurve}, so a bar works without its shop ever being opened. Empty with
+     * neither the shop nor the sheet, rather than a total that leaves something out.
      */
     static OptionalLong costToMax(PriceLedger ledger, String mine, String gear, int level, int max,
                                   OptionalLong sheet) {
@@ -343,16 +360,40 @@ public final class ProgressPlanner {
             return fromShop;
         }
         long paid = 0L;
-        for (int l = 1; l <= level; l++) {
+        boolean paidKnown = true;
+        for (int l = 1; l <= level && paidKnown; l++) {
             Optional<PriceLedger.Price> p = ledger.price(mine, gear, l);
-            if (p.isEmpty()) {
-                return OptionalLong.empty();
-            }
-            paid += p.get().amount();
+            paidKnown = p.isPresent();
+            paid += p.map(PriceLedger.Price::amount).orElse(0L);
         }
         long left = sheet.getAsLong() - paid;
         // Owned tiers costing as much as the whole piece means the sheet is out of date.
-        return left > 0L ? OptionalLong.of(left) : OptionalLong.empty();
+        if (paidKnown && left > 0L) {
+            return OptionalLong.of(left);
+        }
+        long sum = 0L;
+        for (int l = level + 1; l <= max; l++) {
+            OptionalLong p = tierPrice(ledger, mine, gear, l, max, sheet);
+            if (p.isEmpty()) {
+                return OptionalLong.empty();
+            }
+            sum += p.getAsLong();
+        }
+        return sum > 0L ? OptionalLong.of(sum) : OptionalLong.empty();
+    }
+
+    /** One tier's price: from the shop, else estimated from the sheet's whole-piece figure. */
+    static OptionalLong tierPrice(PriceLedger ledger, String mine, String gear, int level, int max,
+                                  OptionalLong sheet) {
+        Optional<PriceLedger.Price> p = ledger.price(mine, gear, level);
+        if (p.isPresent()) {
+            return OptionalLong.of(p.get().amount());
+        }
+        if (sheet.isEmpty()) {
+            return OptionalLong.empty();
+        }
+        long estimate = TierCurve.estimate(sheet.getAsLong(), max, level);
+        return estimate > 0L ? OptionalLong.of(estimate) : OptionalLong.empty();
     }
 
     /** The currency this item is priced in, from whichever of its tiers has been seen. */

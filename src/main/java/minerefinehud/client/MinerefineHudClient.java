@@ -178,6 +178,7 @@ public final class MinerefineHudClient implements ClientModInitializer {
         bossStore = new BossStore(dir.resolve("bosses.json"));
         bossStore.load(bossTracker);
 
+        PriceStore.loadTierCounts(prices);
         priceStore = new PriceStore(dir.resolve("prices.json"));
         priceStore.load(prices);
 

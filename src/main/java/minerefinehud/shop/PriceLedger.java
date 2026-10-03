@@ -79,6 +79,20 @@ public final class PriceLedger {
         return out;
     }
 
+    /** Tier counts known in advance, keyed "mine|gear"; see {@link #knowTierCount}. */
+    private final Map<String, Integer> knownTiers = new HashMap<>();
+
+    /**
+     * How many tiers an item has, from the bundled table, so a piece is known to be maxed (or
+     * not) before its shop has ever been opened. Woodland Copper armour has three tiers; guessing
+     * six left a maxed set looking half done. What the shop shows still raises it.
+     */
+    public void knowTierCount(String mine, String gear, int tiers) {
+        if (tiers > 0) {
+            knownTiers.put(normalise(mine) + '|' + normalise(gear), tiers);
+        }
+    }
+
     /** Seeds a fallback price. Never overwrites something the client observed. */
     public void seed(String mine, String gear, int level, long amount, String currency) {
         prefill.put(key(mine, gear, level), new Price(amount, currency, Source.PREFILL, 0L));
@@ -130,12 +144,14 @@ public final class PriceLedger {
     private static final int MAX_PROBED_LEVEL = 20;
 
     /**
-     * Six tiers unless the shop has shown more. Only ever raised by observation, never lowered,
-     * because a shop that lists just the next tier would otherwise look like a short ladder.
+     * The bundled tier count, else six, unless the shop has shown more. Only ever raised by
+     * observation, never lowered, because a shop that lists just the next tier would otherwise
+     * look like a short ladder.
      */
     public int maxLevel(String mine, String gear) {
         // A charm is a single item per mine, never a ladder.
-        int max = "charm".equals(normalise(gear)) ? 1 : DEFAULT_MAX_LEVEL;
+        Integer known = knownTiers.get(normalise(mine) + '|' + normalise(gear));
+        int max = known != null ? known : "charm".equals(normalise(gear)) ? 1 : DEFAULT_MAX_LEVEL;
         while (max < MAX_PROBED_LEVEL && price(mine, gear, max + 1).isPresent()) {
             max++;
         }

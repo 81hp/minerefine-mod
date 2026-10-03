@@ -50,6 +50,7 @@ public final class CoreTests {
         reminderRingsOncePerRespawn();
         bossRowsCanBeHidden();
         resourcesNameTheirWorld();
+        sharedIconDecidedByWhereYouStand();
 
         System.out.println();
         System.out.println("passed: " + passed + "   failed: " + failed);
@@ -851,5 +852,48 @@ public final class CoreTests {
         b.onPickup(sprite, "Rust", catalog, 25_000L);
         b.onPickup(sprite, "Rust", catalog, 30_000L);
         return !b.isShared(sprite);
+    }
+
+    /** No shop opened at all: Woodland and Trials are placed by mining their other mines. */
+    private static void sharedIconDecidedByWhereYouStand() {
+        MineCatalog catalog = new MineCatalog(List.of(
+                mine("Woodland Copper", "Woodland", "pickaxe"), mine("Podzol", "Woodland", "shovel"),
+                mine("Rusty", "Trials", "pickaxe"), mine("Lodestone", "Trials", "pickaxe")));
+        List<String> both = List.of("Woodland Copper", "Rust");
+        minerefinehud.mine.MineSpots spots = new minerefinehud.mine.MineSpots();
+        assertTrue("nothing known: no guess", spots.nearest(both,
+                new minerefinehud.mine.MineSpots.Spot("minecraft:overworld", 0, 0), catalog).isEmpty());
+
+        // Same dimension, areas apart.
+        assertTrue("mining Podzol places Woodland",
+                spots.record("Podzol", new minerefinehud.mine.MineSpots.Spot("minecraft:overworld", 1000, 1000)));
+        spots.record("Lodestone", new minerefinehud.mine.MineSpots.Spot("minecraft:overworld", -2000, 500));
+        assertEquals("by Podzol, the copper ore is Woodland Copper", Optional.of("Woodland Copper"),
+                spots.nearest(both, new minerefinehud.mine.MineSpots.Spot("minecraft:overworld", 1080, 950), catalog));
+        assertEquals("by Lodestone, Rust", Optional.of("Rust"),
+                spots.nearest(both, new minerefinehud.mine.MineSpots.Spot("minecraft:overworld", -1950, 520), catalog));
+        assertTrue("far from both: no guess", spots.nearest(both,
+                new minerefinehud.mine.MineSpots.Spot("minecraft:overworld", 5000, 5000), catalog).isEmpty());
+        assertTrue("halfway: no guess", spots.nearest(both,
+                new minerefinehud.mine.MineSpots.Spot("minecraft:overworld", -500, 750), catalog).isEmpty());
+
+        // Areas as separate dimensions.
+        minerefinehud.mine.MineSpots worlds = new minerefinehud.mine.MineSpots();
+        worlds.record("Podzol", new minerefinehud.mine.MineSpots.Spot("server:woodland", 0, 0));
+        worlds.record("Lodestone", new minerefinehud.mine.MineSpots.Spot("server:trials", 0, 0));
+        assertEquals("the dimension alone decides", Optional.of("Rust"),
+                worlds.nearest(both, new minerefinehud.mine.MineSpots.Spot("server:trials", 10, 10), catalog));
+
+        // A mine's own spot wins over its world's.
+        worlds.record("Woodland Copper", new minerefinehud.mine.MineSpots.Spot("server:trials", 300, 0));
+        assertEquals("own spot counts", Optional.of("Woodland Copper"),
+                worlds.nearest(both, new minerefinehud.mine.MineSpots.Spot("server:trials", 290, 0), catalog));
+        assertTrue("small moves are not saved", !worlds.record("Podzol",
+                new minerefinehud.mine.MineSpots.Spot("server:woodland", 5, 5)));
+
+        minerefinehud.mine.MineSpots restored = new minerefinehud.mine.MineSpots();
+        restored.importAll(spots.export());
+        assertEquals("survives a restart", Optional.of("Woodland Copper"),
+                restored.nearest(both, new minerefinehud.mine.MineSpots.Spot("minecraft:overworld", 1080, 950), catalog));
     }
 }

@@ -31,6 +31,7 @@ import minerefinehud.hud.HudModel;
 import minerefinehud.hud.Theme;
 import minerefinehud.mine.Mine;
 import minerefinehud.mine.MineDetector;
+import minerefinehud.mine.MineSpots;
 import minerefinehud.mine.MiningBlocks;
 import minerefinehud.mine.ResourcePickups;
 import minerefinehud.progress.ActionBarReader;
@@ -128,6 +129,9 @@ public final class MinerefineHudClient implements ClientModInitializer {
 
     private final ResourceBalances balances = new ResourceBalances();
 
+    /** Where each mine is, for telling apart mines that show the same block. Saved in config.json. */
+    private final MineSpots mineSpots = new MineSpots();
+
     /** Recomputed twice a second from the inventory, so they follow purchases by themselves. */
     private List<ProgressPlanner.ProgressView> progressViews = List.of();
     private long lastProgressCheck;
@@ -155,6 +159,13 @@ public final class MinerefineHudClient implements ClientModInitializer {
         miningBlocks.importShared(MiningBlocks.KNOWN_SHARED);
         miningBlocks.importShared(config.sharedIcons);
         miningBlocks.importLearned(config.minedBlocks);
+        mineSpots.importAll(config.mineSpots);
+        // Read time 0: older than anything seen this session, so any real reading replaces it.
+        config.savedBalances.forEach((currency, amount) -> {
+            if (amount != null) {
+                balances.update(currency, amount, 0L);
+            }
+        });
 
         links.importAll(config.learnedProgression);
         bossWorlds.importAll(config.bossWorlds);
@@ -375,6 +386,7 @@ public final class MinerefineHudClient implements ClientModInitializer {
             bossTracker.onContinuityBreak();
             bossStore.save(bossTracker);
             priceStore.save(prices);
+            saveBalances();
         });
     }
 
@@ -734,20 +746,26 @@ public final class MinerefineHudClient implements ClientModInitializer {
 
         Optional<MiningBlocks.Match> blockMine = miningBlocks.lookup(r.sprite(), catalog);
         boolean shared = miningBlocks.isShared(r.sprite());
-        // For a shared icon: decided by a balance, and so safe to file the total under.
-        Optional<String> sharedByBalance = Optional.empty();
+        // For a shared icon: decided by a balance or by where the player is, so safe to file under.
+        Optional<String> sharedDecided = Optional.empty();
         if (shared) {
-            // Two mines show this icon. The one whose balance this total continues is the one.
-            Map<String, Long> known = new java.util.HashMap<>();
-            balances.all().forEach((c, seen) -> known.put(c, seen.amount()));
-            sharedByBalance = miningBlocks.sharedByBalance(r.sprite(), r.amount(), known, catalog);
-            blockMine = sharedByBalance
+            // Two mines show this icon. First where the player stands, then whose balance this
+            // total continues. Neither needs a shop: spots come from mining, balances from mining
+            // and are kept across logins.
+            sharedDecided = playerSpot().flatMap(here -> mineSpots.nearest(
+                    miningBlocks.shared().getOrDefault(r.sprite(), List.of()), here, catalog));
+            if (sharedDecided.isEmpty()) {
+                Map<String, Long> known = new java.util.HashMap<>();
+                balances.all().forEach((c, seen) -> known.put(c, seen.amount()));
+                sharedDecided = miningBlocks.sharedByBalance(r.sprite(), r.amount(), known, catalog);
+            }
+            blockMine = sharedDecided
                     .or(() -> miningBlocks.sharedByHint(r.sprite(), toolInHand(MinecraftClient.getInstance()),
                             lastMinedMine, catalog))
                     .map(m -> new MiningBlocks.Match(m, MiningBlocks.How.SHARED));
         } else if (blockMine.isEmpty()) {
             // Mined resources are a balance here, not items, so pickups rarely teach a block.
-            // A balance already known for this session usually can.
+            // A balance already known, from mining or saved from the last session, usually can.
             Map<String, Long> known = new java.util.HashMap<>();
             balances.all().forEach((c, seen) -> known.put(c, seen.amount()));
             if (miningBlocks.inferFromBalances(r.sprite(), r.amount(), known)) {
@@ -770,8 +788,15 @@ public final class MinerefineHudClient implements ClientModInitializer {
         // A shared icon decided only by a hint shows a mine but files nothing: guessed wrong, the
         // other mine's balance would take this total and the balance check would follow it.
         Optional<String> currency = shared
-                ? (pickupHere.isPresent() ? pickupHere : sharedByBalance)
+                ? (pickupHere.isPresent() ? pickupHere : sharedDecided)
                 : ActionBarReader.currencyFor(mined, pickupNow ? lastPickup : Optional.empty());
+
+        // Every block a mine is recognised by for certain says where that mine is.
+        Optional<String> certain = shared ? currency : mined;
+        if (certain.isPresent() && playerSpot().map(here -> mineSpots.record(certain.get(), here)).orElse(false)) {
+            config.mineSpots = new java.util.LinkedHashMap<>(mineSpots.export());
+            config.save(configFile);
+        }
 
         lastActionBarReading = reading;
         lastActionBarCurrency = currency;
@@ -780,6 +805,27 @@ public final class MinerefineHudClient implements ClientModInitializer {
             balances.update(c, r.amount(), now);
             lastProgressCheck = 0L;
         });
+    }
+
+    /** The player's dimension and position, or empty when not in a world. */
+    private static Optional<MineSpots.Spot> playerSpot() {
+        try {
+            MinecraftClient client = MinecraftClient.getInstance();
+            if (client == null || client.player == null || client.world == null) {
+                return Optional.empty();
+            }
+            return Optional.of(new MineSpots.Spot(client.world.getRegistryKey().getValue().toString(),
+                    client.player.getX(), client.player.getZ()));
+        } catch (Exception | NoSuchMethodError | NoClassDefFoundError e) {
+            return Optional.empty();
+        }
+    }
+
+    private void saveBalances() {
+        java.util.Map<String, Long> out = new java.util.LinkedHashMap<>();
+        balances.all().forEach((currency, reading) -> out.put(currency, reading.amount()));
+        config.savedBalances = out;
+        config.save(configFile);
     }
 
     private void saveLearnedBlocks() {
@@ -1024,7 +1070,7 @@ public final class MinerefineHudClient implements ClientModInitializer {
                         .map(m -> m.mine() + (m.how() == MiningBlocks.How.LEARNED ? " (learned)" : " (by name)"))
                         .orElse(miningBlocks.isShared(r.sprite())
                                 ? "shared by " + miningBlocks.shared().get(r.sprite()) + ", now "
-                                        + lastActionBarCurrency.orElse("undecided: open one of their shops")
+                                        + lastActionBarCurrency.orElse("undecided, mine another block here first")
                                 : "not known yet: open this mine's shop once while here"))
                 .orElse("nothing mined yet"));
         out.add(" last pickup: " + lastPickup.map(p -> p + " ("
@@ -1032,8 +1078,10 @@ public final class MinerefineHudClient implements ClientModInitializer {
                 + lastPickupSprite.orElse("no icon") + ")").orElse("none yet"));
         out.add(" learned blocks: " + (miningBlocks.learned().isEmpty() ? "none"
                 : miningBlocks.learned().toString()));
-        out.add(" shared icons, decided by balance: " + (miningBlocks.shared().isEmpty() ? "none"
-                : miningBlocks.shared().toString()));
+        out.add(" shared icons, decided by balance or where you are: " + (miningBlocks.shared().isEmpty()
+                ? "none" : miningBlocks.shared().toString()));
+        out.add(" mine spots known: " + mineSpots.size() + ", here: " + playerSpot()
+                .map(s -> s.dimension() + " " + Math.round(s.x()) + " " + Math.round(s.z())).orElse("unknown"));
 
         String held = "";
         List<String> heldLore = List.of();

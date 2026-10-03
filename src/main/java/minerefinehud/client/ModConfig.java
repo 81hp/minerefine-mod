@@ -94,6 +94,18 @@ public final class ModConfig {
     public java.util.Map<String, java.util.List<String>> sharedIcons = new java.util.LinkedHashMap<>();
 
     /**
+     * Where each mine was last mined, dimension and x/z, so a shared icon is told apart by where
+     * the player stands instead of needing a shop visit. Written by the mod.
+     */
+    public java.util.Map<String, minerefinehud.mine.MineSpots.Spot> mineSpots = new java.util.LinkedHashMap<>();
+
+    /**
+     * Last known balance per currency, so recognising a mine by its balance works straight after
+     * logging in, without opening a shop. Written by the mod.
+     */
+    public java.util.Map<String, Long> savedBalances = new java.util.LinkedHashMap<>();
+
+    /**
      * Which mine comes before which, read from shop prerequisites, e.g. "shovel|Debris":
      * "Suspicious Sand". Written by the mod; lets the progress bar follow dimensions newer than
      * the bundled data.
@@ -299,6 +311,12 @@ public final class ModConfig {
         }
         if (sharedIcons == null) {
             sharedIcons = new java.util.LinkedHashMap<>();
+        }
+        if (mineSpots == null) {
+            mineSpots = new java.util.LinkedHashMap<>();
+        }
+        if (savedBalances == null) {
+            savedBalances = new java.util.LinkedHashMap<>();
         }
         if (learnedProgression == null) {
             learnedProgression = new java.util.LinkedHashMap<>();

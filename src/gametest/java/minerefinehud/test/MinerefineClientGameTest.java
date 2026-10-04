@@ -34,6 +34,13 @@ public class MinerefineClientGameTest implements FabricClientGameTest {
     public void runTest(ClientGameTestContext context) {
         check(FabricLoader.getInstance().isModLoaded("minerefine-hud"), "the mod did not load");
 
+        // CI machines draw the game in software; the smallest view keeps world loading well inside
+        // the test framework's one-minute limit.
+        context.runOnClient(client -> {
+            client.options.renderDistance().set(2);
+            client.options.simulationDistance().set(5);
+        });
+
         try (TestSingleplayerContext world = context.worldBuilder().create()) {
             context.waitFor(client -> client.player != null);
             context.waitTicks(20);

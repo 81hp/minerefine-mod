@@ -228,9 +228,9 @@ public final class HudModel {
                 ? romanish(v.targetLevel()) + "-" + romanish(v.toLevel())
                 : romanish(v.targetLevel());
         // "Total" only for the whole mine, the mine panel's own figure; what is left after the
-        // gear already owned is "still to buy", so two different figures never share a name.
+        // gear already bought is "Total left", so two different figures never share a name.
         String piece = v.slot().isTotal()
-            ? count + v.mine() + (v.toLevel() > v.targetLevel() ? " Total" : " still to buy")
+            ? count + v.mine() + (v.toLevel() > v.targetLevel() ? " Total" : " Total left")
             : count + v.mine() + " " + capitalise(v.gear()) + " " + tiers;
 
         switch (v.state()) {
@@ -258,7 +258,7 @@ public final class HudModel {
                 // The tier is known from the inventory; only its price is missing, and opening
                 // that shop once fixes it for good.
                 lines.add(Line.of("open the " + v.mine() + " shop once for the "
-                        + (v.slot().isTotal() ? "prices" : "price"), Style.DIM));
+                        + (v.slot().isTotal() || v.slot().isArmorSet() ? "prices" : "price"), Style.DIM));
             }
             case ALL_MAXED -> lines.add(Line.of(
                     slotName(v) + ": every known tier done", Style.GOOD));

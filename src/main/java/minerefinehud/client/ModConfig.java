@@ -62,6 +62,11 @@ public final class ModConfig {
         public int quantity = 1;
         /** Follow boss gear, paid in that boss's fragments, instead of mine gear. */
         public boolean boss = false;
+        /**
+         * Total bars only: leave out the tiers already bought, so buying a pickaxe takes what it
+         * cost off the Total. Off, the Total is the whole mine at full price.
+         */
+        public boolean minusOwned = true;
 
         public Bar() {
         }

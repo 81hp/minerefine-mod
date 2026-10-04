@@ -20,6 +20,8 @@ public enum ProgressSlot {
     CHESTPLATE("chestplate"),
     LEGGINGS("leggings"),
     BOOTS("boots"),
+    /** Helmet, chestplate, leggings and boots together, as one bar. */
+    ARMOR_SET("armor set"),
     CHARM("charm"),
     TOTAL("total");
 
@@ -42,8 +44,15 @@ public enum ProgressSlot {
         return this == TOTAL;
     }
 
+    public boolean isArmorSet() {
+        return this == ARMOR_SET;
+    }
+
+    /** The four pieces an armour set bar adds up. */
+    public static final java.util.List<ProgressSlot> ARMOR_PIECES = java.util.List.of(HELMET, CHESTPLATE, LEGGINGS, BOOTS);
+
     public String label() {
-        return name().charAt(0) + name().substring(1).toLowerCase(Locale.ROOT);
+        return name().charAt(0) + name().substring(1).toLowerCase(Locale.ROOT).replace('_', ' ');
     }
 
     /** Tolerant lookup for the config file. Anything unrecognised, including "OFF", is empty. */

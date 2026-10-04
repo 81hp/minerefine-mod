@@ -953,13 +953,13 @@ public final class MinerefineHudClient implements ClientModInitializer {
         List<ProgressPlanner.ProgressView> out = new java.util.ArrayList<>();
         for (ModConfig.Bar bar : config.progressBars) {
             // A Total bar ignores any amount left over from when it tracked a single piece.
-            bar.choice().ifPresent(slot -> out.add(planProgress(slot, bar.boss)
+            bar.choice().ifPresent(slot -> out.add(planProgress(slot, bar.boss, bar.minusOwned)
                     .withQuantity(slot.isTotal() ? 1 : bar.quantity)));
         }
         return out;
     }
 
-    private ProgressPlanner.ProgressView planProgress(ProgressSlot slot, boolean boss) {
+    private ProgressPlanner.ProgressView planProgress(ProgressSlot slot, boolean boss, boolean totalMinusOwned) {
         ProgressPlanner.Goal goal = config.progressToMax ? ProgressPlanner.Goal.TO_MAX : ProgressPlanner.Goal.NEXT_TIER;
         List<ShopItemParser.GearRef> owned = ownedGear(MinecraftClient.getInstance());
         if (boss && !slot.isTotal()) {
@@ -967,7 +967,7 @@ public final class MinerefineHudClient implements ClientModInitializer {
                     balances, goal);
         }
         return ProgressPlanner.plan(slot, owned, catalogSource.catalog(), links, currentMine, prices, balances,
-                goal);
+                goal, totalMinusOwned);
     }
 
     /**

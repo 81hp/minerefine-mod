@@ -172,6 +172,11 @@ comes from the action bar while you mine, or from a shop.
 - **Track: next tier / to max.** "To max" shows everything still to buy for the piece at its mine,
   `Chestplate III-IV`, from the shop prices when they are all known and otherwise from the
   spreadsheet total minus the tiers you own.
+- **Armor set.** Helmet, chestplate, leggings and boots as one bar. It follows the set you are
+  upgrading: with the helmet maxed and the rest not, it counts the three pieces left at that mine.
+- **Total.** Everything at the mine. With **Minus bought** (the default) the tiers you already own
+  come off it, so buying the pickaxe takes its cost off the Total; **Full price** is the whole mine,
+  the same figure as the mine panel's Total.
 - Every bar compares against your whole balance of that resource; bars do not split it.
 
 ### Boss timers

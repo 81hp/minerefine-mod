@@ -210,8 +210,17 @@ public final class SettingsScreen extends Screen {
                         .dimensions(x(0) + COLUMN_WIDTH - 42, row, 42, 20).build());
             }
 
-            // A whole mine is bought once, so a Total bar has no amount.
-            if (!bar.choice().map(ProgressSlot::isTotal).orElse(false)) {
+            // A whole mine is bought once, so a Total bar has no amount. It has, in that spot,
+            // whether gear already bought comes off it.
+            if (bar.choice().map(ProgressSlot::isTotal).orElse(false)) {
+                addDrawableChild(ButtonWidget.builder(Text.literal(bar.minusOwned ? "Minus bought" : "Full price"),
+                                b -> {
+                                    bar.minusOwned = !bar.minusOwned;
+                                    onChange.run();
+                                    clearAndInit();   // the explanation under the bars changes too
+                                })
+                        .dimensions(x(1), row, 82, 20).build());
+            } else {
                 labels.add(new Label("Amount", x(1), row + 6));
                 addDrawableChild(field(x(1) + 40, row, 40, String.valueOf(bar.quantity), 3,
                         s -> s.matches("[0-9]{0,3}"),
@@ -261,11 +270,14 @@ public final class SettingsScreen extends Screen {
                 ? "Each bar counts every tier left to max the piece at its mine."
                 : "Each bar counts only the next tier.", x(0), explain));
         // Only with room above the Done button, which six bars at GUI scale 4 do not leave.
-        if (explain + 12 + 10 < this.height - 28
-                && bars.stream().anyMatch(b -> b.choice().map(ProgressSlot::isTotal).orElse(false))) {
-            labels.add(new Label(config.progressToMax
-                    ? "Total: the whole mine at full price, as in the mine panel."
-                    : "Total: what is still to buy at the mine, gear owned left out.", x(0), explain + 12));
+        if (explain + 12 + 10 < this.height - 28) {
+            List<ModConfig.Bar> totals = bars.stream()
+                    .filter(b -> b.choice().map(ProgressSlot::isTotal).orElse(false)).toList();
+            if (!totals.isEmpty()) {
+                labels.add(new Label(totals.get(0).minusOwned
+                        ? "Total: Minus bought takes gear already bought off it."
+                        : "Total: Full price is the whole mine, as in the mine panel.", x(0), explain + 12));
+            }
         }
     }
 

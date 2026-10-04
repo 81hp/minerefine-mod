@@ -131,7 +131,11 @@ public final class ProgressPlanner {
         return plan(slot, owned, catalog, links, currentMine, ledger, balances, Goal.NEXT_TIER);
     }
 
-    /** @param goal the next tier, or everything still to buy for this item at this mine */
+    /**
+     * @param goal the next tier, or everything still to buy for this item at this mine. A Total
+     *             bar leaves out what is owned when tracking the next tier, and is the whole mine
+     *             at full price when tracking to max, as before the choice existed.
+     */
     public static ProgressView plan(ProgressSlot slot,
                                     List<ShopItemParser.GearRef> owned,
                                     MineCatalog catalog,
@@ -140,9 +144,30 @@ public final class ProgressPlanner {
                                     PriceLedger ledger,
                                     ResourceBalances balances,
                                     Goal goal) {
+        return plan(slot, owned, catalog, links, currentMine, ledger, balances, goal, goal == Goal.NEXT_TIER);
+    }
+
+    /**
+     * @param totalMinusOwned for a Total bar: leave out the tiers already bought, so buying the
+     *                        pickaxe takes what it cost off the Total, the way a piece's bar moves
+     *                        on. Off, the Total is the whole mine at full price, the mine panel's
+     *                        figure. Ignored by every other bar.
+     */
+    public static ProgressView plan(ProgressSlot slot,
+                                    List<ShopItemParser.GearRef> owned,
+                                    MineCatalog catalog,
+                                    ProgressionLinks links,
+                                    Optional<Mine> currentMine,
+                                    PriceLedger ledger,
+                                    ResourceBalances balances,
+                                    Goal goal,
+                                    boolean totalMinusOwned) {
 
         if (slot.isTotal()) {
-            return planMineTotal(slot, owned, catalog, links, currentMine, ledger, balances, goal);
+            return planMineTotal(slot, owned, catalog, links, currentMine, ledger, balances, totalMinusOwned);
+        }
+        if (slot.isArmorSet()) {
+            return planArmorSet(slot, owned, catalog, links, currentMine, ledger, balances, goal, false);
         }
 
         List<ShopItemParser.GearRef> mine = owned.stream()
@@ -260,6 +285,9 @@ public final class ProgressPlanner {
                                         PriceLedger ledger,
                                         ResourceBalances balances,
                                         Goal goal) {
+        if (slot.isArmorSet()) {
+            return planArmorSet(slot, owned, catalog, links, currentMine, ledger, balances, goal, true);
+        }
         List<Mine> bosses = slot.isTotal() ? List.of() : catalog.bosses().stream()
                 .filter(b -> b.pieceCost(slot.gear()) > 0L)
                 .toList();
@@ -271,6 +299,9 @@ public final class ProgressPlanner {
                 .filter(g -> slot.gear().equals(g.gear().toLowerCase(Locale.ROOT)))
                 .filter(g -> isBossGear(catalog, g.mine()))
                 .filter(g -> bossIndex(catalog, bosses, g.mine()) >= 0)
+                .toList();
+        List<ShopItemParser.GearRef> ownedBossGear = owned.stream()
+                .filter(g -> isBossGear(catalog, g.mine()))
                 .toList();
         List<ShopItemParser.GearRef> unfinished = ofGear.stream()
                 .filter(g -> g.level() < maxLevel(ledger, catalog, g.mine(), slot.gear()))
@@ -303,7 +334,8 @@ public final class ProgressPlanner {
 
         while (true) {
             Mine boss = bosses.get(index);
-            String name = bossName(boss, ofGear, catalog, links, ledger);
+            // Any piece owned from this boss gives the shop's name for it, not only this kind.
+            String name = bossName(boss, ownedBossGear, catalog, links, ledger);
             int max = maxLevel(ledger, catalog, name, slot.gear());
             int level = bossLevel(catalog, ofGear, boss, max);
             if (level < max) {
@@ -316,6 +348,139 @@ public final class ProgressPlanner {
                         OptionalLong.empty(), OptionalLong.empty(), name, 1, level, true);
             }
         }
+    }
+
+    /**
+     * Helmet, chestplate, leggings and boots as one bar: each piece planned exactly as its own bar
+     * would be, then added up for the set they belong to.
+     *
+     * The set is the earliest mine (or boss) any piece is still being bought at. With the helmet
+     * maxed at Icicle and the other three not, the helmet's own bar has moved on to the next mine,
+     * but the set is still Icicle's, and the bar counts the three pieces left there. Once all four
+     * are maxed the set moves on with them.
+     *
+     * Unknown when any piece of the set is, rather than a total that quietly leaves one out.
+     */
+    private static ProgressView planArmorSet(ProgressSlot slot, List<ShopItemParser.GearRef> owned,
+                                             MineCatalog catalog, ProgressionLinks links,
+                                             Optional<Mine> currentMine, PriceLedger ledger,
+                                             ResourceBalances balances, Goal goal, boolean boss) {
+        List<ProgressView> pieces = armorPieces(owned, catalog, links, currentMine, ledger, balances, goal, boss);
+        Optional<String> at = earliestSetMine(pieces, catalog, links);
+
+        // Away from any mine, a piece not owned has nowhere to start, and the set would leave it
+        // out. The set's own mine is where it is bought, so plan it from there.
+        if (at.isPresent() && currentMine.isEmpty()
+                && pieces.stream().anyMatch(v -> v.state() == State.NO_MINE)) {
+            Optional<Mine> setMine = boss ? mineBefore(catalog, at.get()) : placed(catalog, at.get());
+            if (setMine.isPresent()) {
+                pieces = armorPieces(owned, catalog, links, setMine, ledger, balances, goal, boss);
+                at = earliestSetMine(pieces, catalog, links);
+            }
+        }
+
+        if (at.isEmpty()) {
+            boolean noMine = pieces.stream().anyMatch(v -> v.state() == State.NO_MINE);
+            String mine = noMine ? "" : pieces.get(0).mine();
+            return new ProgressView(slot, mine, slot.gear(), 0, noMine ? State.NO_MINE : State.ALL_MAXED,
+                    OptionalLong.empty(), OptionalLong.empty(), mine, 1, 0, boss);
+        }
+
+        String first = at.get();
+        List<ProgressView> set = pieces.stream()
+                .filter(v -> stillToBuy(v) && (boss ? sameBoss(catalog, v.mine(), first)
+                        : sameMine(catalog, v.mine(), first)))
+                .toList();
+        // A boss goes by its shop name ("Archaeologist") once any piece has given it.
+        String name = set.stream().map(ProgressView::mine)
+                .filter(m -> !boss || catalog.boss(m).map(b -> !b.name().equals(m)).orElse(false))
+                .findFirst().orElse(first);
+        // A piece whose price is known names the currency; an unseen one only guesses it.
+        String currency = set.stream().filter(v -> v.state() != State.PRICE_UNKNOWN)
+                .map(ProgressView::currency).findFirst().orElse(set.get(0).currency());
+        OptionalLong have = balances.get(currency)
+                .map(r -> OptionalLong.of(r.amount())).orElse(OptionalLong.empty());
+        int target = set.stream().mapToInt(ProgressView::targetLevel).min().orElse(1);
+        int toLevel = set.stream().mapToInt(ProgressView::toLevel).max().orElse(target);
+
+        if (set.stream().anyMatch(v -> v.cost().isEmpty())) {
+            return new ProgressView(slot, name, slot.gear(), target, State.PRICE_UNKNOWN,
+                    OptionalLong.empty(), have, currency, 1, toLevel, boss);
+        }
+        long cost = 0L;
+        for (ProgressView v : set) {
+            try {
+                cost = Math.addExact(cost, v.cost().getAsLong());
+            } catch (ArithmeticException e) {
+                cost = Long.MAX_VALUE;
+            }
+        }
+        State state = have.isPresent() && have.getAsLong() >= cost ? State.FINISHED : State.TRACKING;
+        return new ProgressView(slot, name, slot.gear(), target, state, OptionalLong.of(cost), have, currency,
+                1, toLevel, boss);
+    }
+
+    private static List<ProgressView> armorPieces(List<ShopItemParser.GearRef> owned, MineCatalog catalog,
+                                                  ProgressionLinks links, Optional<Mine> currentMine,
+                                                  PriceLedger ledger, ResourceBalances balances, Goal goal,
+                                                  boolean boss) {
+        List<ProgressView> out = new java.util.ArrayList<>();
+        for (ProgressSlot piece : ProgressSlot.ARMOR_PIECES) {
+            out.add(boss
+                    ? planBoss(piece, owned, catalog, links, currentMine, ledger, balances, goal)
+                    : plan(piece, owned, catalog, links, currentMine, ledger, balances, goal));
+        }
+        return out;
+    }
+
+    private static boolean sameBoss(MineCatalog catalog, String a, String b) {
+        Optional<Mine> other = catalog.boss(b);
+        return other.isPresent() && isBoss(catalog, a, other.get());
+    }
+
+    private static Optional<Mine> placed(MineCatalog catalog, String mine) {
+        return catalog.exactly(mine).or(() -> catalog.detectFrom(mine));
+    }
+
+    /** The last mine before this boss in the data: mining there, its gear is that boss's. */
+    private static Optional<Mine> mineBefore(MineCatalog catalog, String bossGear) {
+        List<Mine> all = catalog.all();
+        int at = catalog.boss(bossGear).map(b -> indexById(all, b)).orElse(-1);
+        for (int i = at - 1; i >= 0; i--) {
+            if (indexById(catalog.bosses(), all.get(i)) < 0) {
+                return Optional.of(all.get(i));
+            }
+        }
+        return Optional.empty();
+    }
+
+    /** A piece with a tier left to buy, priced or not. */
+    private static boolean stillToBuy(ProgressView v) {
+        return v.state() == State.TRACKING || v.state() == State.FINISHED || v.state() == State.PRICE_UNKNOWN;
+    }
+
+    /**
+     * The earliest mine or boss in progression that any piece still has a tier to buy at. A mine
+     * the data cannot place only wins when no piece's mine can be placed. Empty when every piece
+     * is maxed or has nowhere to start.
+     */
+    private static Optional<String> earliestSetMine(List<ProgressView> pieces, MineCatalog catalog,
+                                                    ProgressionLinks links) {
+        String best = null;
+        double bestOrder = -1;
+        for (ProgressView v : pieces) {
+            if (!stillToBuy(v)) {
+                continue;
+            }
+            double order = v.boss()
+                    ? catalog.boss(v.mine()).map(b -> (double) indexById(catalog.all(), b)).orElse(-1.0)
+                    : orderOf(catalog, links, v.gear(), v.mine());
+            if (best == null || (order >= 0 && (bestOrder < 0 || order < bestOrder))) {
+                best = v.mine();
+                bestOrder = order;
+            }
+        }
+        return Optional.ofNullable(best);
     }
 
     private static ProgressView emptyBoss(ProgressSlot slot, State state, String mine) {
@@ -450,14 +615,14 @@ public final class ProgressPlanner {
      * Unknown when any piece's remaining cost is, including a mine whose tool is not known yet:
      * a total that quietly leaves out a piece is worse than none, same rule as {@link MineCosts}.
      *
-     * With {@link Goal#TO_MAX} it is instead the whole mine, every piece at full price whatever is
-     * owned: the mine panel's Total, so the two always show the same figure. That view is marked
+     * With {@code minusOwned} off it is instead the whole mine, every piece at full price whatever
+     * is owned: the mine panel's Total, so the two always show the same figure. That view is marked
      * by {@code toLevel} above {@code targetLevel}, as a piece bar covering every tier is.
      */
     private static ProgressView planMineTotal(ProgressSlot slot, List<ShopItemParser.GearRef> owned,
                                               MineCatalog catalog, ProgressionLinks links,
                                               Optional<Mine> currentMine, PriceLedger ledger,
-                                              ResourceBalances balances, Goal goal) {
+                                              ResourceBalances balances, boolean minusOwned) {
         Optional<String> at = currentMine.map(m -> catalog.serverName(m.name()))
                 .or(() -> furthestOwnedMine(owned.stream()
                         .filter(g -> g.level() < maxLevel(ledger, catalog, catalog.serverName(g.mine()),
@@ -469,7 +634,7 @@ public final class ProgressPlanner {
         }
         String name = at.get();
 
-        if (goal == Goal.TO_MAX) {
+        if (!minusOwned) {
             Optional<Mine> data = currentMine.or(() -> catalog.exactly(name));
             MineCosts.View whole = MineCosts.of(name, data, ledger, false);
             String paidIn = whole.pieces().stream()

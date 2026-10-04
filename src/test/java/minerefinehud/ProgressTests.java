@@ -67,6 +67,9 @@ public final class ProgressTests {
         newAreaWithoutSpreadsheet();
         barCanTrackEverythingLeftToMax();
         mineTotalProgressBar();
+        totalMinusBought();
+        armorSetBar();
+        bossArmorSetBar();
 
         System.out.println();
         System.out.println("passed: " + passed + "   failed: " + failed);
@@ -891,7 +894,7 @@ public final class ProgressTests {
                 Optional.of(mineData), new PriceLedger(), balances);
         eq("whole-mine total sums applicable items", 510L, total.cost().orElse(-1L));
         eq("whole-mine total tracks its balance", State.TRACKING, total.state());
-        eq("total label", "Rust still to buy  400/510",
+        eq("total label", "Rust Total left  400/510",
                 HudModel.progressPanel(List.of(total), HudModel.ProgressLines.all()).get(0).text());
 
         balances.update("Rust", 510L, 2L);
@@ -976,6 +979,178 @@ public final class ProgressTests {
         var left = ProgressPlanner.plan(ProgressSlot.TOTAL, allMaxed, catalog, new ProgressionLinks(), rusty,
                 new PriceLedger(), balances, ProgressPlanner.Goal.NEXT_TIER);
         eq("next-tier total is what is still to buy", State.ALL_MAXED, left.state());
+    }
+
+    /** The Total can take gear already bought off it whatever the bars track, or stay full price. */
+    private static void totalMinusBought() {
+        MineCatalog catalog = totalCatalog();
+        Optional<Mine> rusty = catalog.byName("Rusty");
+        ProgressionLinks links = new ProgressionLinks();
+        ResourceBalances balances = new ResourceBalances();
+        balances.update("Rust", 400L, 1L);
+        List<GearRef> pickaxeMaxed = List.of(new GearRef("Rust", "pickaxe", 6));
+
+        for (ProgressPlanner.Goal goal : ProgressPlanner.Goal.values()) {
+            var none = ProgressPlanner.plan(ProgressSlot.TOTAL, List.of(), catalog, links, rusty,
+                    new PriceLedger(), balances, goal, true);
+            eq("minus bought, nothing owned, is the whole mine (" + goal + ")", 510L, none.cost().orElse(-1L));
+
+            var bought = ProgressPlanner.plan(ProgressSlot.TOTAL, pickaxeMaxed, catalog, links, rusty,
+                    new PriceLedger(), balances, goal, true);
+            eq("buying the pickaxe takes its cost off the Total (" + goal + ")", 490L, bought.cost().orElse(-1L));
+            eq("minus bought label (" + goal + ")", "Rust Total left  400/490",
+                    HudModel.progressPanel(List.of(bought), HudModel.ProgressLines.all()).get(0).text());
+
+            var full = ProgressPlanner.plan(ProgressSlot.TOTAL, pickaxeMaxed, catalog, links, rusty,
+                    new PriceLedger(), balances, goal, false);
+            eq("full price ignores the pickaxe bought (" + goal + ")", 510L, full.cost().orElse(-1L));
+            eq("full price label (" + goal + ")", "Rust Total  400/510",
+                    HudModel.progressPanel(List.of(full), HudModel.ProgressLines.all()).get(0).text());
+        }
+
+        // Halfway through the pickaxe: what tiers I-III cost comes off, IV-VI stay.
+        PriceLedger seen = new PriceLedger();
+        seen.seed("Rust", "pickaxe", 1, 2L, "Rust");
+        seen.seed("Rust", "pickaxe", 2, 3L, "Rust");
+        seen.seed("Rust", "pickaxe", 3, 4L, "Rust");
+        var half = ProgressPlanner.plan(ProgressSlot.TOTAL, List.of(new GearRef("Rust", "pickaxe", 3)), catalog,
+                links, rusty, seen, balances, ProgressPlanner.Goal.TO_MAX, true);
+        eq("tiers bought come off one by one", 501L, half.cost().orElse(-1L));
+    }
+
+    /** Helmet, chestplate, leggings and boots as one bar. */
+    private static void armorSetBar() {
+        MineCatalog catalog = totalCatalog();
+        Optional<Mine> rusty = catalog.byName("Rusty");
+        ProgressionLinks links = new ProgressionLinks();
+        PriceLedger ledger = new PriceLedger();
+        ResourceBalances balances = new ResourceBalances();
+        balances.update("Rust", 100L, 1L);
+
+        for (ProgressPlanner.Goal goal : ProgressPlanner.Goal.values()) {
+            String g = " (" + goal + ")";
+            var fresh = ProgressPlanner.plan(ProgressSlot.ARMOR_SET, List.of(), catalog, links, rusty, ledger,
+                    balances, goal);
+            eq("set with nothing owned is this mine's" + g, "Rust", fresh.mine());
+            eq("set adds up all four piece bars" + g,
+                    pieceSum(List.of(), catalog, links, rusty, ledger, balances, goal, "Rust"), fresh.cost().orElse(-1L));
+            if (goal == ProgressPlanner.Goal.TO_MAX) {
+                eq("set to max is the whole armour figure", 450L, fresh.cost().orElse(-1L));
+            }
+
+            List<GearRef> partway = List.of(new GearRef("Rust", "helmet", 6), new GearRef("Rust", "chestplate", 2),
+                    new GearRef("Rust", "leggings", 3), new GearRef("Rust", "boots", 1));
+            var set = ProgressPlanner.plan(ProgressSlot.ARMOR_SET, partway, catalog, links, Optional.empty(),
+                    ledger, balances, goal);
+            eq("helmet's own bar has moved on" + g, "Marrow", ProgressPlanner.plan(ProgressSlot.HELMET, partway,
+                    catalog, links, Optional.empty(), ledger, balances, goal).mine());
+            eq("but the set stays with the three pieces left" + g, "Rust", set.mine());
+            eq("set counts only the pieces left" + g,
+                    pieceSum(partway, catalog, links, Optional.empty(), ledger, balances, goal, "Rust"),
+                    set.cost().orElse(-1L));
+            if (goal == ProgressPlanner.Goal.TO_MAX) {
+                yes("set left is less than the fresh set", set.cost().orElse(0L) < fresh.cost().orElse(0L));
+            }
+            eq("set starts at the lowest next tier" + g, 2, set.targetLevel());
+
+            List<GearRef> maxed = List.of(new GearRef("Rust", "helmet", 6), new GearRef("Rust", "chestplate", 6),
+                    new GearRef("Rust", "leggings", 6), new GearRef("Rust", "boots", 6));
+            var next = ProgressPlanner.plan(ProgressSlot.ARMOR_SET, maxed, catalog, links, Optional.empty(),
+                    ledger, balances, goal);
+            eq("all four maxed moves the set on" + g, "Marrow", next.mine());
+            if (goal == ProgressPlanner.Goal.TO_MAX) {
+                eq("the next set to max", 4500L, next.cost().orElse(-1L));
+            }
+
+            // Away from any mine with one piece owned, the three not owned still count.
+            List<GearRef> onePiece = List.of(new GearRef("Rust", "chestplate", 2));
+            var one = ProgressPlanner.plan(ProgressSlot.ARMOR_SET, onePiece, catalog, links, Optional.empty(),
+                    ledger, balances, goal);
+            eq("away from a mine, the set is the owned piece's mine" + g, "Rust", one.mine());
+            eq("and counts the pieces not owned yet" + g,
+                    pieceSum(onePiece, catalog, links, rusty, ledger, balances, goal, "Rust"), one.cost().orElse(-1L));
+
+            eq("no gear and no mine" + g, State.NO_MINE, ProgressPlanner.plan(ProgressSlot.ARMOR_SET, List.of(),
+                    catalog, links, Optional.empty(), ledger, balances, goal).state());
+
+            List<GearRef> allDone = new java.util.ArrayList<>();
+            for (String piece : List.of("helmet", "chestplate", "leggings", "boots")) {
+                allDone.add(new GearRef("Marrow", piece, 6));
+            }
+            eq("every set maxed" + g, State.ALL_MAXED, ProgressPlanner.plan(ProgressSlot.ARMOR_SET, allDone,
+                    catalog, links, Optional.empty(), ledger, balances, goal).state());
+        }
+
+        var fresh = ProgressPlanner.plan(ProgressSlot.ARMOR_SET, List.of(), catalog, links, rusty, ledger,
+                balances, ProgressPlanner.Goal.TO_MAX);
+        eq("set label", "Rust Armor set I-VI  100/450",
+                HudModel.progressPanel(List.of(fresh), HudModel.ProgressLines.all()).get(0).text());
+        eq("two sets cost twice", 900L, fresh.withQuantity(2).cost().orElse(-1L));
+        eq("two sets label", "2x Rust Armor set I-VI  100/900",
+                HudModel.progressPanel(List.of(fresh.withQuantity(2)), HudModel.ProgressLines.all()).get(0).text());
+
+        balances.update("Rust", 450L, 2L);
+        eq("set finished once affordable", State.FINISHED, ProgressPlanner.plan(ProgressSlot.ARMOR_SET, List.of(),
+                catalog, links, rusty, ledger, balances, ProgressPlanner.Goal.TO_MAX).state());
+
+        // One piece's price unknown makes the set unknown, not a smaller figure.
+        MineCatalog bare = new MineCatalog(List.of(new Mine("mine-zed", "mine", "Ruins", "Zed",
+                new LinkedHashMap<>(), null)));
+        PriceLedger partial = new PriceLedger();
+        partial.seed("Zed", "helmet", 1, 5L, "Zed");
+        var unknown = ProgressPlanner.plan(ProgressSlot.ARMOR_SET, List.of(), bare, links, bare.byName("Zed"),
+                partial, balances, ProgressPlanner.Goal.NEXT_TIER);
+        eq("a piece without a price leaves the set unknown", State.PRICE_UNKNOWN, unknown.state());
+        eq("unknown set asks for the prices", "open the Zed shop once for the prices",
+                HudModel.progressPanel(List.of(unknown), HudModel.ProgressLines.all()).get(1).text());
+        eq("slot label", "Armor set", ProgressSlot.ARMOR_SET.label());
+        eq("slot from config", Optional.of(ProgressSlot.ARMOR_SET), ProgressSlot.parse("ARMOR_SET"));
+    }
+
+    /** The cost of the piece bars that are at {@code mine}, as the set should add them up. */
+    private static long pieceSum(List<GearRef> owned, MineCatalog catalog, ProgressionLinks links,
+                                 Optional<Mine> at, PriceLedger ledger, ResourceBalances balances,
+                                 ProgressPlanner.Goal goal, String mine) {
+        long sum = 0L;
+        for (ProgressSlot piece : ProgressSlot.ARMOR_PIECES) {
+            var v = ProgressPlanner.plan(piece, owned, catalog, links, at, ledger, balances, goal);
+            if (v.mine().equals(mine) && v.cost().isPresent()) {
+                sum += v.cost().getAsLong();
+            }
+        }
+        return sum;
+    }
+
+    /** A boss armour set, paid in fragments. */
+    private static void bossArmorSetBar() {
+        Map<String, Long> archaeologist = new LinkedHashMap<>();
+        archaeologist.put("sword", 50L);
+        archaeologist.put("armor", 200L);
+        MineCatalog catalog = new MineCatalog(List.of(
+                mine("Relic", "pickaxe"),
+                new Mine("boss-ruins-angry-archaeologist", "boss", "Ruins", "Angry Archaeologist",
+                        archaeologist, null),
+                mine("Frost", "pickaxe")));
+        ProgressionLinks links = new ProgressionLinks();
+        PriceLedger ledger = new PriceLedger();
+        ResourceBalances balances = new ResourceBalances();
+        balances.update("Archaeologist Fragment", 12L, 1L);
+        GearRef chestI = new GearRef("Archaeologist", "chestplate", 1);
+
+        var inRelic = ProgressPlanner.planBoss(ProgressSlot.ARMOR_SET, List.of(), catalog, links,
+                catalog.byName("Relic"), ledger, balances, ProgressPlanner.Goal.TO_MAX);
+        eq("boss set is the world's boss", "Angry Archaeologist", inRelic.mine());
+        eq("boss set is marked as one", true, inRelic.boss());
+        eq("boss set to max is the boss's whole armour", 200L, inRelic.cost().orElse(-1L));
+
+        var away = ProgressPlanner.planBoss(ProgressSlot.ARMOR_SET, List.of(chestI), catalog, links,
+                Optional.empty(), ledger, balances, ProgressPlanner.Goal.TO_MAX);
+        eq("away from a mine, the boss of the piece owned", "Archaeologist", away.mine());
+        long chestLeft = ProgressPlanner.planBoss(ProgressSlot.CHESTPLATE, List.of(chestI), catalog, links,
+                Optional.empty(), ledger, balances, ProgressPlanner.Goal.TO_MAX).cost().orElse(-1L);
+        eq("and counts the boss pieces not owned yet", 200L - minerefinehud.mine.ArmorSplit.chestplate(200L) + chestLeft,
+                away.cost().orElse(-1L));
+        eq("boss set counts fragments", 12L, away.have().orElse(-1L));
     }
 
     /** Tier counts from the bundled table and tier prices from the sheet, with no shop opened. */

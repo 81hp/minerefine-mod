@@ -181,7 +181,7 @@ public final class ProgressPlanner {
                                                 Optional<Mine> currentMine, PriceLedger ledger,
                                                 ResourceBalances balances, Goal goal) {
         if (currentMine.isPresent()) {
-            Optional<ProgressSlot> tool = otherTool(currentMine.get());
+            Optional<ProgressSlot> tool = otherTool(currentMine.get(), catalog, ledger, links);
             if (tool.isPresent()) {
                 // Once this mine's tool is maxed, its own bar heads for the next mine of that
                 // tool, worlds away; the pickaxe bar carries on to the pickaxe instead.
@@ -213,7 +213,7 @@ public final class ProgressPlanner {
         } else {
             from = -1;
             for (int i = last - 1; i >= 0; i--) {
-                if (all.get(i).toolKeys().contains(ProgressSlot.PICKAXE.gear())) {
+                if (toolsOf(all.get(i), catalog, ledger, links).contains(ProgressSlot.PICKAXE.gear())) {
                     from = i;
                     break;
                 }
@@ -225,7 +225,7 @@ public final class ProgressPlanner {
         }
         for (int i = from + 1; i < to; i++) {
             Mine x = all.get(i);
-            Optional<ProgressSlot> tool = otherTool(x);
+            Optional<ProgressSlot> tool = otherTool(x, catalog, ledger, links);
             if (tool.isEmpty()) {
                 continue;
             }
@@ -245,8 +245,9 @@ public final class ProgressPlanner {
     }
 
     /** The axe or shovel a mine sells instead of a pickaxe, if it does. */
-    private static Optional<ProgressSlot> otherTool(Mine mine) {
-        List<String> tools = mine.toolKeys();
+    private static Optional<ProgressSlot> otherTool(Mine mine, MineCatalog catalog, PriceLedger ledger,
+                                                    ProgressionLinks links) {
+        List<String> tools = toolsOf(mine, catalog, ledger, links);
         if (tools.contains(ProgressSlot.PICKAXE.gear())) {
             return Optional.empty();
         }
@@ -320,13 +321,13 @@ public final class ProgressPlanner {
             // A copy from a mine not placed yet cannot be shown to be behind, so it is left alone.
             double ownedOrder = orderOf(catalog, links, slot.gear(), at);
             if (unfinishedFromMines.isEmpty() && currentMine.isPresent() && ownedOrder >= 0) {
-                Optional<String> here = startMine(slot, catalog, currentMine.get());
+                Optional<String> here = startMine(slot, catalog, ledger, links, currentMine.get());
                 if (here.isPresent() && orderOf(catalog, links, slot.gear(), here.get()) > ownedOrder) {
                     at = here.get();
                 }
             }
         } else if (at == null && currentMine.isPresent()) {
-            at = startMine(slot, catalog, currentMine.get()).orElse(null);
+            at = startMine(slot, catalog, ledger, links, currentMine.get()).orElse(null);
             if (at == null) {
                 return empty(slot, State.ALL_MAXED, currentMine.get().name());
             }
@@ -338,7 +339,7 @@ public final class ProgressPlanner {
         // Bounded: learned links come from saved data, and a loop in them must not hang a tick.
         int hops = 0;
         while (level >= maxLevel(ledger, catalog, at, slot.gear())) {
-            Optional<String> next = nextMine(slot, catalog, links, at);
+            Optional<String> next = nextMine(slot, catalog, ledger, links, at);
             if (next.isEmpty() || ++hops > catalog.mines().size() + MAX_LINK_STEPS) {
                 return new ProgressView(slot, at, slot.gear(), level, State.ALL_MAXED,
                         OptionalLong.empty(), OptionalLong.empty(), at, 1, level);
@@ -375,7 +376,7 @@ public final class ProgressPlanner {
         }
         // Only when this mine sells the item: an axe bar in a pickaxe mine is not bought with its
         // resource, so it keeps following the player's own axe.
-        Optional<String> here = startMine(slot, catalog, currentMine.get());
+        Optional<String> here = startMine(slot, catalog, ledger, links, currentMine.get());
         if (here.isEmpty() || !sameMine(catalog, here.get(), currentMine.get().name())) {
             return Optional.empty();
         }
@@ -818,7 +819,7 @@ public final class ProgressPlanner {
         gears.add("sword");
         java.util.Set<String> tools = new java.util.LinkedHashSet<>(currentMine
                 .or(() -> catalog.exactly(name))
-                .map(Mine::toolKeys).orElse(List.of()));
+                .map(m -> toolsOf(m, catalog, ledger, links)).orElse(List.of()));
         for (String gear : ledger.observedGears(name)) {
             if (TOTAL_TOOLS.contains(gear)) {
                 tools.add(gear);
@@ -1067,12 +1068,35 @@ public final class ProgressPlanner {
         return -1;
     }
 
-    private static boolean sells(ProgressSlot slot, Mine mine) {
-        return !slot.isTool() || mine.toolKeys().contains(slot.gear());
+    private static boolean sells(ProgressSlot slot, Mine mine, MineCatalog catalog, PriceLedger ledger,
+                                 ProgressionLinks links) {
+        return !slot.isTool() || toolsOf(mine, catalog, ledger, links).contains(slot.gear());
+    }
+
+    /**
+     * The tools a mine sells. From the bundled data when it lists any; it lists none for whole
+     * worlds (Darkwater Palace), and Duskwood's axe went unseen, so the pickaxe bar skipped it
+     * even with the Axe/shovel mines setting on. Then from what the mod has learned: the tier
+     * table, prices seen in its shop, and the chain read from shop prerequisites.
+     */
+    private static List<String> toolsOf(Mine mine, MineCatalog catalog, PriceLedger ledger, ProgressionLinks links) {
+        if (!mine.toolKeys().isEmpty()) {
+            return mine.toolKeys();
+        }
+        String name = catalog.serverName(mine.name());
+        List<String> out = new java.util.ArrayList<>();
+        for (String tool : TOTAL_TOOLS) {
+            if (ledger.knowsTierCount(name, tool) || !ledger.observedTiers(name, tool).isEmpty()
+                    || links.previous(name, tool).isPresent() || links.next(name, tool).isPresent()) {
+                out.add(tool);
+            }
+        }
+        return out;
     }
 
     /** The current mine if it sells this kind of item, otherwise the next one that does. */
-    private static Optional<String> startMine(ProgressSlot slot, MineCatalog catalog, Mine current) {
+    private static Optional<String> startMine(ProgressSlot slot, MineCatalog catalog, PriceLedger ledger,
+                                              ProgressionLinks links, Mine current) {
         int index = orderOf(catalog, current.name());
         if (index < 0) {
             // Not in the price data, so its tool type is unknown. Take it at its word.
@@ -1080,7 +1104,7 @@ public final class ProgressPlanner {
         }
         List<Mine> all = catalog.mines();
         for (int i = index; i < all.size(); i++) {
-            if (sells(slot, all.get(i))) {
+            if (sells(slot, all.get(i), catalog, ledger, links)) {
                 return Optional.of(catalog.serverName(all.get(i).name()));
             }
         }
@@ -1091,8 +1115,8 @@ public final class ProgressPlanner {
      * The next mine after this one that sells this kind of item. What the shop says wins over the
      * bundled order, because the shop is the server itself.
      */
-    static Optional<String> nextMine(ProgressSlot slot, MineCatalog catalog, ProgressionLinks links,
-                                     String after) {
+    static Optional<String> nextMine(ProgressSlot slot, MineCatalog catalog, PriceLedger ledger,
+                                     ProgressionLinks links, String after) {
         Optional<String> learned = links.next(catalog.serverName(after), slot.gear());
         if (learned.isPresent()) {
             return learned;
@@ -1103,7 +1127,7 @@ public final class ProgressPlanner {
         }
         List<Mine> all = catalog.mines();
         for (int i = index + 1; i < all.size(); i++) {
-            if (sells(slot, all.get(i))) {
+            if (sells(slot, all.get(i), catalog, ledger, links)) {
                 return Optional.of(catalog.serverName(all.get(i).name()));
             }
         }

@@ -71,6 +71,7 @@ public final class ProgressTests {
         armorSetBar();
         bossArmorSetBar();
         pickaxeSwapsAtToolMines();
+        toolMinesWithoutBundledItems();
 
         System.out.println();
         System.out.println("passed: " + passed + "   failed: " + failed);
@@ -1245,6 +1246,40 @@ public final class ProgressTests {
         var afterLast = ProgressPlanner.plan(ProgressSlot.PICKAXE, List.of(rustyMaxed), shovelLast, links,
                 Optional.empty(), ledger, balances, ProgressPlanner.Goal.NEXT_TIER, true, true);
         eq("on: a shovel mine after the last pickaxe one still comes", "Debris", afterLast.mine());
+    }
+
+    /**
+     * Seen in game: Darkwater Palace mines carry no items in the bundled data, so nothing said
+     * Duskwood sells an axe, and a maxed Crystalite pickaxe went straight to Throne.
+     */
+    private static void toolMinesWithoutBundledItems() {
+        MineCatalog catalog = new MineCatalog(List.of(bare("Crystalite"), bare("Duskwood"), bare("Throne")));
+        ProgressionLinks links = new ProgressionLinks();
+        links.learn("Duskwood", "axe", "Driftwood");
+        links.learn("Throne", "pickaxe", "Crystalite");
+        PriceLedger ledger = new PriceLedger();
+        ledger.knowTierCount("Crystalite", "pickaxe", 6);
+        ledger.knowTierCount("Throne", "pickaxe", 6);
+        List<GearRef> owned = List.of(new GearRef("Crystalite", "pickaxe", 6));
+        for (Optional<Mine> at : List.of(Optional.<Mine>empty(), catalog.byName("Crystalite"))) {
+            String where = at.map(Mine::name).orElse("away");
+            var on = ProgressPlanner.plan(ProgressSlot.PICKAXE, owned, catalog, links, at, ledger,
+                    new ResourceBalances(), ProgressPlanner.Goal.TO_MAX, true, true);
+            eq("on, " + where + ": the axe learned from the shop chain", "Duskwood", on.mine());
+            eq("on, " + where + ": an axe", "axe", on.gear());
+            eq("off, " + where + ": the next pickaxe", "Throne", ProgressPlanner.plan(ProgressSlot.PICKAXE, owned,
+                    catalog, links, at, ledger, new ResourceBalances(), ProgressPlanner.Goal.TO_MAX, true, false).mine());
+        }
+        var inDuskwood = ProgressPlanner.plan(ProgressSlot.PICKAXE, owned, catalog, links, catalog.byName("Duskwood"),
+                ledger, new ResourceBalances(), ProgressPlanner.Goal.TO_MAX, true, true);
+        eq("on, standing in Duskwood: its axe", "axe", inDuskwood.gear());
+        eq("in Crystalite the pickaxe bar follows the mine again", "Crystalite", ProgressPlanner.plan(
+                ProgressSlot.PICKAXE, List.of(new GearRef("Crystalite", "pickaxe", 3)), catalog, links,
+                catalog.byName("Crystalite"), ledger, new ResourceBalances()).mine());
+    }
+
+    private static Mine bare(String name) {
+        return new Mine("mine-" + name.toLowerCase(), "mine", "Darkwater Palace", name, new LinkedHashMap<>(), null);
     }
 
     private static ProgressPlanner.ProgressView swap(List<GearRef> owned, Optional<Mine> at, boolean on) {

@@ -465,20 +465,85 @@ public final class ProgressTests {
         }
         eq("taken off, the same", "Throne", ProgressPlanner.plan(ProgressSlot.CHESTPLATE, List.of(), catalog,
                 links, throne, ledger, new ResourceBalances()).mine());
-        eq("in Relic it still moves on past the Ruins", "Frost", ProgressPlanner.plan(ProgressSlot.CHESTPLATE,
-                List.of(worn), catalog, links, catalog.byName("Relic"), ledger, new ResourceBalances()).mine());
+        eq("in Relic, a maxed boss piece from after it leaves the bar on Relic", "Relic",
+                ProgressPlanner.plan(ProgressSlot.CHESTPLATE, List.of(worn), catalog, links, catalog.byName("Relic"),
+                        ledger, new ResourceBalances()).mine());
         eq("away from a mine it moves on from the maxed piece", "Frost",
                 ProgressPlanner.plan(ProgressSlot.CHESTPLATE, List.of(worn), catalog, links, Optional.empty(),
                         ledger, new ResourceBalances()).mine());
         eq("a set being upgraded still wins over the mine stood in", "Slush",
                 ProgressPlanner.plan(ProgressSlot.CHESTPLATE, List.of(worn, new GearRef("Slush", "chestplate", 2)),
                         catalog, links, throne, ledger, new ResourceBalances()).mine());
-        eq("a maxed copy from a mine not placed yet is not overruled", "Mystery",
+        eq("away from a mine, a maxed copy from a mine not placed yet is not overruled", "Mystery",
                 ProgressPlanner.plan(ProgressSlot.CHESTPLATE, List.of(new GearRef("Mystery", "chestplate", 9)),
-                        catalog, links, catalog.byName("Relic"), ledger, new ResourceBalances()).mine());
-        eq("a maxed copy further on than the mine stood in still counts", State.ALL_MAXED,
+                        catalog, links, Optional.empty(), ledger, new ResourceBalances()).mine());
+        eq("away from a mine, a maxed copy at the last mine is done", State.ALL_MAXED,
                 ProgressPlanner.plan(ProgressSlot.CHESTPLATE, List.of(new GearRef("Throne", "chestplate", 4)),
-                        catalog, links, catalog.byName("Frost"), ledger, new ResourceBalances()).state());
+                        catalog, links, Optional.empty(), ledger, new ResourceBalances()).state());
+        var inFrost = ProgressPlanner.plan(ProgressSlot.CHESTPLATE, List.of(new GearRef("Throne", "chestplate", 4)),
+                catalog, links, catalog.byName("Frost"), ledger, new ResourceBalances());
+        eq("in Frost, a maxed Throne chestplate leaves the bar on Frost", "Frost", inFrost.mine());
+        eq("from Frost's first tier", 1, inFrost.targetLevel());
+
+        mineStoodInDecides();
+    }
+
+    /**
+     * Seen in game: a maxed Crystalite set worn while mining City Wall to take maxed Sapphire
+     * chestplates on to City Wall ones. Every bar showed Crystalite and Duskwood instead.
+     */
+    private static void mineStoodInDecides() {
+        MineCatalog catalog = new MineCatalog(List.of(
+                mine("Sapphire", "pickaxe"), mine("City Wall", "pickaxe"), mine("Soul Soil", "shovel"),
+                mine("Crystalite", "pickaxe"), mine("Duskwood", "axe")));
+        ProgressionLinks links = new ProgressionLinks();
+        PriceLedger ledger = new PriceLedger();
+        for (String m : List.of("Sapphire", "City Wall", "Soul Soil", "Crystalite", "Duskwood")) {
+            for (String piece : List.of("helmet", "chestplate", "leggings", "boots")) {
+                ledger.knowTierCount(m, piece, 4);
+            }
+        }
+        Optional<Mine> cityWall = catalog.byName("City Wall");
+        List<GearRef> mainSet = new java.util.ArrayList<>();
+        for (String piece : List.of("helmet", "chestplate", "leggings", "boots")) {
+            mainSet.add(new GearRef("Crystalite", piece, 4));
+        }
+        mainSet.add(new GearRef("Crystalite", "pickaxe", 3));
+
+        List<GearRef> withSapphire = new java.util.ArrayList<>(mainSet);
+        withSapphire.add(new GearRef("Sapphire", "chestplate", 4));
+        var chest = ProgressPlanner.plan(ProgressSlot.CHESTPLATE, withSapphire, catalog, links, cityWall, ledger,
+                new ResourceBalances());
+        eq("in City Wall, maxed Sapphire chestplates lead to City Wall's", "City Wall", chest.mine());
+        eq("from City Wall's first tier", 1, chest.targetLevel());
+        eq("away from the mine, the main set still leads", "Duskwood", ProgressPlanner.plan(ProgressSlot.CHESTPLATE,
+                withSapphire, catalog, links, Optional.empty(), ledger, new ResourceBalances()).mine());
+
+        List<GearRef> sapphireTwo = new java.util.ArrayList<>(mainSet);
+        sapphireTwo.add(new GearRef("Sapphire", "chestplate", 2));
+        var behind = ProgressPlanner.plan(ProgressSlot.CHESTPLATE, sapphireTwo, catalog, links, cityWall, ledger,
+                new ResourceBalances());
+        eq("an unfinished Sapphire chestplate is bought on first", "Sapphire", behind.mine());
+        eq("its next tier", 3, behind.targetLevel());
+
+        List<GearRef> cityTwo = new java.util.ArrayList<>(withSapphire);
+        cityTwo.add(new GearRef("City Wall", "chestplate", 2));
+        eq("a City Wall chestplate owned carries on from its tier", 3, ProgressPlanner.plan(ProgressSlot.CHESTPLATE,
+                cityTwo, catalog, links, cityWall, ledger, new ResourceBalances()).targetLevel());
+
+        eq("the pickaxe bar follows the mine too", "City Wall", ProgressPlanner.plan(ProgressSlot.PICKAXE,
+                withSapphire, catalog, links, cityWall, ledger, new ResourceBalances()).mine());
+        List<GearRef> withAxe = new java.util.ArrayList<>(withSapphire);
+        withAxe.add(new GearRef("Duskwood", "axe", 2));
+        eq("an axe bar in a pickaxe mine keeps following the axe owned", "Duskwood",
+                ProgressPlanner.plan(ProgressSlot.AXE, withAxe, catalog, links, cityWall, ledger,
+                        new ResourceBalances()).mine());
+        eq("the armour set follows the mine", "City Wall", ProgressPlanner.plan(ProgressSlot.ARMOR_SET,
+                withSapphire, catalog, links, cityWall, ledger, new ResourceBalances()).mine());
+        var total = ProgressPlanner.plan(ProgressSlot.TOTAL, withSapphire, catalog, links, cityWall, ledger,
+                new ResourceBalances(), ProgressPlanner.Goal.TO_MAX, true);
+        eq("the total is City Wall's", "City Wall", total.mine());
+        yes("and not done because of the Crystalite set", total.state() != State.ALL_MAXED);
     }
 
     /** A bar set to Boss follows boss gear and counts that boss's fragments. */
@@ -945,7 +1010,7 @@ public final class ProgressTests {
         eq("total counts an older set being upgraded despite a later one", 480L,
                 ProgressPlanner.plan(ProgressSlot.TOTAL, List.of(mainSet, second), catalog, rusty, seen, balances)
                         .cost().orElse(-1L));
-        eq("total still skips a piece owned only from a later mine", 370L,
+        eq("in the mine, a piece owned only from a later mine still counts", 510L,
                 ProgressPlanner.plan(ProgressSlot.TOTAL, List.of(mainSet), catalog, rusty, seen, balances)
                         .cost().orElse(-1L));
         eq("away from a mine, the total follows the set being upgraded", "Rust",
@@ -1238,10 +1303,17 @@ public final class ProgressTests {
         eq("total done when every piece is maxed", State.ALL_MAXED,
                 total(everything, rusty, new PriceLedger(), balances).state());
 
-        // A Marrow sword makes the Rust one pointless.
-        eq("total skips a piece owned from a later mine", 500L,
+        // In Rusty every Rust piece counts, a Marrow sword or not: the player is there to buy them.
+        eq("in the mine, a piece owned from a later mine still counts", 510L,
                 total(List.of(new GearRef("Marrow", "sword", 1)), rusty, new PriceLedger(), balances)
                         .cost().orElse(-1L));
+        // Away from it, the maxed Marrow sword makes the Rust one pointless.
+        List<GearRef> rustSet = List.of(new GearRef("Marrow", "sword", 6), new GearRef("Rust", "chestplate", 2));
+        var awaySet = total(rustSet, Optional.empty(), new PriceLedger(), balances);
+        eq("away from a mine, the total is the set being upgraded", "Rust", awaySet.mine());
+        eq("away from a mine, a piece owned from a later mine is skipped",
+                total(rustSet, rusty, new PriceLedger(), balances).cost().orElse(-1L) - 10L,
+                awaySet.cost().orElse(-1L));
 
         // Away from any mine: the furthest mine owned from, here Marrow.
         PriceLedger marrowSeen = new PriceLedger();

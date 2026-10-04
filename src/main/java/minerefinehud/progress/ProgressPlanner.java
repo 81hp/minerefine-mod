@@ -191,8 +191,8 @@ public final class ProgressPlanner {
         List<ShopItemParser.GearRef> candidates = !unfinishedFromMines.isEmpty() ? unfinishedFromMines
                 : !unfinished.isEmpty() ? unfinished : mine;
 
-        String at;
-        if (!candidates.isEmpty()) {
+        String at = forMineStoodIn(slot, mine, catalog, links, currentMine, ledger).orElse(null);
+        if (at == null && !candidates.isEmpty()) {
             ShopItemParser.GearRef best = candidates.get(0);
             for (ShopItemParser.GearRef g : candidates) {
                 int byOrder = Double.compare(orderOf(catalog, links, slot.gear(), g.mine()),
@@ -214,12 +214,12 @@ public final class ProgressPlanner {
                     at = here.get();
                 }
             }
-        } else if (currentMine.isPresent()) {
+        } else if (at == null && currentMine.isPresent()) {
             at = startMine(slot, catalog, currentMine.get()).orElse(null);
             if (at == null) {
                 return empty(slot, State.ALL_MAXED, currentMine.get().name());
             }
-        } else {
+        } else if (at == null) {
             return empty(slot, State.NO_MINE, "");
         }
 
@@ -241,6 +241,56 @@ public final class ProgressPlanner {
         int max = maxLevel(ledger, catalog, at, slot.gear());
         String currency = currencyOf(ledger, at, slot.gear(), max).orElse(at);
         return priced(slot, at, level, max, currency, catalog, ledger, balances, goal, false);
+    }
+
+    /**
+     * In a mine, the bar is for that mine: the player is mining its resource, so that is what they
+     * are buying with. A main set from a later world does not count there. Seen in game: mining
+     * City Wall to take maxed Sapphire chestplates on to City Wall ones, with a maxed Crystalite
+     * set worn, and every bar showed Crystalite and Duskwood.
+     *
+     * The closest mine-bought copy at or before the mine (in this item's chain) says where: one
+     * short of its last tier is bought on first (Sapphire II in City Wall: Sapphire III), a maxed
+     * one leads to this mine (Sapphire IV: City Wall I), as does owning none. Boss gear is skipped,
+     * since it is not bought with mined resources, so a maxed boss piece before the mine still
+     * leaves the bar on the mine. Empty away from a mine, in one the data cannot place, or in one
+     * that does not sell this item.
+     */
+    private static Optional<String> forMineStoodIn(ProgressSlot slot, List<ShopItemParser.GearRef> mine,
+                                                   MineCatalog catalog, ProgressionLinks links,
+                                                   Optional<Mine> currentMine, PriceLedger ledger) {
+        if (currentMine.isEmpty()) {
+            return Optional.empty();
+        }
+        // Only when this mine sells the item: an axe bar in a pickaxe mine is not bought with its
+        // resource, so it keeps following the player's own axe.
+        Optional<String> here = startMine(slot, catalog, currentMine.get());
+        if (here.isEmpty() || !sameMine(catalog, here.get(), currentMine.get().name())) {
+            return Optional.empty();
+        }
+        double hereOrder = orderOf(catalog, links, slot.gear(), here.get());
+        if (hereOrder < 0) {
+            return Optional.empty();
+        }
+        String closest = null;
+        double closestOrder = -1;
+        for (ShopItemParser.GearRef g : mine) {
+            if (isBossGear(catalog, g.mine())) {
+                continue;
+            }
+            double order = orderOf(catalog, links, slot.gear(), g.mine());
+            if (order >= 0 && order <= hereOrder && order > closestOrder) {
+                closest = catalog.serverName(g.mine());
+                closestOrder = order;
+            }
+        }
+        if (closest != null && closestOrder < hereOrder) {
+            int max = maxLevel(ledger, catalog, closest, slot.gear());
+            if (ownedLevel(catalog, mine, closest, max) < max) {
+                return Optional.of(closest);
+            }
+        }
+        return here;
     }
 
     /** The view for an item owned at {@code level} of {@code max}: the next tier, or all of them. */
@@ -603,8 +653,10 @@ public final class ProgressPlanner {
 
     /**
      * Everything still to buy at one mine: for each piece, the tiers above the one owned, as a
-     * TO_MAX bar would count them. A piece owned only from a later mine is skipped, because
-     * nobody buys an older sword. Counting what is left rather than the full price keeps the bar
+     * TO_MAX bar would count them. Away from a mine, a piece owned only from a later mine is
+     * skipped, because nobody buys an older sword; in the mine every piece counts, because the
+     * player is there to buy its gear (City Wall chestplates with a Crystalite set worn showed
+     * "every known tier done"). Counting what is left rather than the full price keeps the bar
      * moving forward as tiers are bought; against the full price, every purchase spent the
      * balance while the target stayed put, and the bar went backwards.
      *
@@ -687,7 +739,7 @@ public final class ProgressPlanner {
             // A copy from this mine is the one being upgraded here, even with a better one
             // from a later mine worn; only without one does the later copy make it pointless.
             boolean ownedHere = ofGear.stream().anyMatch(g -> sameMine(catalog, g.mine(), name));
-            if (!ownedHere && ownsLater(owned, catalog, links, gear, name)) {
+            if (!ownedHere && currentMine.isEmpty() && ownsLater(owned, catalog, links, gear, name)) {
                 continue;
             }
             int level = ownedLevel(catalog, ofGear, name, max);

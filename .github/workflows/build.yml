@@ -135,13 +135,14 @@ jobs:
           VERSION: ${{ steps.version.outputs.version }}
           TAG: ${{ steps.version.outputs.tag }}
         run: |
+          # Commits starting with "CI:" are build plumbing and stay out of the player-facing notes.
           PREVIOUS=$(git describe --tags --abbrev=0 --match 'V*' HEAD 2>/dev/null || true)
           {
             echo "## Changes"
             if [ -n "$PREVIOUS" ]; then
-              git log --no-merges --pretty='- %s' "$PREVIOUS"..HEAD
+              git log --no-merges --pretty='- %s' "$PREVIOUS"..HEAD | grep -v '^- CI:' || true
             else
-              git log --no-merges --pretty='- %s' -20
+              git log --no-merges --pretty='- %s' -20 | grep -v '^- CI:' || true
             fi
             echo
             echo "## Which jar do I need?"

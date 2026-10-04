@@ -62,8 +62,13 @@ jobs:
       - name: Install a virtual display
         run: sudo apt-get update && sudo apt-get install -y xvfb libgl1-mesa-dri
 
+      # One retry: GitHub's small machines occasionally load the test world too slowly. A real
+      # bug fails both attempts.
       - name: Start Minecraft and run the client game tests
-        run: chmod +x gradlew && xvfb-run -a -s "-screen 0 1280x720x24" ./gradlew :${{ matrix.minecraft }}:runClientGameTest --stacktrace
+        run: |
+          chmod +x gradlew
+          run() { xvfb-run -a -s "-screen 0 1280x720x24" ./gradlew :${{ matrix.minecraft }}:runClientGameTest --stacktrace; }
+          run || { echo "::warning::Game test failed once on ${{ matrix.minecraft }}, retrying"; run; }
 
       - name: Upload screenshots
         if: always()

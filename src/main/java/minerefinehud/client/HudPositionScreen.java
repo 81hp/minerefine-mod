@@ -1,15 +1,14 @@
 package minerefinehud.client;
 
-import net.minecraft.client.gui.Click;
-import net.minecraft.client.gui.DrawContext;
-import net.minecraft.client.input.KeyInput;
-import net.minecraft.client.gui.screen.Screen;
-import net.minecraft.client.gui.widget.ButtonWidget;
-import net.minecraft.text.Text;
 import minerefinehud.hud.HudLayout;
 import minerefinehud.hud.HudModel;
 import minerefinehud.hud.Theme;
-
+import net.minecraft.client.gui.GuiGraphicsExtractor;
+import net.minecraft.client.gui.components.Button;
+import net.minecraft.client.gui.screens.Screen;
+import net.minecraft.client.input.KeyEvent;
+import net.minecraft.client.input.MouseButtonEvent;
+import net.minecraft.network.chat.Component;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
@@ -64,7 +63,7 @@ public final class HudPositionScreen extends Screen {
     /** @param openSettings called after saving, when the Settings button is pressed */
     public HudPositionScreen(Screen parent, List<Panel> panels, Theme theme,
                              Consumer<Result> onSave, Runnable openSettings) {
-        super(Text.literal("MineRefine HUD position"));
+        super(Component.literal("MineRefine HUD position"));
         this.parent = parent;
         this.panels = List.copyOf(panels);
         this.placements = new ArrayList<>(panels.stream().map(Panel::placement).toList());
@@ -79,26 +78,26 @@ public final class HudPositionScreen extends Screen {
         int y = this.height - 28;
         int left = this.width / 2 - 154;
 
-        addDrawableChild(ButtonWidget.builder(Text.literal("Smaller"), b -> resize(-1))
-                .dimensions(left, y - 24, 100, 20).build());
-        addDrawableChild(ButtonWidget.builder(Text.literal("Bigger"), b -> resize(1))
-                .dimensions(left + 104, y - 24, 100, 20).build());
-        addDrawableChild(ButtonWidget.builder(Text.literal("Settings..."), b -> {
+        addRenderableWidget(Button.builder(Component.literal("Smaller"), b -> resize(-1))
+                .bounds(left, y - 24, 100, 20).build());
+        addRenderableWidget(Button.builder(Component.literal("Bigger"), b -> resize(1))
+                .bounds(left + 104, y - 24, 100, 20).build());
+        addRenderableWidget(Button.builder(Component.literal("Settings..."), b -> {
                     save();
                     openSettings.run();
                 })
-                .dimensions(left + 208, y - 24, 100, 20).build());
+                .bounds(left + 208, y - 24, 100, 20).build());
 
-        addDrawableChild(ButtonWidget.builder(Text.literal("Snap to corner"),
+        addRenderableWidget(Button.builder(Component.literal("Snap to corner"),
                         b -> placements.set(selected, HudLayout.snapToAnchor(placements.get(selected))))
-                .dimensions(left, y, 100, 20).build());
-        addDrawableChild(ButtonWidget.builder(Text.literal("Reset"), b -> {
+                .bounds(left, y, 100, 20).build());
+        addRenderableWidget(Button.builder(Component.literal("Reset"), b -> {
                     placements.set(selected, panels.get(selected).defaults());
                     scales.set(selected, panels.get(selected).defaultScale());
                 })
-                .dimensions(left + 104, y, 100, 20).build());
-        addDrawableChild(ButtonWidget.builder(Text.literal("Done"), b -> close())
-                .dimensions(left + 208, y, 100, 20).build());
+                .bounds(left + 104, y, 100, 20).build());
+        addRenderableWidget(Button.builder(Component.literal("Done"), b -> onClose())
+                .bounds(left + 208, y, 100, 20).build());
     }
 
     private void resize(int steps) {
@@ -106,7 +105,7 @@ public final class HudPositionScreen extends Screen {
     }
 
     private HudLayout.Rect rectOf(int i) {
-        return HudRenderer.rect(this.textRenderer, panels.get(i).preview(), placements.get(i),
+        return HudRenderer.rect(this.font, panels.get(i).preview(), placements.get(i),
                 scales.get(i), this.width, this.height);
     }
 
@@ -121,7 +120,7 @@ public final class HudPositionScreen extends Screen {
     }
 
     @Override
-    public void render(DrawContext context, int mouseX, int mouseY, float delta) {
+    public void extractRenderState(GuiGraphicsExtractor context, int mouseX, int mouseY, float delta) {
         // No renderBackground() here. Since 1.21.6 Screen.renderWithTooltip draws the background
         // itself before calling render(), and the menu blur may only run once per frame, so a
         // second call throws "Can only blur once per frame" and crashes the client.
@@ -141,26 +140,26 @@ public final class HudPositionScreen extends Screen {
             HudRenderer.render(context, panels.get(i).preview(), rect, scales.get(i), PREVIEW_BACKGROUND, theme);
 
             int outline = i == selected ? 0xFFFFD24A : i == hovered ? 0xCCFFFFFF : 0x66FFFFFF;
-            context.drawStrokedRectangle(rect.x(), rect.y(), rect.width(), rect.height(), outline);
+            context.outline(rect.x(), rect.y(), rect.width(), rect.height(), outline);
 
             // Label outside the panel, above it unless that would be off screen.
             int labelY = rect.y() >= 11 ? rect.y() - 10 : rect.y() + rect.height() + 2;
-            context.drawTextWithShadow(this.textRenderer, panels.get(i).label(),
+            context.text(this.font, panels.get(i).label(),
                     rect.x(), labelY, i == selected ? 0xFFFFD24A : 0xFFAAAAAA);
         }
 
-        context.drawCenteredTextWithShadow(this.textRenderer,
-                Text.literal("Drag to move, scroll to resize. Tab switches, arrows nudge."),
+        context.centeredText(this.font,
+                Component.literal("Drag to move, scroll to resize. Tab switches, arrows nudge."),
                 this.width / 2, 12, 0xFFFFFFFF);
 
         HudLayout.Placement p = placements.get(selected);
-        context.drawCenteredTextWithShadow(this.textRenderer,
-                Text.literal(panels.get(selected).label() + ": " + p.anchor().label()
+        context.centeredText(this.font,
+                Component.literal(panels.get(selected).label() + ": " + p.anchor().label()
                         + "   offset " + p.offsetX() + ", " + p.offsetY()
                         + "   size " + String.format(Locale.ROOT, "%.2f", scales.get(selected)) + "x"),
                 this.width / 2, 26, 0xFFAAAAAA);
 
-        super.render(context, mouseX, mouseY, delta);
+        super.extractRenderState(context, mouseX, mouseY, delta);
     }
 
     // Since 1.21.9 mouse and key events arrive as Click and KeyInput records instead of loose
@@ -168,7 +167,7 @@ public final class HudPositionScreen extends Screen {
     // polled from a static helper.
 
     @Override
-    public boolean mouseClicked(Click click, boolean doubled) {
+    public boolean mouseClicked(MouseButtonEvent click, boolean doubled) {
         // Buttons first, so a panel dragged over them cannot make them unclickable.
         if (super.mouseClicked(click, doubled)) {
             return true;
@@ -186,7 +185,7 @@ public final class HudPositionScreen extends Screen {
     }
 
     @Override
-    public boolean mouseDragged(Click click, double deltaX, double deltaY) {
+    public boolean mouseDragged(MouseButtonEvent click, double deltaX, double deltaY) {
         if (dragging >= 0) {
             HudLayout.Rect rect = rectOf(dragging);
             placements.set(dragging, HudLayout.dragTo(rect.width(), rect.height(), this.width, this.height,
@@ -197,7 +196,7 @@ public final class HudPositionScreen extends Screen {
     }
 
     @Override
-    public boolean mouseReleased(Click click) {
+    public boolean mouseReleased(MouseButtonEvent click) {
         dragging = -1;
         return super.mouseReleased(click);
     }
@@ -216,8 +215,8 @@ public final class HudPositionScreen extends Screen {
 
     /** Arrow keys nudge by one pixel, which a mouse cannot do reliably. Tab picks the panel. */
     @Override
-    public boolean keyPressed(KeyInput input) {
-        int step = input.hasShift() ? 10 : 1;
+    public boolean keyPressed(KeyEvent input) {
+        int step = input.hasShiftDown() ? 10 : 1;
         HudLayout.Placement p = placements.get(selected);
         switch (input.key()) {
             case KEY_TAB -> { selected = (selected + 1) % panels.size(); return true; }
@@ -234,15 +233,15 @@ public final class HudPositionScreen extends Screen {
     }
 
     @Override
-    public void close() {
+    public void onClose() {
         save();
-        if (this.client != null) {
-            this.client.setScreen(parent);
+        if (this.minecraft != null) {
+            Compat.setScreen(this.minecraft, parent);
         }
     }
 
     @Override
-    public boolean shouldPause() {
+    public boolean isPauseScreen() {
         return false;
     }
 }

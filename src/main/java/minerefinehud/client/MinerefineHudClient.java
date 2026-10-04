@@ -1,25 +1,24 @@
 package minerefinehud.client;
 
 import net.fabricmc.api.ClientModInitializer;
-import net.fabricmc.fabric.api.client.command.v2.ClientCommandManager;
+import net.fabricmc.fabric.api.client.command.v2.ClientCommands;
 import net.fabricmc.fabric.api.client.command.v2.ClientCommandRegistrationCallback;
 import net.fabricmc.fabric.api.client.event.lifecycle.v1.ClientTickEvents;
-import net.fabricmc.fabric.api.client.keybinding.v1.KeyBindingHelper;
+import net.fabricmc.fabric.api.client.keymapping.v1.KeyMappingHelper;
 import net.fabricmc.fabric.api.client.message.v1.ClientReceiveMessageEvents;
 import net.fabricmc.fabric.api.client.networking.v1.ClientPlayConnectionEvents;
 import net.fabricmc.fabric.api.client.rendering.v1.hud.HudElementRegistry;
 import net.fabricmc.fabric.api.client.rendering.v1.hud.VanillaHudElements;
 import net.fabricmc.loader.api.FabricLoader;
-import net.minecraft.client.MinecraftClient;
-import net.minecraft.client.option.KeyBinding;
-import net.minecraft.client.sound.PositionedSoundInstance;
-import net.minecraft.client.util.InputUtil;
-import net.minecraft.entity.EquipmentSlot;
-import net.minecraft.item.ItemStack;
+import net.minecraft.client.KeyMapping;
+import net.minecraft.client.Minecraft;
+import net.minecraft.client.resources.sounds.SimpleSoundInstance;
+import net.minecraft.network.chat.Component;
+import net.minecraft.resources.Identifier;
+import net.minecraft.sounds.SoundEvents;
+import net.minecraft.world.entity.EquipmentSlot;
+import net.minecraft.world.item.ItemStack;
 import org.lwjgl.glfw.GLFW;
-import net.minecraft.sound.SoundEvents;
-import net.minecraft.text.Text;
-import net.minecraft.util.Identifier;
 import minerefinehud.boss.BossAlerts;
 import minerefinehud.boss.BossMessageParser;
 import minerefinehud.boss.BossStore;
@@ -44,7 +43,7 @@ import minerefinehud.progress.ResourceBalances;
 import minerefinehud.shop.PriceLedger;
 import minerefinehud.shop.PriceStore;
 import minerefinehud.shop.ShopItemParser;
-
+import com.mojang.blaze3d.platform.InputConstants;
 import java.nio.file.Path;
 import java.util.List;
 import java.util.Map;
@@ -57,7 +56,7 @@ public final class MinerefineHudClient implements ClientModInitializer {
 
     public static final String MOD_ID = "minerefine-hud";
 
-    private static final Identifier HUD_LAYER = Identifier.of(MOD_ID, "overlay");
+    private static final Identifier HUD_LAYER = Identifier.fromNamespaceAndPath(MOD_ID, "overlay");
 
     private final BossTracker bossTracker = new BossTracker();
     private final PriceLedger prices = new PriceLedger();
@@ -76,10 +75,10 @@ public final class MinerefineHudClient implements ClientModInitializer {
     private final java.util.Set<String> unrecognisedSeen = new java.util.HashSet<>();
     private boolean toldAboutUnrecognised;
 
-    private KeyBinding keyPosition;
-    private KeyBinding keyToggle;
-    private KeyBinding keySettings;
-    private KeyBinding keyTurret;
+    private KeyMapping keyPosition;
+    private KeyMapping keyToggle;
+    private KeyMapping keySettings;
+    private KeyMapping keyTurret;
 
     /** Set by /mrhud turret, opened next tick for the same reason as the settings. */
     private boolean openTurretNextTick;
@@ -209,62 +208,62 @@ public final class MinerefineHudClient implements ClientModInitializer {
         // VERSION SENSITIVE. Since 1.21.9 a category is an Identifier-backed object rather than a
         // translation key string. Its label is looked up as key.category.<namespace>.<path>,
         // which is why en_us.json uses key.category.minerefine-hud.main.
-        KeyBinding.Category category = KeyBinding.Category.create(Identifier.of(MOD_ID, "main"));
+        KeyMapping.Category category = KeyMapping.Category.register(Identifier.fromNamespaceAndPath(MOD_ID, "main"));
 
-        keyPosition = KeyBindingHelper.registerKeyBinding(new KeyBinding(
+        keyPosition = KeyMappingHelper.registerKeyMapping(new KeyMapping(
                 "key.minerefine-hud.position",
-                InputUtil.Type.KEYSYM,
+                InputConstants.Type.KEYSYM,
                 GLFW.GLFW_KEY_F6,
                 category));
 
-        keyToggle = KeyBindingHelper.registerKeyBinding(new KeyBinding(
+        keyToggle = KeyMappingHelper.registerKeyMapping(new KeyMapping(
                 "key.minerefine-hud.toggle",
-                InputUtil.Type.KEYSYM,
+                InputConstants.Type.KEYSYM,
                 GLFW.GLFW_KEY_UNKNOWN,
                 category));
 
-        keySettings = KeyBindingHelper.registerKeyBinding(new KeyBinding(
+        keySettings = KeyMappingHelper.registerKeyMapping(new KeyMapping(
                 "key.minerefine-hud.settings",
-                InputUtil.Type.KEYSYM,
+                InputConstants.Type.KEYSYM,
                 GLFW.GLFW_KEY_UNKNOWN,
                 category));
 
-        keyTurret = KeyBindingHelper.registerKeyBinding(new KeyBinding(
+        keyTurret = KeyMappingHelper.registerKeyMapping(new KeyMapping(
                 "key.minerefine-hud.turret",
-                InputUtil.Type.KEYSYM,
+                InputConstants.Type.KEYSYM,
                 GLFW.GLFW_KEY_UNKNOWN,
                 category));
 
         ClientTickEvents.END_CLIENT_TICK.register(client -> {
-            while (keyTurret.wasPressed()) {
-                client.setScreen(new TurretScreen(null));
+            while (keyTurret.consumeClick()) {
+                Compat.setScreen(client, new TurretScreen(null));
             }
-            if (openTurretNextTick && client.currentScreen == null) {
+            if (openTurretNextTick && Compat.screen(client) == null) {
                 openTurretNextTick = false;
-                client.setScreen(new TurretScreen(null));
+                Compat.setScreen(client, new TurretScreen(null));
             }
-            while (keyPosition.wasPressed()) {
+            while (keyPosition.consumeClick()) {
                 openPositionScreen(client);
             }
-            while (keyToggle.wasPressed()) {
+            while (keyToggle.consumeClick()) {
                 config.enabled = !config.enabled;
                 config.save(configFile);
             }
-            while (keySettings.wasPressed()) {
+            while (keySettings.consumeClick()) {
                 openSettings(client);
             }
-            if (openSettingsNextTick && client.currentScreen == null) {
+            if (openSettingsNextTick && Compat.screen(client) == null) {
                 openSettingsNextTick = false;
                 openSettings(client);
             }
         });
     }
 
-    private void openSettings(MinecraftClient client) {
+    private void openSettings(Minecraft client) {
         if (client == null) {
             return;
         }
-        client.setScreen(new SettingsScreen(null, config, this::settingsChanged,
+        Compat.setScreen(client, new SettingsScreen(null, config, this::settingsChanged,
                 () -> openPositionScreen(client)));
     }
 
@@ -280,7 +279,7 @@ public final class MinerefineHudClient implements ClientModInitializer {
      * positioned is the real panel at its real size. An empty panel gets a stand-in, otherwise
      * the boss panel could not be placed until a boss had been seen.
      */
-    private void openPositionScreen(MinecraftClient client) {
+    private void openPositionScreen(Minecraft client) {
         if (client == null) {
             return;
         }
@@ -321,7 +320,7 @@ public final class MinerefineHudClient implements ClientModInitializer {
                         config.alertPlacement(), ModConfig.DEFAULT_ALERT_PLACEMENT,
                         config.alertLook.scale, 2.0));
 
-        client.setScreen(new HudPositionScreen(null, panels, config.theme(),
+        Compat.setScreen(client, new HudPositionScreen(null, panels, config.theme(),
                 saved -> {
                     config.setMinePlacement(saved.placements().get(0));
                     config.setBossPlacement(saved.placements().get(1));
@@ -342,7 +341,7 @@ public final class MinerefineHudClient implements ClientModInitializer {
         // Boss broadcasts are server system messages, not player chat, so GAME is the right
         // event. Using the chat event instead would miss them entirely and would also let a
         // player spoof a boss timer by typing the message.
-        ClientReceiveMessageEvents.GAME.register((Text message, boolean overlay) -> {
+        ClientReceiveMessageEvents.GAME.register((Component message, boolean overlay) -> {
             String text = message.getString();
 
             if (overlay) {
@@ -415,7 +414,7 @@ public final class MinerefineHudClient implements ClientModInitializer {
 
             // Read the gear in hand, which gives the level the player already owns.
             try {
-                String held = client.player.getMainHandStack().getName().getString();
+                String held = client.player.getMainHandItem().getHoverName().getString();
                 Optional<ShopItemParser.GearRef> ref = ShopItemParser.parseTitle(held);
                 if (ref.isPresent()) {
                     heldGear = ref;
@@ -424,7 +423,7 @@ public final class MinerefineHudClient implements ClientModInitializer {
                 // Not worth a crash; the HUD simply omits the upgrade line.
             }
 
-            if (client.currentScreen == null) {
+            if (Compat.screen(client) == null) {
                 return;
             }
 
@@ -476,11 +475,11 @@ public final class MinerefineHudClient implements ClientModInitializer {
             // silently swapping the number would leave the player trusting a figure they never
             // saw change.
             for (PriceLedger.PriceChange change : prices.drainChanges()) {
-                client.player.sendMessage(Text.literal(
+                Compat.chat(client, Component.literal(
                         "[MineRefine] " + change.mine() + " " + change.gear() + " "
                         + minerefinehud.shop.RomanNumerals.toRoman(change.level())
                         + ": " + minerefinehud.shop.Amounts.format(change.from())
-                        + " -> " + minerefinehud.shop.Amounts.format(change.to())), false);
+                        + " -> " + minerefinehud.shop.Amounts.format(change.to())));
             }
         });
     }
@@ -490,7 +489,7 @@ public final class MinerefineHudClient implements ClientModInitializer {
      * so in chat the first time. A shape the parser has never seen, charms for instance, would
      * otherwise be skipped without a trace and its prices never learned.
      */
-    private void recordUnrecognised(MinecraftClient client, List<ShopItemParser.ItemView> unknown) {
+    private void recordUnrecognised(Minecraft client, List<ShopItemParser.ItemView> unknown) {
         StringBuilder out = new StringBuilder();
         for (ShopItemParser.ItemView item : unknown) {
             if (!unrecognisedSeen.add(item.title())) {
@@ -514,8 +513,8 @@ public final class MinerefineHudClient implements ClientModInitializer {
         }
         if (!toldAboutUnrecognised && client.player != null) {
             toldAboutUnrecognised = true;
-            client.player.sendMessage(Text.literal("[MineRefine] Some shop items could not be read. Saved to "
-                    + "config/minerefine-hud/unrecognised-shop-items.txt so the parser can be fixed."), false);
+            Compat.chat(client, Component.literal("[MineRefine] Some shop items could not be read. Saved to "
+                    + "config/minerefine-hud/unrecognised-shop-items.txt so the parser can be fixed."));
         }
     }
 
@@ -556,17 +555,17 @@ public final class MinerefineHudClient implements ClientModInitializer {
 
     // ----------------------------------------------------------------- render
 
-    private void renderHud(net.minecraft.client.gui.DrawContext context) {
+    private void renderHud(net.minecraft.client.gui.GuiGraphicsExtractor context) {
         if (!config.enabled) {
             return;
         }
 
-        MinecraftClient client = MinecraftClient.getInstance();
-        if (client == null || client.player == null || client.options.hudHidden) {
+        Minecraft client = Minecraft.getInstance();
+        if (client == null || client.player == null || Compat.hudHidden(client)) {
             return;
         }
-        if (client.currentScreen != null
-                && !(client.currentScreen instanceof net.minecraft.client.gui.screen.ChatScreen)) {
+        if (Compat.screen(client) != null
+                && !(Compat.screen(client) instanceof net.minecraft.client.gui.screens.ChatScreen)) {
             // The position screen draws its own copy of the panel, so suppress this one.
             return;
         }
@@ -593,14 +592,14 @@ public final class MinerefineHudClient implements ClientModInitializer {
         }
     }
 
-    private static void drawPanel(net.minecraft.client.gui.DrawContext context, MinecraftClient client,
+    private static void drawPanel(net.minecraft.client.gui.GuiGraphicsExtractor context, Minecraft client,
                                   List<HudModel.Line> lines, HudLayout.Placement placement,
                                   ModConfig.Look look, Theme theme) {
         if (lines.isEmpty()) {
             return;
         }
-        HudLayout.Rect rect = HudRenderer.rect(client.textRenderer, lines, placement, look.scale,
-                context.getScaledWindowWidth(), context.getScaledWindowHeight());
+        HudLayout.Rect rect = HudRenderer.rect(client.font, lines, placement, look.scale,
+                context.guiWidth(), context.guiHeight());
         int background = look.background
                 ? Theme.background(look.opacity) : 0;
         HudRenderer.render(context, lines, rect, look.scale, background, theme);
@@ -637,11 +636,11 @@ public final class MinerefineHudClient implements ClientModInitializer {
      * VERSION SENSITIVE. A UI sound through the sound manager, so it plays at full volume wherever
      * the player stands and is not heard by anyone else, unlike a sound played at the player.
      */
-    private void playReminderSound(MinecraftClient client) {
+    private void playReminderSound(Minecraft client) {
         try {
             float volume = config.bossReminderVolume / 100f;
-            client.getSoundManager().play(PositionedSoundInstance.ui(
-                    SoundEvents.BLOCK_NOTE_BLOCK_PLING.value(), 1.0f, volume));
+            client.getSoundManager().play(SimpleSoundInstance.forUI(
+                    SoundEvents.NOTE_BLOCK_PLING.value(), 1.0f, volume));
         } catch (Exception | NoSuchMethodError | NoClassDefFoundError ignored) {
             // A missing sound must not cost the title, which is drawn separately.
         }
@@ -663,12 +662,12 @@ public final class MinerefineHudClient implements ClientModInitializer {
      * sword or a chestplate says nothing about where the player is, and the remembered heldGear
      * keeps the last gear ever held, which is no evidence at all.
      */
-    private static Optional<String> toolInHand(MinecraftClient client) {
+    private static Optional<String> toolInHand(Minecraft client) {
         try {
             if (client == null || client.player == null) {
                 return Optional.empty();
             }
-            return ShopItemParser.parseTitle(client.player.getMainHandStack().getName().getString())
+            return ShopItemParser.parseTitle(client.player.getMainHandItem().getHoverName().getString())
                     .filter(g -> switch (g.gear()) {
                         case "pickaxe", "axe", "shovel" -> true;
                         default -> false;
@@ -679,7 +678,7 @@ public final class MinerefineHudClient implements ClientModInitializer {
         }
     }
 
-    private void refreshCurrentMine(MinecraftClient client, long now) {
+    private void refreshCurrentMine(Minecraft client, long now) {
         if (now - lastMineCheck < 500L) {
             return;
         }
@@ -767,7 +766,7 @@ public final class MinerefineHudClient implements ClientModInitializer {
                 sharedDecided = miningBlocks.sharedByBalance(r.sprite(), r.amount(), known, catalog);
             }
             blockMine = sharedDecided
-                    .or(() -> miningBlocks.sharedByHint(r.sprite(), toolInHand(MinecraftClient.getInstance()),
+                    .or(() -> miningBlocks.sharedByHint(r.sprite(), toolInHand(Minecraft.getInstance()),
                             lastMinedMine, catalog))
                     .map(m -> new MiningBlocks.Match(m, MiningBlocks.How.SHARED));
         } else if (blockMine.isEmpty()) {
@@ -838,11 +837,11 @@ public final class MinerefineHudClient implements ClientModInitializer {
     /** The player's dimension and position, or empty when not in a world. */
     private static Optional<MineSpots.Spot> playerSpot() {
         try {
-            MinecraftClient client = MinecraftClient.getInstance();
-            if (client == null || client.player == null || client.world == null) {
+            Minecraft client = Minecraft.getInstance();
+            if (client == null || client.player == null || client.level == null) {
                 return Optional.empty();
             }
-            return Optional.of(new MineSpots.Spot(client.world.getRegistryKey().getValue().toString(),
+            return Optional.of(new MineSpots.Spot(client.level.dimension().identifier().toString(),
                     client.player.getX(), client.player.getZ()));
         } catch (Exception | NoSuchMethodError | NoClassDefFoundError e) {
             return Optional.empty();
@@ -930,15 +929,15 @@ public final class MinerefineHudClient implements ClientModInitializer {
     }
 
 
-    private static List<ResourcePickups.Item> inventoryItems(MinecraftClient client) {
+    private static List<ResourcePickups.Item> inventoryItems(Minecraft client) {
         List<ResourcePickups.Item> out = new java.util.ArrayList<>();
         try {
             if (client == null || client.player == null) {
                 return out;
             }
-            for (ItemStack stack : client.player.getInventory().getMainStacks()) {
+            for (ItemStack stack : client.player.getInventory().getNonEquipmentItems()) {
                 if (stack != null && !stack.isEmpty()) {
-                    out.add(new ResourcePickups.Item(stack.getName().getString(),
+                    out.add(new ResourcePickups.Item(stack.getHoverName().getString(),
                             ShopScanner.lore(stack), stack.getCount()));
                 }
             }
@@ -961,7 +960,7 @@ public final class MinerefineHudClient implements ClientModInitializer {
 
     private ProgressPlanner.ProgressView planProgress(ProgressSlot slot, boolean boss, boolean totalMinusOwned) {
         ProgressPlanner.Goal goal = config.progressToMax ? ProgressPlanner.Goal.TO_MAX : ProgressPlanner.Goal.NEXT_TIER;
-        List<ShopItemParser.GearRef> owned = ownedGear(MinecraftClient.getInstance());
+        List<ShopItemParser.GearRef> owned = ownedGear(Minecraft.getInstance());
         if (boss && !slot.isTotal()) {
             return ProgressPlanner.planBoss(slot, owned, catalogSource.catalog(), links, currentMine, prices,
                     balances, goal);
@@ -975,21 +974,21 @@ public final class MinerefineHudClient implements ClientModInitializer {
      * slots and the off hand. Armour is read from the equipment slots because since 1.21.5 it is
      * no longer part of the inventory's main list.
      */
-    private static List<ShopItemParser.GearRef> ownedGear(MinecraftClient client) {
+    private static List<ShopItemParser.GearRef> ownedGear(Minecraft client) {
         List<ShopItemParser.GearRef> out = new java.util.ArrayList<>();
         try {
             if (client == null || client.player == null) {
                 return out;
             }
             var inventory = client.player.getInventory();
-            List<ItemStack> stacks = new java.util.ArrayList<>(inventory.getMainStacks());
+            List<ItemStack> stacks = new java.util.ArrayList<>(inventory.getNonEquipmentItems());
             for (EquipmentSlot slot : List.of(EquipmentSlot.HEAD, EquipmentSlot.CHEST,
                     EquipmentSlot.LEGS, EquipmentSlot.FEET, EquipmentSlot.OFFHAND)) {
-                stacks.add(client.player.getEquippedStack(slot));
+                stacks.add(client.player.getItemBySlot(slot));
             }
             for (ItemStack stack : stacks) {
                 if (stack != null && !stack.isEmpty()) {
-                    ShopItemParser.parseTitle(stack.getName().getString()).ifPresent(out::add);
+                    ShopItemParser.parseTitle(stack.getHoverName().getString()).ifPresent(out::add);
                 }
             }
         } catch (Exception | NoSuchMethodError | NoClassDefFoundError ignored) {
@@ -1010,23 +1009,23 @@ public final class MinerefineHudClient implements ClientModInitializer {
      */
     private void registerDebugCommand() {
         ClientCommandRegistrationCallback.EVENT.register((dispatcher, registryAccess) ->
-                dispatcher.register(ClientCommandManager.literal("mrhud")
-                        .then(ClientCommandManager.literal("debug").executes(ctx -> {
-                            for (String line : debugReport(MinecraftClient.getInstance())) {
-                                ctx.getSource().sendFeedback(Text.literal(line));
+                dispatcher.register(ClientCommands.literal("mrhud")
+                        .then(ClientCommands.literal("debug").executes(ctx -> {
+                            for (String line : debugReport(Minecraft.getInstance())) {
+                                ctx.getSource().sendFeedback(Component.literal(line));
                             }
                             return 1;
                         }))
-                        .then(ClientCommandManager.literal("config").executes(ctx -> {
+                        .then(ClientCommands.literal("config").executes(ctx -> {
                             openSettingsNextTick = true;
                             return 1;
                         }))
-                        .then(ClientCommandManager.literal("turret").executes(ctx -> {
+                        .then(ClientCommands.literal("turret").executes(ctx -> {
                             openTurretNextTick = true;
                             return 1;
                         }))
-                        .then(ClientCommandManager.literal("forget").executes(ctx -> {
-                            ctx.getSource().sendFeedback(Text.literal(forgetCurrentBlock()));
+                        .then(ClientCommands.literal("forget").executes(ctx -> {
+                            ctx.getSource().sendFeedback(Component.literal(forgetCurrentBlock()));
                             return 1;
                         }))));
     }
@@ -1073,7 +1072,7 @@ public final class MinerefineHudClient implements ClientModInitializer {
         return out.toString();
     }
 
-    private List<String> debugReport(MinecraftClient client) {
+    private List<String> debugReport(Minecraft client) {
         List<String> out = new java.util.ArrayList<>();
         out.add("[MineRefine] debug");
 
@@ -1124,8 +1123,8 @@ public final class MinerefineHudClient implements ClientModInitializer {
         String held = "";
         List<String> heldLore = List.of();
         if (client != null && client.player != null) {
-            var stack = client.player.getMainHandStack();
-            held = stack.getName().getString();
+            var stack = client.player.getMainHandItem();
+            held = stack.getHoverName().getString();
             heldLore = ShopScanner.lore(stack);
         }
         out.add(" in hand: " + held + "  ->  " + ShopItemParser.parseTitle(held)

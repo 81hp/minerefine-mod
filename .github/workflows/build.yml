@@ -1,0 +1,163 @@
+name: Build, test and release
+
+# On every push: build the jar for every Minecraft version, then start the real game on each one
+# and run the client game tests. On main, when mod_version in gradle.properties is new, publish a
+# GitHub release with all the jars. Pushes that keep the same version only build and test.
+
+on:
+  push:
+  pull_request:
+  workflow_dispatch:   # adds a "Run workflow" button on the Actions tab
+
+permissions:
+  contents: read
+
+jobs:
+
+  build:
+    name: Build all versions
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      # 21 builds 1.21.11; 25 runs Gradle and builds 26.x. The last one listed is the default.
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: |
+            21
+            25
+
+      - uses: gradle/actions/setup-gradle@v4
+
+      - name: Build every version (includes the logic tests)
+        run: chmod +x gradlew && ./gradlew buildAll --stacktrace
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: jars
+          path: build/libs/*+*.jar
+          if-no-files-found: error
+
+  game-test:
+    name: Game test ${{ matrix.minecraft }}
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        minecraft: ["1.21.11", "26.1.2", "26.2"]
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: |
+            21
+            25
+
+      - uses: gradle/actions/setup-gradle@v4
+
+      # The game needs a screen and OpenGL: a virtual display with Mesa's software renderer.
+      - name: Install a virtual display
+        run: sudo apt-get update && sudo apt-get install -y xvfb libgl1-mesa-dri
+
+      - name: Start Minecraft and run the client game tests
+        run: chmod +x gradlew && xvfb-run -a -s "-screen 0 1280x720x24" ./gradlew :${{ matrix.minecraft }}:runClientGameTest --stacktrace
+
+      - name: Upload screenshots
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: screenshots-${{ matrix.minecraft }}
+          path: versions/${{ matrix.minecraft }}/build/run/clientGameTest/screenshots
+          if-no-files-found: ignore
+
+  # Checks the spreadsheet parser against the community calculator's live data file. Informational:
+  # an upstream change shows up here without blocking a release.
+  upstream-data:
+    name: Parser vs. upstream data
+    runs-on: ubuntu-latest
+    continue-on-error: true
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 21
+      - run: |
+          curl -sSfL -o /tmp/data.js \
+            https://raw.githubusercontent.com/Weirdfishes-Gaurs/Minerefine-Job-Calculator/main/data.js
+          bash tools/run-core-tests.sh /tmp/data.js
+
+  release:
+    name: Release
+    needs: [build, game-test]
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    concurrency: release   # two quick pushes never race to publish the same version
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0   # the whole history, for the changelog
+
+      - name: Is this a new version?
+        id: version
+        run: |
+          VERSION=$(grep '^mod_version=' gradle.properties | cut -d= -f2 | tr -d '\r')
+          TAG="V$VERSION"
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+          echo "tag=$TAG" >> "$GITHUB_OUTPUT"
+          if git ls-remote --exit-code --tags origin "refs/tags/$TAG" >/dev/null; then
+            echo "new=false" >> "$GITHUB_OUTPUT"
+            echo "$TAG is already released; nothing to do."
+          else
+            echo "new=true" >> "$GITHUB_OUTPUT"
+          fi
+
+      - uses: actions/download-artifact@v4
+        if: steps.version.outputs.new == 'true'
+        with:
+          name: jars
+          path: jars
+
+      - name: Publish the release
+        if: steps.version.outputs.new == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          VERSION: ${{ steps.version.outputs.version }}
+          TAG: ${{ steps.version.outputs.tag }}
+        run: |
+          PREVIOUS=$(git describe --tags --abbrev=0 --match 'V*' HEAD 2>/dev/null || true)
+          {
+            echo "## Changes"
+            if [ -n "$PREVIOUS" ]; then
+              git log --no-merges --pretty='- %s' "$PREVIOUS"..HEAD
+            else
+              git log --no-merges --pretty='- %s' -20
+            fi
+            echo
+            echo "## Which jar do I need?"
+            echo
+            echo "Pick the jar that matches your Minecraft version, and put it in your Fabric mods folder"
+            echo "together with Fabric API."
+            echo
+            echo "| Minecraft | Jar |"
+            echo "|---|---|"
+            for jar in jars/*.jar; do
+              name=$(basename "$jar")
+              mc=${name##*+}; mc=${mc%.jar}
+              case "$mc" in
+                26.1.2) label="26.1 – 26.1.2" ;;
+                *) label="$mc" ;;
+              esac
+              echo "| $label | \`$name\` |"
+            done
+          } > notes.md
+          cat notes.md
+          gh release create "$TAG" jars/*.jar \
+            --target "$GITHUB_SHA" \
+            --title "MineRefine HUD $VERSION" \
+            --notes-file notes.md

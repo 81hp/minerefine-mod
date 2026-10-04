@@ -1,14 +1,13 @@
 package minerefinehud.client;
 
-import net.minecraft.client.MinecraftClient;
-import net.minecraft.client.gui.screen.Screen;
-import net.minecraft.client.gui.screen.ingame.HandledScreen;
-import net.minecraft.component.DataComponentTypes;
-import net.minecraft.component.type.LoreComponent;
-import net.minecraft.item.ItemStack;
-import net.minecraft.text.Text;
 import minerefinehud.shop.ShopItemParser;
-
+import net.minecraft.client.Minecraft;
+import net.minecraft.client.gui.screens.Screen;
+import net.minecraft.client.gui.screens.inventory.AbstractContainerScreen;
+import net.minecraft.core.component.DataComponents;
+import net.minecraft.network.chat.Component;
+import net.minecraft.world.item.ItemStack;
+import net.minecraft.world.item.component.ItemLore;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -31,19 +30,19 @@ public final class ShopScanner {
     }
 
     /** Returns an empty list when no container menu is open. */
-    public static List<ShopItemParser.ItemView> visibleItems(MinecraftClient client) {
+    public static List<ShopItemParser.ItemView> visibleItems(Minecraft client) {
         List<ShopItemParser.ItemView> out = new ArrayList<>();
         try {
             if (client == null) {
                 return out;
             }
-            Screen screen = client.currentScreen;
-            if (!(screen instanceof HandledScreen<?> handled)) {
+            Screen screen = Compat.screen(client);
+            if (!(screen instanceof AbstractContainerScreen<?> handled)) {
                 return out;
             }
 
-            for (var slot : handled.getScreenHandler().slots) {
-                ItemStack stack = slot.getStack();
+            for (var slot : handled.getMenu().slots) {
+                ItemStack stack = slot.getItem();
                 if (stack == null || stack.isEmpty()) {
                     continue;
                 }
@@ -56,16 +55,16 @@ public final class ShopScanner {
     }
 
     private static String title(ItemStack stack) {
-        Text name = stack.getName();
+        Component name = stack.getHoverName();
         return name == null ? "" : name.getString();
     }
 
     /** Package-visible so /mrhud debug can show where a held item keeps its tier. */
     static List<String> lore(ItemStack stack) {
         List<String> lines = new ArrayList<>();
-        LoreComponent lore = stack.get(DataComponentTypes.LORE);
+        ItemLore lore = stack.get(DataComponents.LORE);
         if (lore != null) {
-            for (Text line : lore.lines()) {
+            for (Component line : lore.lines()) {
                 lines.add(line.getString());
             }
         }

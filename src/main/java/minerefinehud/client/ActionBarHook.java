@@ -13,6 +13,9 @@ public final class ActionBarHook {
 
     private static volatile Consumer<String> listener = text -> { };
 
+    /** The last action bar seen, so the client game test can prove the mixin is applied. */
+    private static volatile String last = "";
+
     private ActionBarHook() {
     }
 
@@ -20,7 +23,12 @@ public final class ActionBarHook {
         listener = l == null ? text -> { } : l;
     }
 
+    public static String last() {
+        return last;
+    }
+
     public static void fire(String text) {
+        last = text;
         try {
             listener.accept(text);
         } catch (Exception ignored) {

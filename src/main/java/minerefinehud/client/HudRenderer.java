@@ -1,13 +1,12 @@
 package minerefinehud.client;
 
-import net.minecraft.client.MinecraftClient;
-import net.minecraft.client.font.TextRenderer;
-import net.minecraft.client.gui.DrawContext;
 import org.joml.Matrix3x2fStack;
 import minerefinehud.hud.HudLayout;
 import minerefinehud.hud.HudModel;
 import minerefinehud.hud.Theme;
-
+import net.minecraft.client.Minecraft;
+import net.minecraft.client.gui.Font;
+import net.minecraft.client.gui.GuiGraphicsExtractor;
 import java.util.List;
 
 /**
@@ -32,20 +31,20 @@ public final class HudRenderer {
      * Needed before drawing, because anchoring to the right or bottom edge cannot be worked out
      * without knowing how wide and tall the panel is.
      */
-    public static int[] measure(TextRenderer font, List<HudModel.Line> lines) {
+    public static int[] measure(Font font, List<HudModel.Line> lines) {
         if (lines.isEmpty()) {
             return new int[] { 0, 0 };
         }
         int width = 0;
         for (HudModel.Line line : lines) {
-            int w = line.style() == HudModel.Style.BAR ? BAR_MIN_WIDTH : font.getWidth(line.text());
+            int w = line.style() == HudModel.Style.BAR ? BAR_MIN_WIDTH : font.width(line.text());
             width = Math.max(width, w);
         }
         return new int[] { width + PADDING * 2, lines.size() * LINE_HEIGHT + PADDING * 2 };
     }
 
     /** Where a panel lands on screen at this scale. Also what the position screen hit-tests. */
-    public static HudLayout.Rect rect(TextRenderer font, List<HudModel.Line> lines,
+    public static HudLayout.Rect rect(Font font, List<HudModel.Line> lines,
                                       HudLayout.Placement placement, double scale,
                                       int screenWidth, int screenHeight) {
         int[] size = measure(font, lines);
@@ -62,16 +61,16 @@ public final class HudRenderer {
      *
      * @param background ARGB fill behind the text, or 0 for none
      */
-    public static void render(DrawContext context, List<HudModel.Line> lines, HudLayout.Rect rect,
+    public static void render(GuiGraphicsExtractor context, List<HudModel.Line> lines, HudLayout.Rect rect,
                               double scale, int background, Theme theme) {
         if (lines.isEmpty()) {
             return;
         }
-        TextRenderer font = MinecraftClient.getInstance().textRenderer;
+        Font font = Minecraft.getInstance().font;
         int[] size = measure(font, lines);
         float s = (float) HudLayout.clampScale(scale);
 
-        Matrix3x2fStack matrices = context.getMatrices();
+        Matrix3x2fStack matrices = context.pose();
         matrices.pushMatrix();
         try {
             matrices.translate(rect.x(), rect.y());
@@ -86,7 +85,7 @@ public final class HudRenderer {
                 if (line.style() == HudModel.Style.BAR) {
                     drawBar(context, PADDING, row + 2, size[0] - PADDING * 2, line.progress(), theme);
                 } else if (!line.text().isEmpty()) {
-                    context.drawTextWithShadow(font, line.text(), PADDING, row, theme.color(line.style()));
+                    context.text(font, line.text(), PADDING, row, theme.color(line.style()));
                 }
                 row += LINE_HEIGHT;
             }
@@ -95,7 +94,7 @@ public final class HudRenderer {
         }
     }
 
-    private static void drawBar(DrawContext context, int x, int y, int width, double progress, Theme theme) {
+    private static void drawBar(GuiGraphicsExtractor context, int x, int y, int width, double progress, Theme theme) {
         context.fill(x, y, x + width, y + BAR_HEIGHT, theme.barTrack());
         int filled = (int) Math.round(width * progress);
         if (filled > 0) {

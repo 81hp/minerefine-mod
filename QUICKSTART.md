@@ -1,3 +1,7 @@
+> **Outdated.** This was the first-time setup guide for the single-version build. The build now
+> covers several Minecraft versions and CI is in `.github/workflows/build.yml`; see the README's
+> "Build and install".
+
 # Quickstart
 
 Two routes. Pick the first one.

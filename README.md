@@ -1,7 +1,7 @@
 # MineRefine HUD
 
-A client-side Fabric mod for Minecraft 1.21.11 on the MineRefine server, built to run inside
-Lunar Client.
+A client-side Fabric mod for Minecraft 1.21.11 and 26.1 – 26.2 on the MineRefine server, built to
+run inside Lunar Client.
 
 What it does:
 
@@ -22,15 +22,45 @@ Everything is movable, resizable and configurable in game.
 ## Build and install
 
 ```bash
-./gradlew build
+./gradlew buildAll
 ```
 
-The jar lands in `build/libs/minerefine-mod-<version>.jar` (ignore the `-sources` one). The Minecraft,
-Fabric and Loom versions are pinned in `gradle.properties`; to move to another Minecraft version,
-copy new values from <https://fabricmc.net/develop>.
+One jar per Minecraft version lands in `build/libs/`:
 
-To install into Lunar, put the jar in the Fabric 1.21.11 mods folder of your Lunar profile
-(`.lunarclient/profiles/<profile>/mods/fabric-1.21.11/`), or use the launcher's Mods button.
+| Minecraft | Jar | Lunar mods folder |
+|---|---|---|
+| 1.21.11 | `minerefine-mod-<version>+1.21.11.jar` | `.lunarclient/profiles/1.21/mods/fabric-1.21.11/` |
+| 26.1 – 26.1.2 | `minerefine-mod-<version>+26.1.2.jar` | the profile's `fabric-26.1.x` folder |
+| 26.2 | `minerefine-mod-<version>+26.2.jar` | `.lunarclient/profiles/26/mods/fabric-26.2/` |
+
+Gradle runs on Java 25 (pinned in `gradle/gradle-daemon-jvm.properties`); 1.21.11 is compiled
+with Java 21. Both are downloaded automatically when missing.
+
+### One source tree, several Minecraft versions
+
+[Stonecutter](https://stonecutter.kikugie.dev/) builds every version from the same `src/`:
+
+- `versions/<minecraft>/gradle.properties` holds what differs per version (Minecraft range,
+  Fabric API, Java).
+- The source is written against **26.2**, with Mojang's names on every version. Renames are
+  swapped in for older versions automatically, listed in `stonecutter.gradle.kts`.
+- Calls that changed shape go through `client/Compat.java`, where `//? if >=26.2 { ... }` comments
+  pick each version's branch. A new Minecraft version that moves something is fixed there once.
+- `./gradlew "Set active project to 1.21.11"` switches `src/` to another version for the IDE.
+  Switch back to 26.2 before committing.
+
+To add a version: append it in `settings.gradle.kts`, add its `versions/<v>/gradle.properties`,
+add it to the CI matrix in `.github/workflows/build.yml`, and guard whatever no longer compiles.
+
+### Tests and releases
+
+- `./gradlew :26.2:runClientGameTest` starts the real game, opens a world and checks the action
+  bar hook, the HUD and every screen (`src/gametest`). `./gradlew testAll` does every version.
+- GitHub Actions builds and game-tests every version on every push, with screenshots as
+  artifacts.
+- On `main`, when `mod_version` in `gradle.properties` is new, it publishes release
+  `V<mod_version>` with all jars and the commit list as notes. Bumping the version is the release
+  button.
 
 ## Running the logic tests
 
@@ -229,8 +259,9 @@ cap by 100; a merge that would go over is flattened to the cap.
 
 ## If it does not compile
 
-Everything that touches version-sensitive Minecraft API is marked `VERSION SENSITIVE` in its
-header: `SidebarReader`, `ShopScanner`, `HudRenderer` (the matrix stack for scaling),
+First see which version failed (CI names it), then look in `client/Compat.java` and the renames
+in `stonecutter.gradle.kts`. Everything that touches version-sensitive Minecraft API is marked
+`VERSION SENSITIVE` in its header: `SidebarReader`, `ShopScanner`, `HudRenderer` (the matrix stack for scaling),
 `HudPositionScreen`, `SettingsScreen`, `TurretScreen`, the `InGameHudMixin` that sees the action
 bar, and `registerHud()` and `playReminderSound()` in `MinerefineHudClient`. Everything else is
 plain Java and covered by the tests, so an API change never touches the logic.
@@ -246,7 +277,9 @@ hud/      HudModel, HudLayout, Theme, Formatting                   pure logic, t
 turret/   TurretCalculator, TurretItem                             pure logic, tested
 data/     ProgressionData                                          bundled data, config override
 client/   entry point, screens, renderer, readers                  touches Minecraft
+          Compat: every call that differs between Minecraft versions
 mixin/    InGameHudMixin                                           action bar hook
+src/gametest/   client game test, run in the real game per version
 ```
 
 Anything that makes a decision lives above `client/` and has no Minecraft imports, so it is

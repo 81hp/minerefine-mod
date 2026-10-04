@@ -1,15 +1,14 @@
 package minerefinehud.client;
 
-import net.minecraft.client.MinecraftClient;
-import net.minecraft.scoreboard.Scoreboard;
-import net.minecraft.scoreboard.ScoreboardDisplaySlot;
-import net.minecraft.scoreboard.ScoreboardEntry;
-import net.minecraft.scoreboard.ScoreboardObjective;
-import net.minecraft.scoreboard.Team;
-import net.minecraft.text.Text;
-
 import java.util.ArrayList;
 import java.util.List;
+import net.minecraft.client.Minecraft;
+import net.minecraft.network.chat.Component;
+import net.minecraft.world.scores.DisplaySlot;
+import net.minecraft.world.scores.Objective;
+import net.minecraft.world.scores.PlayerScoreEntry;
+import net.minecraft.world.scores.PlayerTeam;
+import net.minecraft.world.scores.Scoreboard;
 
 /**
  * Harvests every bit of on-screen server text that might name the current mine.
@@ -28,25 +27,25 @@ public final class SidebarReader {
     }
 
     /** Sidebar title and rows, as plain strings. Returns empty rather than throwing. */
-    public static List<String> sidebarLines(MinecraftClient client) {
+    public static List<String> sidebarLines(Minecraft client) {
         List<String> lines = new ArrayList<>();
         try {
-            if (client == null || client.world == null) {
+            if (client == null || client.level == null) {
                 return lines;
             }
 
-            Scoreboard scoreboard = client.world.getScoreboard();
-            ScoreboardObjective objective =
-                    scoreboard.getObjectiveForSlot(ScoreboardDisplaySlot.SIDEBAR);
+            Scoreboard scoreboard = client.level.getScoreboard();
+            Objective objective =
+                    scoreboard.getDisplayObjective(DisplaySlot.SIDEBAR);
             if (objective == null) {
                 return lines;
             }
 
             lines.add(objective.getDisplayName().getString());
 
-            for (ScoreboardEntry entry : scoreboard.getScoreboardEntries(objective)) {
-                Team team = scoreboard.getScoreHolderTeam(entry.owner());
-                Text decorated = Team.decorateName(team, entry.name());
+            for (PlayerScoreEntry entry : scoreboard.listPlayerScores(objective)) {
+                PlayerTeam team = scoreboard.getPlayersTeam(entry.owner());
+                Component decorated = PlayerTeam.formatNameForTeam(team, entry.ownerName());
                 lines.add(decorated.getString());
             }
         } catch (Exception | NoSuchMethodError | NoClassDefFoundError ignored) {

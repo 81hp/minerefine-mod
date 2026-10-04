@@ -1,0 +1,13 @@
+{
+  "schemaVersion": 1,
+  "id": "minerefine-hud-test",
+  "version": "1.0.0",
+  "name": "MineRefine HUD client game tests",
+  "environment": "client",
+  "entrypoints": {
+    "fabric-client-gametest": ["minerefinehud.test.MinerefineClientGameTest"]
+  },
+  "depends": {
+    "minerefine-hud": "*"
+  }
+}

@@ -1,15 +1,14 @@
 package minerefinehud.client;
 
-import net.minecraft.client.gui.DrawContext;
-import net.minecraft.client.gui.screen.Screen;
-import net.minecraft.client.gui.tooltip.Tooltip;
-import net.minecraft.client.gui.widget.ButtonWidget;
-import net.minecraft.client.gui.widget.TextFieldWidget;
-import net.minecraft.text.Text;
 import minerefinehud.hud.Theme;
 import minerefinehud.progress.ProgressPlanner;
 import minerefinehud.progress.ProgressSlot;
-
+import net.minecraft.client.gui.GuiGraphicsExtractor;
+import net.minecraft.client.gui.components.Button;
+import net.minecraft.client.gui.components.EditBox;
+import net.minecraft.client.gui.components.Tooltip;
+import net.minecraft.client.gui.screens.Screen;
+import net.minecraft.network.chat.Component;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
@@ -61,7 +60,7 @@ public final class SettingsScreen extends Screen {
     private final List<Swatch> swatches = new ArrayList<>();
 
     public SettingsScreen(Screen parent, ModConfig config, Runnable onChange, Runnable openPositions) {
-        super(Text.literal("MineRefine HUD settings"));
+        super(Component.literal("MineRefine HUD settings"));
         this.parent = parent;
         this.config = config;
         this.onChange = onChange;
@@ -94,13 +93,13 @@ public final class SettingsScreen extends Screen {
         int tabLeft = this.width / 2 - (tabs.length * (tabWidth + 2)) / 2;
         for (int i = 0; i < tabs.length; i++) {
             Tab t = tabs[i];
-            ButtonWidget b = ButtonWidget.builder(Text.literal(t.label), w -> {
+            Button b = Button.builder(Component.literal(t.label), w -> {
                         tab = t;
-                        clearAndInit();
+                        rebuildWidgets();
                     })
-                    .dimensions(tabLeft + i * (tabWidth + 2), 28, tabWidth, 20).build();
+                    .bounds(tabLeft + i * (tabWidth + 2), 28, tabWidth, 20).build();
             b.active = t != tab;
-            addDrawableChild(b);
+            addRenderableWidget(b);
         }
 
         switch (tab) {
@@ -112,8 +111,8 @@ public final class SettingsScreen extends Screen {
             case COLOURS -> colours();
         }
 
-        addDrawableChild(ButtonWidget.builder(Text.literal("Done"), b -> close())
-                .dimensions(this.width / 2 - 100, this.height - 28, 200, 20).build());
+        addRenderableWidget(Button.builder(Component.literal("Done"), b -> onClose())
+                .bounds(this.width / 2 - 100, this.height - 28, 200, 20).build());
     }
 
     // ------------------------------------------------------------------ tabs
@@ -125,7 +124,7 @@ public final class SettingsScreen extends Screen {
         toggle(1, 1, "Costs in credits", () -> config.showCredits, v -> config.showCredits = v);
 
         labels.add(new Label("Block rate (millions per credit)", x(0), y(2) + 6));
-        TextFieldWidget rate = field(x(1), y(2), 60, String.valueOf(config.blocksPerCreditMillions), 10,
+        EditBox rate = field(x(1), y(2), 60, String.valueOf(config.blocksPerCreditMillions), 10,
                 s -> s.matches("[0-9]*\\.?[0-9]*"),
                 s -> {
                     try {
@@ -138,20 +137,20 @@ public final class SettingsScreen extends Screen {
                         // Half-typed, e.g. "2." or empty. Keep the last good value.
                     }
                 });
-        addDrawableChild(rate);
+        addRenderableWidget(rate);
 
-        addDrawableChild(ButtonWidget.builder(Text.literal("Move and resize panels..."), b -> {
+        addRenderableWidget(Button.builder(Component.literal("Move and resize panels..."), b -> {
                     onChange.run();
                     openPositions.run();
                 })
-                .dimensions(x(0), y(4), COLUMN_WIDTH * 2 + 10, 20).build());
-        addDrawableChild(ButtonWidget.builder(Text.literal("Turret size calculator..."), b -> {
+                .bounds(x(0), y(4), COLUMN_WIDTH * 2 + 10, 20).build());
+        addRenderableWidget(Button.builder(Component.literal("Turret size calculator..."), b -> {
                     onChange.run();
-                    if (this.client != null) {
-                        this.client.setScreen(new TurretScreen(this));
+                    if (this.minecraft != null) {
+                        Compat.setScreen(this.minecraft, new TurretScreen(this));
                     }
                 })
-                .dimensions(x(0), y(5), COLUMN_WIDTH * 2 + 10, 20).build());
+                .bounds(x(0), y(5), COLUMN_WIDTH * 2 + 10, 20).build());
     }
 
     private void mine() {
@@ -192,38 +191,38 @@ public final class SettingsScreen extends Screen {
             // Bosses sell swords, pickaxes, armour and charms, never an axe, a shovel or a Total.
             boolean bossable = bar.choice().map(SettingsScreen::bossesSell).orElse(false);
             int itemWidth = bossable ? COLUMN_WIDTH - 46 : COLUMN_WIDTH;
-            addDrawableChild(ButtonWidget.builder(Text.literal("Item: " + niceSlot(bar.slot)), b -> {
+            addRenderableWidget(Button.builder(Component.literal("Item: " + niceSlot(bar.slot)), b -> {
                         int at = bar.choice().map(Enum::ordinal).orElse(-1);
                         do {
                             at = (at + 1) % slots.length;
                         } while (bar.boss && !bossesSell(slots[at]));
                         bar.slot = slots[at].name();
                         onChange.run();
-                        clearAndInit();   // the Amount box comes and goes with Total
+                        rebuildWidgets();   // the Amount box comes and goes with Total
                     })
-                    .dimensions(x(0), row, itemWidth, 20).build());
+                    .bounds(x(0), row, itemWidth, 20).build());
             if (bossable) {
-                addDrawableChild(ButtonWidget.builder(Text.literal(bar.boss ? "Boss" : "Mine"), b -> {
+                addRenderableWidget(Button.builder(Component.literal(bar.boss ? "Boss" : "Mine"), b -> {
                             bar.boss = !bar.boss;
                             onChange.run();
-                            clearAndInit();
+                            rebuildWidgets();
                         })
-                        .dimensions(x(0) + COLUMN_WIDTH - 42, row, 42, 20).build());
+                        .bounds(x(0) + COLUMN_WIDTH - 42, row, 42, 20).build());
             }
 
             // A whole mine is bought once, so a Total bar has no amount. It has, in that spot,
             // whether gear already bought comes off it.
             if (bar.choice().map(ProgressSlot::isTotal).orElse(false)) {
-                addDrawableChild(ButtonWidget.builder(Text.literal(bar.minusOwned ? "Minus bought" : "Full price"),
+                addRenderableWidget(Button.builder(Component.literal(bar.minusOwned ? "Minus bought" : "Full price"),
                                 b -> {
                                     bar.minusOwned = !bar.minusOwned;
                                     onChange.run();
-                                    clearAndInit();   // the explanation under the bars changes too
+                                    rebuildWidgets();   // the explanation under the bars changes too
                                 })
-                        .dimensions(x(1), row, 82, 20).build());
+                        .bounds(x(1), row, 82, 20).build());
             } else {
                 labels.add(new Label("Amount", x(1), row + 6));
-                addDrawableChild(field(x(1) + 40, row, 40, String.valueOf(bar.quantity), 3,
+                addRenderableWidget(field(x(1) + 40, row, 40, String.valueOf(bar.quantity), 3,
                         s -> s.matches("[0-9]{0,3}"),
                         s -> {
                             if (!s.isEmpty()) {
@@ -234,38 +233,38 @@ public final class SettingsScreen extends Screen {
                         }));
             }
 
-            addDrawableChild(ButtonWidget.builder(Text.literal("Remove"), b -> {
+            addRenderableWidget(Button.builder(Component.literal("Remove"), b -> {
                         bars.remove(bar);
                         onChange.run();
-                        clearAndInit();
+                        rebuildWidgets();
                     })
-                    .dimensions(x(1) + 86, row, 64, 20).build());
+                    .bounds(x(1) + 86, row, 64, 20).build());
         }
 
         int below = y(bars.size());
         if (bars.isEmpty()) {
             labels.add(new Label("No progress bars yet.", x(0), below + 6));
         }
-        ButtonWidget add = ButtonWidget.builder(Text.literal("Add bar"), b -> {
+        Button add = Button.builder(Component.literal("Add bar"), b -> {
                     bars.add(new ModConfig.Bar(ProgressSlot.SWORD.name(), 1));
                     onChange.run();
-                    clearAndInit();
+                    rebuildWidgets();
                 })
-                .dimensions(x(1), below, COLUMN_WIDTH, 20).build();
+                .bounds(x(1), below, COLUMN_WIDTH, 20).build();
         add.active = bars.size() < ModConfig.MAX_BARS;
-        addDrawableChild(add);
+        addRenderableWidget(add);
         // Beside Add bar, where nothing else goes once there is a bar, so it never needs a row of
         // its own that six bars at GUI scale 4 would push into the Done button.
         if (bars.stream().anyMatch(b -> !b.boss && b.choice().map(s -> s == ProgressSlot.PICKAXE).orElse(false))) {
-            ButtonWidget swap = ButtonWidget.builder(onOff("Axe/shovel mines", config.pickaxeSwapsAtToolMines), b -> {
+            Button swap = Button.builder(onOff("Axe/shovel mines", config.pickaxeSwapsAtToolMines), b -> {
                         config.pickaxeSwapsAtToolMines = !config.pickaxeSwapsAtToolMines;
                         b.setMessage(onOff("Axe/shovel mines", config.pickaxeSwapsAtToolMines));
                         onChange.run();
                     })
-                    .dimensions(x(0), below, COLUMN_WIDTH, 20).build();
-            swap.setTooltip(Tooltip.of(Text.literal("ON: the Pickaxe bar shows the shovel or axe of a mine on the way "
+                    .bounds(x(0), below, COLUMN_WIDTH, 20).build();
+            swap.setTooltip(Tooltip.create(Component.literal("ON: the Pickaxe bar shows the shovel or axe of a mine on the way "
                     + "to the next pickaxe mine, then carries on to the pickaxe. OFF: it skips those mines.")));
-            addDrawableChild(swap);
+            addRenderableWidget(swap);
         }
 
         // Three to a row, so six bars plus these still clear the Done button at GUI scale 4.
@@ -273,12 +272,12 @@ public final class SettingsScreen extends Screen {
         int third = (COLUMN_WIDTH * 2 + 10 - 8) / 3;
         toggleAt(x(0), after, third, "Text", () -> config.showProgressText, v -> config.showProgressText = v);
         toggleAt(x(0) + third + 4, after, third, "Bar", () -> config.showProgressBar, v -> config.showProgressBar = v);
-        addDrawableChild(ButtonWidget.builder(goalLabel(), b -> {
+        addRenderableWidget(Button.builder(goalLabel(), b -> {
                     config.progressToMax = !config.progressToMax;
                     onChange.run();
-                    clearAndInit();   // the explanation under it changes too
+                    rebuildWidgets();   // the explanation under it changes too
                 })
-                .dimensions(x(0) + 2 * (third + 4), after, third, 20).build());
+                .bounds(x(0) + 2 * (third + 4), after, third, 20).build());
         int explain = after + ROW_HEIGHT + 6;
         labels.add(new Label(config.progressToMax
                 ? "Each bar counts every tier left to max the piece at its mine."
@@ -324,19 +323,19 @@ public final class SettingsScreen extends Screen {
         colour(1, 3, "Bar finished", () -> config.colorBarDone, v -> config.colorBarDone = v, Theme.defaults().barDone());
         colour(0, 4, "Bar track", () -> config.colorBarTrack, v -> config.colorBarTrack = v, Theme.defaults().barTrack());
 
-        addDrawableChild(ButtonWidget.builder(Text.literal("Reset colours"), b -> {
+        addRenderableWidget(Button.builder(Component.literal("Reset colours"), b -> {
                     config.resetColors();
                     onChange.run();
-                    clearAndInit();
+                    rebuildWidgets();
                 })
-                .dimensions(x(1), y(4), COLUMN_WIDTH, 20).build());
+                .bounds(x(1), y(4), COLUMN_WIDTH, 20).build());
         labels.add(new Label("Type a colour as #RRGGBB.", x(0), y(6)));
     }
 
     private void colour(int column, int row, String name, Supplier<String> get, Consumer<String> set, int fallback) {
         int x = x(column);
         labels.add(new Label(name, x, y(row) + 6));
-        addDrawableChild(field(x + 70, y(row), 62, get.get(), 7,
+        addRenderableWidget(field(x + 70, y(row), 62, get.get(), 7,
                 s -> s.matches("#?[0-9A-Fa-f]{0,6}"),
                 s -> {
                     if (Theme.parse(s).isPresent()) {
@@ -349,8 +348,8 @@ public final class SettingsScreen extends Screen {
 
     // --------------------------------------------------------------- widgets
 
-    private static Text onOff(String label, boolean on) {
-        return Text.literal(label + ": " + (on ? "ON" : "OFF"));
+    private static Component onOff(String label, boolean on) {
+        return Component.literal(label + ": " + (on ? "ON" : "OFF"));
     }
 
     private void toggle(int column, int row, String label, BooleanSupplier get, Consumer<Boolean> set) {
@@ -362,22 +361,22 @@ public final class SettingsScreen extends Screen {
     }
 
     private void toggleAt(int x, int y, int width, String label, BooleanSupplier get, Consumer<Boolean> set) {
-        addDrawableChild(ButtonWidget.builder(onOff(label, get.getAsBoolean()), b -> {
+        addRenderableWidget(Button.builder(onOff(label, get.getAsBoolean()), b -> {
                     set.accept(!get.getAsBoolean());
                     b.setMessage(onOff(label, get.getAsBoolean()));
                     onChange.run();
                 })
-                .dimensions(x, y, width, 20).build());
+                .bounds(x, y, width, 20).build());
     }
 
     private void cycle(int column, int row, String label, IntSupplier get, IntConsumer set,
                        int[] values, IntFunction<String> show) {
-        addDrawableChild(ButtonWidget.builder(Text.literal(label + ": " + show.apply(get.getAsInt())), b -> {
+        addRenderableWidget(Button.builder(Component.literal(label + ": " + show.apply(get.getAsInt())), b -> {
                     set.accept(next(values, get.getAsInt()));
-                    b.setMessage(Text.literal(label + ": " + show.apply(get.getAsInt())));
+                    b.setMessage(Component.literal(label + ": " + show.apply(get.getAsInt())));
                     onChange.run();
                 })
-                .dimensions(x(column), y(row), COLUMN_WIDTH, 20).build());
+                .bounds(x(column), y(row), COLUMN_WIDTH, 20).build());
     }
 
     /** The next value up, wrapping round. A hand-edited value between steps lands on the next step. */
@@ -390,18 +389,17 @@ public final class SettingsScreen extends Screen {
         return values[0];
     }
 
-    private TextFieldWidget field(int x, int y, int width, String text, int maxLength,
+    private EditBox field(int x, int y, int width, String text, int maxLength,
                                   Predicate<String> allowed, Consumer<String> changed) {
-        TextFieldWidget f = new TextFieldWidget(this.textRenderer, x, y, width, 20, Text.empty());
+        EditBox f = new EditBox(this.font, x, y, width, 20, Component.empty());
         f.setMaxLength(maxLength);
-        f.setText(text);
-        f.setTextPredicate(allowed);
-        f.setChangedListener(changed);
+        f.setValue(text);
+        Compat.filter(f, allowed, changed);
         return f;
     }
 
-    private Text goalLabel() {
-        return Text.literal("Track: " + (config.progressToMax ? "to max" : "next tier"));
+    private Component goalLabel() {
+        return Component.literal("Track: " + (config.progressToMax ? "to max" : "next tier"));
     }
 
     private static boolean bossesSell(ProgressSlot slot) {
@@ -415,13 +413,13 @@ public final class SettingsScreen extends Screen {
     // --------------------------------------------------------------- drawing
 
     @Override
-    public void render(DrawContext context, int mouseX, int mouseY, float delta) {
+    public void extractRenderState(GuiGraphicsExtractor context, int mouseX, int mouseY, float delta) {
         // Background is drawn by renderWithTooltip; see HudPositionScreen for why not here.
-        super.render(context, mouseX, mouseY, delta);
+        super.extractRenderState(context, mouseX, mouseY, delta);
 
-        context.drawCenteredTextWithShadow(this.textRenderer, this.title, this.width / 2, 12, 0xFFFFFFFF);
+        context.centeredText(this.font, this.title, this.width / 2, 12, 0xFFFFFFFF);
         for (Label l : labels) {
-            context.drawTextWithShadow(this.textRenderer, l.text(), l.x(), l.y(), 0xFFCCCCCC);
+            context.text(this.font, l.text(), l.x(), l.y(), 0xFFCCCCCC);
         }
         for (Swatch s : swatches) {
             int color = Theme.parseOr(s.hex().get(), s.fallback());
@@ -431,15 +429,15 @@ public final class SettingsScreen extends Screen {
     }
 
     @Override
-    public void close() {
+    public void onClose() {
         onChange.run();
-        if (this.client != null) {
-            this.client.setScreen(parent);
+        if (this.minecraft != null) {
+            Compat.setScreen(this.minecraft, parent);
         }
     }
 
     @Override
-    public boolean shouldPause() {
+    public boolean isPauseScreen() {
         return false;
     }
 }

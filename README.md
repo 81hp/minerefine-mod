@@ -172,6 +172,9 @@ comes from the action bar while you mine, or from a shop.
 - **Track: next tier / to max.** "To max" shows everything still to buy for the piece at its mine,
   `Chestplate III-IV`, from the shop prices when they are all known and otherwise from the
   spreadsheet total minus the tiers you own.
+- **Axe/shovel mines** (shown with a Pickaxe bar). ON: after a pickaxe mine is maxed, the bar shows
+  the shovel or axe of a mine on the way (Soul Soil Shovel between City Wall and Blackstone), then
+  carries on to the next pickaxe. OFF: those mines are skipped.
 - **Armor set.** Helmet, chestplate, leggings and boots as one bar. It follows the set you are
   upgrading: with the helmet maxed and the rest not, it counts the three pieces left at that mine.
 - **Total.** Everything at the mine. With **Minus bought** (the default) the tiers you already own

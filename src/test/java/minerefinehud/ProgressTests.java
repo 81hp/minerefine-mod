@@ -70,6 +70,7 @@ public final class ProgressTests {
         totalMinusBought();
         armorSetBar();
         bossArmorSetBar();
+        pickaxeSwapsAtToolMines();
 
         System.out.println();
         System.out.println("passed: " + passed + "   failed: " + failed);
@@ -1184,6 +1185,71 @@ public final class ProgressTests {
             }
         }
         return sum;
+    }
+
+    /**
+     * The Axe/shovel mines setting: the pickaxe bar takes in the shovel mine between two pickaxe
+     * mines instead of skipping it. CATALOG is Rusty (pickaxe), Suspicious Sand (shovel), Marrow
+     * (pickaxe), Debris (shovel), Relic (pickaxe).
+     */
+    private static void pickaxeSwapsAtToolMines() {
+        ProgressionLinks links = new ProgressionLinks();
+        PriceLedger ledger = new PriceLedger();
+        ResourceBalances balances = new ResourceBalances();
+        GearRef rustyMaxed = new GearRef("Rusty", "pickaxe", 6);
+
+        eq("off: a maxed Rusty pickaxe skips the shovel mine", "Marrow", swap(List.of(rustyMaxed),
+                Optional.empty(), false).mine());
+        for (ProgressPlanner.Goal goal : ProgressPlanner.Goal.values()) {
+            var on = ProgressPlanner.plan(ProgressSlot.PICKAXE, List.of(rustyMaxed), CATALOG, links, Optional.empty(),
+                    ledger, balances, goal, true, true);
+            eq("on: the shovel mine on the way comes first (" + goal + ")", "Suspicious Sand", on.mine());
+            eq("on: its shovel (" + goal + ")", "shovel", on.gear());
+            eq("on: from tier I (" + goal + ")", 1, on.targetLevel());
+        }
+        var label = swap(List.of(rustyMaxed), Optional.empty(), true);
+        yes("on: labelled as the shovel", HudModel.progressPanel(List.of(label), HudModel.ProgressLines.all())
+                .get(0).text().startsWith("Suspicious Sand Shovel I"));
+
+        eq("on: a shovel partway carries on from its tier", 4, swap(List.of(rustyMaxed,
+                new GearRef("Suspicious Sand", "shovel", 3)), Optional.empty(), true).targetLevel());
+        var shovelDone = swap(List.of(rustyMaxed, new GearRef("Suspicious Sand", "shovel", 6)), Optional.empty(), true);
+        eq("on: once the shovel is maxed, on to the next pickaxe", "Marrow", shovelDone.mine());
+        eq("on: the pickaxe again", "pickaxe", shovelDone.gear());
+        eq("on: a pickaxe owned past the shovel mine is not taken back", 3, swap(List.of(rustyMaxed,
+                new GearRef("Marrow", "pickaxe", 2)), Optional.empty(), true).targetLevel());
+        eq("on: an unfinished pickaxe stays the bar", "Rust", swap(List.of(new GearRef("Rusty", "pickaxe", 4)),
+                Optional.empty(), true).mine());
+
+        var inDebris = swap(List.of(new GearRef("Marrow", "pickaxe", 6)), CATALOG.byName("Debris"), true);
+        eq("on: standing in a shovel mine, its shovel", "Debris", inDebris.mine());
+        eq("on: standing in a shovel mine, a shovel", "shovel", inDebris.gear());
+        var debrisDone = swap(List.of(new GearRef("Marrow", "pickaxe", 6), new GearRef("Debris", "shovel", 6)),
+                CATALOG.byName("Debris"), true);
+        eq("on: in a shovel mine with its shovel maxed, on to the next pickaxe", "Relic", debrisDone.mine());
+        eq("on: that is a pickaxe", "pickaxe", debrisDone.gear());
+        eq("off: standing in a shovel mine, the pickaxe", "pickaxe",
+                swap(List.of(new GearRef("Marrow", "pickaxe", 6)), CATALOG.byName("Debris"), false).gear());
+        eq("on: standing in the pickaxe mine the bar points at, that pickaxe", "Marrow",
+                swap(List.of(rustyMaxed), CATALOG.byName("Marrow"), true).mine());
+        eq("on: standing in the mine just finished, the shovel mine next", "Suspicious Sand",
+                swap(List.of(rustyMaxed), CATALOG.byName("Rusty"), true).mine());
+
+        eq("on: a shovel bar is not changed", "Debris", ProgressPlanner.plan(ProgressSlot.SHOVEL,
+                List.of(new GearRef("Suspicious Sand", "shovel", 6)), CATALOG, links, Optional.empty(), ledger,
+                balances, ProgressPlanner.Goal.NEXT_TIER, true, true).mine());
+        eq("on: the last pickaxe maxed with no tool mine after it is done", State.ALL_MAXED,
+                swap(List.of(new GearRef("Relic", "pickaxe", 6)), Optional.empty(), true).state());
+
+        MineCatalog shovelLast = new MineCatalog(List.of(mine("Rusty", "pickaxe"), mine("Debris", "shovel")));
+        var afterLast = ProgressPlanner.plan(ProgressSlot.PICKAXE, List.of(rustyMaxed), shovelLast, links,
+                Optional.empty(), ledger, balances, ProgressPlanner.Goal.NEXT_TIER, true, true);
+        eq("on: a shovel mine after the last pickaxe one still comes", "Debris", afterLast.mine());
+    }
+
+    private static ProgressPlanner.ProgressView swap(List<GearRef> owned, Optional<Mine> at, boolean on) {
+        return ProgressPlanner.plan(ProgressSlot.PICKAXE, owned, CATALOG, new ProgressionLinks(), at,
+                new PriceLedger(), new ResourceBalances(), ProgressPlanner.Goal.NEXT_TIER, true, on);
     }
 
     /** A boss armour set, paid in fragments. */

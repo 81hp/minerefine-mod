@@ -967,7 +967,7 @@ public final class MinerefineHudClient implements ClientModInitializer {
                     balances, goal);
         }
         return ProgressPlanner.plan(slot, owned, catalogSource.catalog(), links, currentMine, prices, balances,
-                goal, totalMinusOwned);
+                goal, totalMinusOwned, config.pickaxeSwapsAtToolMines);
     }
 
     /**

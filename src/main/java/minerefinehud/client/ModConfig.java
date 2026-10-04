@@ -154,6 +154,11 @@ public final class ModConfig {
     public boolean showProgressText = true;
     /** Bars count every tier left to max the piece at its mine, not just the next tier. */
     public boolean progressToMax = false;
+    /**
+     * Pickaxe bars take in the axe and shovel mines on the way instead of skipping to the next
+     * pickaxe mine: Soul Soil Shovel between City Wall and Blackstone pickaxes.
+     */
+    public boolean pickaxeSwapsAtToolMines = false;
     public boolean showProgressBar = true;
 
     // ------------------------------------------------------- respawn reminder

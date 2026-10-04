@@ -148,6 +148,117 @@ public final class ProgressPlanner {
     }
 
     /**
+     * @param swapAtToolMines for a Pickaxe bar: an axe or shovel mine on the way to the next
+     *                        pickaxe mine is not skipped; the bar shows its tool until that is
+     *                        maxed, then carries on to the pickaxe. Ignored by every other bar.
+     */
+    public static ProgressView plan(ProgressSlot slot,
+                                    List<ShopItemParser.GearRef> owned,
+                                    MineCatalog catalog,
+                                    ProgressionLinks links,
+                                    Optional<Mine> currentMine,
+                                    PriceLedger ledger,
+                                    ResourceBalances balances,
+                                    Goal goal,
+                                    boolean totalMinusOwned,
+                                    boolean swapAtToolMines) {
+        ProgressView v = plan(slot, owned, catalog, links, currentMine, ledger, balances, goal, totalMinusOwned);
+        if (!swapAtToolMines || slot != ProgressSlot.PICKAXE) {
+            return v;
+        }
+        return swapForToolMine(v, owned, catalog, links, currentMine, ledger, balances, goal);
+    }
+
+    /**
+     * The pickaxe bar, with axe and shovel mines on the way taken in. Standing in one, its tool.
+     * Otherwise, when the bar has just moved on to a pickaxe mine (nothing owned there yet), the
+     * first axe or shovel mine between the last pickaxe mine and that one whose tool is not maxed
+     * yet: City Wall's pickaxe maxed, Soul Soil Shovel comes before Blackstone Pickaxe. Past the
+     * last pickaxe mine, any such mine after it.
+     */
+    private static ProgressView swapForToolMine(ProgressView v, List<ShopItemParser.GearRef> owned,
+                                                MineCatalog catalog, ProgressionLinks links,
+                                                Optional<Mine> currentMine, PriceLedger ledger,
+                                                ResourceBalances balances, Goal goal) {
+        if (currentMine.isPresent()) {
+            Optional<ProgressSlot> tool = otherTool(currentMine.get());
+            if (tool.isPresent()) {
+                // Once this mine's tool is maxed, its own bar heads for the next mine of that
+                // tool, worlds away; the pickaxe bar carries on to the pickaxe instead.
+                ProgressView here = plan(tool.get(), owned, catalog, links, currentMine, ledger, balances, goal);
+                boolean movedOn = here.state() == State.ALL_MAXED
+                        || orderOf(catalog, here.mine()) > orderOf(catalog, currentMine.get().name());
+                if (!movedOn) {
+                    return here;
+                }
+            }
+            if (sameMine(catalog, v.mine(), currentMine.get().name())) {
+                return v;
+            }
+        }
+        boolean maxed = v.state() == State.ALL_MAXED;
+        if (v.state() == State.NO_MINE || (!maxed && v.targetLevel() != 1)) {
+            return v;
+        }
+        List<Mine> all = catalog.mines();
+        int last = orderOf(catalog, v.mine());
+        if (last < 0) {
+            return v;
+        }
+        int from;
+        int to;
+        if (maxed) {
+            from = last;
+            to = all.size();
+        } else {
+            from = -1;
+            for (int i = last - 1; i >= 0; i--) {
+                if (all.get(i).toolKeys().contains(ProgressSlot.PICKAXE.gear())) {
+                    from = i;
+                    break;
+                }
+            }
+            to = last;
+            if (from < 0) {
+                return v;
+            }
+        }
+        for (int i = from + 1; i < to; i++) {
+            Mine x = all.get(i);
+            Optional<ProgressSlot> tool = otherTool(x);
+            if (tool.isEmpty()) {
+                continue;
+            }
+            String name = catalog.serverName(x.name());
+            String gear = tool.get().gear();
+            List<ShopItemParser.GearRef> ofGear = owned.stream()
+                    .filter(g -> gear.equals(g.gear().toLowerCase(Locale.ROOT)))
+                    .toList();
+            int max = maxLevel(ledger, catalog, name, gear);
+            int level = ownedLevel(catalog, ofGear, name, max);
+            if (level < max) {
+                String currency = currencyOf(ledger, name, gear, max).orElse(name);
+                return priced(tool.get(), name, level, max, currency, catalog, ledger, balances, goal, false);
+            }
+        }
+        return v;
+    }
+
+    /** The axe or shovel a mine sells instead of a pickaxe, if it does. */
+    private static Optional<ProgressSlot> otherTool(Mine mine) {
+        List<String> tools = mine.toolKeys();
+        if (tools.contains(ProgressSlot.PICKAXE.gear())) {
+            return Optional.empty();
+        }
+        for (ProgressSlot s : List.of(ProgressSlot.AXE, ProgressSlot.SHOVEL)) {
+            if (tools.contains(s.gear())) {
+                return Optional.of(s);
+            }
+        }
+        return Optional.empty();
+    }
+
+    /**
      * @param totalMinusOwned for a Total bar: leave out the tiers already bought, so buying the
      *                        pickaxe takes what it cost off the Total, the way a piece's bar moves
      *                        on. Off, the Total is the whole mine at full price, the mine panel's

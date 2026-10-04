@@ -2,6 +2,7 @@ package minerefinehud.client;
 
 import net.minecraft.client.gui.DrawContext;
 import net.minecraft.client.gui.screen.Screen;
+import net.minecraft.client.gui.tooltip.Tooltip;
 import net.minecraft.client.gui.widget.ButtonWidget;
 import net.minecraft.client.gui.widget.TextFieldWidget;
 import net.minecraft.text.Text;
@@ -253,6 +254,19 @@ public final class SettingsScreen extends Screen {
                 .dimensions(x(1), below, COLUMN_WIDTH, 20).build();
         add.active = bars.size() < ModConfig.MAX_BARS;
         addDrawableChild(add);
+        // Beside Add bar, where nothing else goes once there is a bar, so it never needs a row of
+        // its own that six bars at GUI scale 4 would push into the Done button.
+        if (bars.stream().anyMatch(b -> !b.boss && b.choice().map(s -> s == ProgressSlot.PICKAXE).orElse(false))) {
+            ButtonWidget swap = ButtonWidget.builder(onOff("Axe/shovel mines", config.pickaxeSwapsAtToolMines), b -> {
+                        config.pickaxeSwapsAtToolMines = !config.pickaxeSwapsAtToolMines;
+                        b.setMessage(onOff("Axe/shovel mines", config.pickaxeSwapsAtToolMines));
+                        onChange.run();
+                    })
+                    .dimensions(x(0), below, COLUMN_WIDTH, 20).build();
+            swap.setTooltip(Tooltip.of(Text.literal("ON: the Pickaxe bar shows the shovel or axe of a mine on the way "
+                    + "to the next pickaxe mine, then carries on to the pickaxe. OFF: it skips those mines.")));
+            addDrawableChild(swap);
+        }
 
         // Three to a row, so six bars plus these still clear the Done button at GUI scale 4.
         int after = below + ROW_HEIGHT;

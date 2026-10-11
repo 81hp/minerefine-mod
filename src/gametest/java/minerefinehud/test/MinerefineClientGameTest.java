@@ -68,6 +68,13 @@ public class MinerefineClientGameTest implements FabricClientGameTest {
             context.waitForScreen(SettingsScreen.class);
             context.takeScreenshot("minerefine-hud-settings-screen");
 
+            // The Halloween tab, then back to General for the turret button.
+            context.clickScreenButton("Halloween");
+            context.waitTick();
+            context.takeScreenshot("minerefine-hud-settings-halloween");
+            context.clickScreenButton("General");
+            context.waitTick();
+
             context.clickScreenButton("Turret size calculator...");
             context.waitForScreen(TurretScreen.class);
 

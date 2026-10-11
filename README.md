@@ -104,8 +104,9 @@ or the GUI scale changes. A panel is clamped so it can never be lost off screen.
 |-----|---------------|
 | General | Overlay, mine and boss panels on or off, costs in credits, block rate, the turret calculator |
 | Mine | Which rows show: sword, tool, armour (or its four pieces), charm, mine total, item in hand |
-| Bosses | Only this dimension, rows for alive and still-learning bosses, how many, the reminder, its timing, sound and volume |
+| Bosses | Only this dimension, rows for alive and still-learning bosses, how many, the reminder, its timing, sound and volume, the Reforger timer |
 | Progress | The bars (item, amount, remove, add), text line and bar on or off, and next tier or to max |
+| Halloween | The Halloween panels and their rows, the rate window, the caravan alert, ability timers, pumpkin set bars, the refine cost |
 | Panels | A background behind each panel, off or at 25 to 100% |
 | Colours | Every text and bar colour as `#RRGGBB`, with Reset |
 
@@ -239,6 +240,33 @@ were when its broadcast arrived, since broadcasts only reach that area.
 
 **Respawn reminder.** Ten seconds before a respawn (adjustable), a ping and a placeable title,
 `Angry Archaeologist is about to respawn!`. Only once the interval has been measured twice.
+
+**Boss index.** Open `/boss index` and every boss's state is read straight from the menu: `SPAWNED!`
+marks it up, `⌚ 9m 40s` is the server's own respawn timer, which replaces a guessed or missing
+countdown. If the kill was watched, kill to respawn is also learned as the boss's interval.
+
+### Reforger
+
+`Time Until Reforger: 1h 57m 17s` in the boss panel, everywhere on the server. After joining
+MineRefine the mod runs `/next reforger` once by itself and hides only that answer; typed by you
+it shows as usual. It is asked again after the Reforger leaves. `The Reforger has arrived to town!`
+shows `HERE` with the time it has left (it stays 15 minutes) and an alert; when the countdown is
+an estimate (it comes back about 3h15m after it arrived) it is marked `~`.
+
+### Halloween
+
+While the sidebar is the Halloween one, the Halloween panels take the place of the mine and
+progress panels, and the action bar's crop total is kept away from the mining code.
+
+- **Halloween:** candy and crops per hour, each crop, candy and charms from pests, the caravan
+  countdown (every 45 minutes, learned from two runs) and the next hoe refine. The rates are the
+  balance rises of the last few minutes (5 to 60) over the time spent in the dimension; spending
+  never counts against them, and nothing changed while away counts as farmed.
+- **Pumpkin set:** a bar per piece, or one for every piece still to buy, against candy, carrots,
+  beetroots and nether wart. Prices and whether a piece is bought (`0/1 Lifetime Stock`) come from
+  the shop; a piece in your inventory or worn gets no bar.
+- **Abilities:** drop and shift-drop ability cooldowns with a sound when ready. The class and its
+  cooldowns come from the Farming Abilities menu, or from the first `has recharged!` message.
 
 ### Turret size calculator
 

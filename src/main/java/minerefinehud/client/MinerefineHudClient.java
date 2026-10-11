@@ -139,6 +139,9 @@ public final class MinerefineHudClient implements ClientModInitializer {
     private List<ProgressPlanner.ProgressView> progressViews = List.of();
     private long lastProgressCheck;
 
+    /** The Halloween event and the Reforger. */
+    private HalloweenClient halloween;
+
     /** Mine named by the shop most recently opened. A fallback when nothing else names one. */
     private Optional<String> lastShopMine = Optional.empty();
     private long lastShopAt;
@@ -182,6 +185,13 @@ public final class MinerefineHudClient implements ClientModInitializer {
         PriceStore.loadTierCounts(prices);
         priceStore = new PriceStore(dir.resolve("prices.json"));
         priceStore.load(prices);
+
+        halloween = new HalloweenClient(config, () -> config.save(configFile), () -> {
+            if (config.bossReminderVolume > 0) {
+                playReminderSound(Minecraft.getInstance());
+            }
+        });
+        halloween.register();
 
         registerKeyBindings();
         ActionBarHook.listen(this::onActionBar);
@@ -264,7 +274,8 @@ public final class MinerefineHudClient implements ClientModInitializer {
             return;
         }
         Compat.setScreen(client, new SettingsScreen(null, config, this::settingsChanged,
-                () -> openPositionScreen(client)));
+                () -> openPositionScreen(client), () -> openPositionScreen(client, true),
+                () -> halloween.resetRates(), () -> halloween.owned()));
     }
 
     /** Settings apply live: the HUD reads the config every frame. This saves and re-plans now. */
@@ -280,11 +291,25 @@ public final class MinerefineHudClient implements ClientModInitializer {
      * the boss panel could not be placed until a boss had been seen.
      */
     private void openPositionScreen(Minecraft client) {
+        openPositionScreen(client, halloween.active());
+    }
+
+    /** One panel in the move screen, and where its new position and size go. */
+    private record Movable(HudPositionScreen.Panel panel,
+                           java.util.function.Consumer<HudLayout.Placement> place,
+                           ModConfig.Look look) {}
+
+    /**
+     * @param halloweenPanels the Halloween panels instead of the mine and progress panels, which
+     *                        share their default spots
+     */
+    private void openPositionScreen(Minecraft client, boolean halloweenPanels) {
         if (client == null) {
             return;
         }
         long now = System.currentTimeMillis();
         HudModel.Options options = config.toOptions();
+        List<Movable> movables = new java.util.ArrayList<>();
 
         List<HudModel.Line> minePreview = HudModel.costPanel(mineCosts, upgradeView(), options);
         if (minePreview.isEmpty()) {
@@ -292,7 +317,7 @@ public final class MinerefineHudClient implements ClientModInitializer {
                     HudModel.Line.of("nothing to show yet", HudModel.Style.DIM));
         }
 
-        List<HudModel.Line> bossPreview = HudModel.bossPanel(visibleBosses(now), options);
+        List<HudModel.Line> bossPreview = HudModel.bossPanel(visibleBosses(now), options, halloween.reforgerRows(now));
         if (bossPreview.isEmpty()) {
             bossPreview = List.of(HudModel.Line.of("Bosses", HudModel.Style.HEADER),
                     HudModel.Line.of("no timers yet", HudModel.Style.DIM));
@@ -306,30 +331,49 @@ public final class MinerefineHudClient implements ClientModInitializer {
 
         List<HudModel.Line> alertPreview = HudModel.alertPanel(List.of("Angry Archaeologist"));
 
-        List<HudPositionScreen.Panel> panels = List.of(
-                new HudPositionScreen.Panel("Mine", minePreview,
-                        config.minePlacement(), ModConfig.DEFAULT_MINE_PLACEMENT,
-                        config.mineLook.scale, 1.0),
-                new HudPositionScreen.Panel("Bosses", bossPreview,
-                        config.bossPlacement(), ModConfig.DEFAULT_BOSS_PLACEMENT,
-                        config.bossLook.scale, 1.0),
-                new HudPositionScreen.Panel("Progress", progressPreview,
-                        config.progressPlacement(), ModConfig.DEFAULT_PROGRESS_PLACEMENT,
-                        config.progressLook.scale, 1.0),
-                new HudPositionScreen.Panel("Respawn reminder", alertPreview,
-                        config.alertPlacement(), ModConfig.DEFAULT_ALERT_PLACEMENT,
-                        config.alertLook.scale, 2.0));
+        if (halloweenPanels) {
+            List<HudModel.Line> stats = halloween.statsPanel(now);
+            List<HudModel.Line> pumpkin = halloween.pumpkinPanel();
+            if (pumpkin.isEmpty()) {
+                pumpkin = List.of(HudModel.Line.of("Pumpkin set", HudModel.Style.HEADER),
+                        HudModel.Line.of("add a bar in Settings, Halloween", HudModel.Style.DIM));
+            }
+            List<HudModel.Line> ability = halloween.abilityPanel(now);
+            if (ability.isEmpty()) {
+                ability = List.of(HudModel.Line.of("Will-o'-Wisps  READY", HudModel.Style.GOOD),
+                        HudModel.Line.of("Harvest Moon  12.3s", HudModel.Style.WARN));
+            }
+            movables.add(new Movable(new HudPositionScreen.Panel("Halloween", stats,
+                    config.hwStatsPlacement(), ModConfig.DEFAULT_HW_STATS_PLACEMENT, config.hwStatsLook.scale, 1.0),
+                    config::setHwStatsPlacement, config.hwStatsLook));
+            movables.add(new Movable(new HudPositionScreen.Panel("Pumpkin set", pumpkin,
+                    config.hwPumpkinPlacement(), ModConfig.DEFAULT_HW_PUMPKIN_PLACEMENT, config.hwPumpkinLook.scale, 1.0),
+                    config::setHwPumpkinPlacement, config.hwPumpkinLook));
+            movables.add(new Movable(new HudPositionScreen.Panel("Abilities", ability,
+                    config.hwAbilityPlacement(), ModConfig.DEFAULT_HW_ABILITY_PLACEMENT, config.hwAbilityLook.scale, 1.0),
+                    config::setHwAbilityPlacement, config.hwAbilityLook));
+        } else {
+            movables.add(new Movable(new HudPositionScreen.Panel("Mine", minePreview,
+                    config.minePlacement(), ModConfig.DEFAULT_MINE_PLACEMENT, config.mineLook.scale, 1.0),
+                    config::setMinePlacement, config.mineLook));
+            movables.add(new Movable(new HudPositionScreen.Panel("Progress", progressPreview,
+                    config.progressPlacement(), ModConfig.DEFAULT_PROGRESS_PLACEMENT, config.progressLook.scale, 1.0),
+                    config::setProgressPlacement, config.progressLook));
+        }
+        movables.add(new Movable(new HudPositionScreen.Panel("Bosses", bossPreview,
+                config.bossPlacement(), ModConfig.DEFAULT_BOSS_PLACEMENT, config.bossLook.scale, 1.0),
+                config::setBossPlacement, config.bossLook));
+        movables.add(new Movable(new HudPositionScreen.Panel("Reminder", alertPreview,
+                config.alertPlacement(), ModConfig.DEFAULT_ALERT_PLACEMENT, config.alertLook.scale, 2.0),
+                config::setAlertPlacement, config.alertLook));
 
-        Compat.setScreen(client, new HudPositionScreen(null, panels, config.theme(),
+        Compat.setScreen(client, new HudPositionScreen(null, movables.stream().map(Movable::panel).toList(),
+                config.theme(),
                 saved -> {
-                    config.setMinePlacement(saved.placements().get(0));
-                    config.setBossPlacement(saved.placements().get(1));
-                    config.setProgressPlacement(saved.placements().get(2));
-                    config.setAlertPlacement(saved.placements().get(3));
-                    config.mineLook.scale = saved.scales().get(0);
-                    config.bossLook.scale = saved.scales().get(1);
-                    config.progressLook.scale = saved.scales().get(2);
-                    config.alertLook.scale = saved.scales().get(3);
+                    for (int i = 0; i < movables.size(); i++) {
+                        movables.get(i).place().accept(saved.placements().get(i));
+                        movables.get(i).look().scale = saved.scales().get(i);
+                    }
                     config.save(configFile);
                 },
                 () -> openSettings(client)));
@@ -384,6 +428,7 @@ public final class MinerefineHudClient implements ClientModInitializer {
             lastUnknownBlockAt = 0L;
             resourcePickups.reset();
             fragmentCounts.reset();
+            halloween.onJoin();
             // Cheap, and lets a replaced progression.json in the config folder apply on rejoin.
             catalogSource.load();
         });
@@ -433,8 +478,11 @@ public final class MinerefineHudClient implements ClientModInitializer {
             lastShopScan = now;
 
             List<ShopItemParser.ItemView> items = ShopScanner.visibleItems(client);
+            halloween.scanScreen(ShopScanner.screenTitle(client), items);
+            readBossIndex(items, now);
             List<ShopItemParser.Entry> entries = ShopItemParser.parseAll(items);
-            recordUnrecognised(client, ShopItemParser.unrecognised(items));
+            recordUnrecognised(client, ShopItemParser.unrecognised(items).stream()
+                    .filter(item -> !HalloweenClient.isHalloweenItem(item)).toList());
             ShopItemParser.balances(items).forEach((currency, amount) -> {
                 balances.update(currency, amount, now);
                 if (miningBlocks.onShopBalance(currency, amount, now)) {
@@ -482,6 +530,26 @@ public final class MinerefineHudClient implements ClientModInitializer {
                         + " -> " + minerefinehud.shop.Amounts.format(change.to())));
             }
         });
+    }
+
+    /**
+     * The /boss index menu names every boss with its state: up, or back in so long. Those are the
+     * server's own timers, so they fix a countdown that was guessed or missing.
+     */
+    private void readBossIndex(List<ShopItemParser.ItemView> items, long now) {
+        boolean changed = false;
+        for (ShopItemParser.ItemView item : items) {
+            var entry = minerefinehud.boss.BossIndex.entry(item.title(), item.lore());
+            if (entry.isEmpty()) {
+                continue;
+            }
+            var e = entry.get();
+            changed |= e.alive() ? bossTracker.onIndexAlive(e.bossName(), now)
+                    : bossTracker.onIndexRespawnIn(e.bossName(), e.respawnMs(), now);
+        }
+        if (changed) {
+            bossStore.save(bossTracker);
+        }
     }
 
     /**
@@ -577,19 +645,28 @@ public final class MinerefineHudClient implements ClientModInitializer {
         var theme = config.theme();
         List<BossTracker.BossView> bosses = visibleBosses(now);
 
-        drawPanel(context, client, HudModel.costPanel(mineCosts, upgradeView(), options),
-                config.minePlacement(), config.mineLook, theme);
-        drawPanel(context, client, HudModel.bossPanel(bosses, options),
-                config.bossPlacement(), config.bossLook, theme);
-        drawPanel(context, client, HudModel.progressPanel(progressViews, options.progressLines()),
-                config.progressPlacement(), config.progressLook, theme);
-
-        if (config.bossReminder) {
-            List<String> due = BossAlerts.active(bosses, reminderLeadMs()).stream()
-                    .map(BossTracker.BossView::displayName).toList();
-            drawPanel(context, client, HudModel.alertPanel(due),
-                    config.alertPlacement(), config.alertLook, theme);
+        if (halloween.active()) {
+            // The Halloween panels take the mine and progress panels' place in that dimension.
+            drawPanel(context, client, halloween.statsPanel(now),
+                    config.hwStatsPlacement(), config.hwStatsLook, theme);
+            drawPanel(context, client, halloween.pumpkinPanel(),
+                    config.hwPumpkinPlacement(), config.hwPumpkinLook, theme);
+            drawPanel(context, client, halloween.abilityPanel(now),
+                    config.hwAbilityPlacement(), config.hwAbilityLook, theme);
+        } else {
+            drawPanel(context, client, HudModel.costPanel(mineCosts, upgradeView(), options),
+                    config.minePlacement(), config.mineLook, theme);
+            drawPanel(context, client, HudModel.progressPanel(progressViews, options.progressLines()),
+                    config.progressPlacement(), config.progressLook, theme);
         }
+        drawPanel(context, client, HudModel.bossPanel(bosses, options, halloween.reforgerRows(now)),
+                config.bossPlacement(), config.bossLook, theme);
+
+        List<String> due = config.bossReminder
+                ? BossAlerts.active(bosses, reminderLeadMs()).stream().map(BossTracker.BossView::displayName).toList()
+                : List.of();
+        drawPanel(context, client, HudModel.alertPanel(due, halloween.alerts(now, false)),
+                config.alertPlacement(), config.alertLook, theme);
     }
 
     private static void drawPanel(net.minecraft.client.gui.GuiGraphicsExtractor context, Minecraft client,
@@ -730,6 +807,11 @@ public final class MinerefineHudClient implements ClientModInitializer {
             while (recentActionBars.size() > 5) {
                 recentActionBars.removeFirst();
             }
+        }
+
+        // A crop total is not a mine's balance: in the Halloween dimension the bar is the event's.
+        if (halloween.onActionBar(text)) {
+            return;
         }
 
         Optional<ActionBarReader.Reading> reading = ActionBarReader.read(text);
@@ -1156,6 +1238,7 @@ public final class MinerefineHudClient implements ClientModInitializer {
                 + (config.showAllBossWorlds ? " (showing every world's bosses)" : ""));
         out.add(" boss worlds learned: " + (bossWorlds.learnedCount() == 0 ? "none"
                 : bossWorlds.export().toString()));
+        out.addAll(halloween.debug(System.currentTimeMillis()));
         out.add(" progress: " + (progressViews.isEmpty() ? "no bars"
                 : String.join(", ", progressViews.stream().map(v -> (v.quantity() > 1 ? v.quantity() + "x " : "")
                         + v.slot().label() + " -> " + v.mine() + " " + v.gear() + " " + v.targetLevel()

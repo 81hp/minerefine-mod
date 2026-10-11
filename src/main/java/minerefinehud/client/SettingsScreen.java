@@ -31,7 +31,7 @@ public final class SettingsScreen extends Screen {
 
     private enum Tab {
         GENERAL("General"), MINE("Mine"), BOSSES("Bosses"), PROGRESS("Progress"),
-        PANELS("Panels"), COLOURS("Colours");
+        HALLOWEEN("Halloween"), PANELS("Panels"), COLOURS("Colours");
 
         final String label;
 
@@ -49,6 +49,10 @@ public final class SettingsScreen extends Screen {
     /** Saves and nudges the HUD to recompute, called after every change. */
     private final Runnable onChange;
     private final Runnable openPositions;
+    private final Runnable openHalloweenPositions;
+    private final Runnable resetHalloweenRates;
+    /** Pumpkin pieces the player has, which get no bar. */
+    private final Supplier<java.util.Set<String>> pumpkinOwned;
 
     private Tab tab = Tab.GENERAL;
 
@@ -59,12 +63,17 @@ public final class SettingsScreen extends Screen {
     private final List<Label> labels = new ArrayList<>();
     private final List<Swatch> swatches = new ArrayList<>();
 
-    public SettingsScreen(Screen parent, ModConfig config, Runnable onChange, Runnable openPositions) {
+    public SettingsScreen(Screen parent, ModConfig config, Runnable onChange, Runnable openPositions,
+                          Runnable openHalloweenPositions, Runnable resetHalloweenRates,
+                          Supplier<java.util.Set<String>> pumpkinOwned) {
         super(Component.literal("MineRefine HUD settings"));
         this.parent = parent;
         this.config = config;
         this.onChange = onChange;
         this.openPositions = openPositions;
+        this.openHalloweenPositions = openHalloweenPositions;
+        this.resetHalloweenRates = resetHalloweenRates;
+        this.pumpkinOwned = pumpkinOwned;
     }
 
     private int left() {
@@ -89,7 +98,8 @@ public final class SettingsScreen extends Screen {
         swatches.clear();
 
         Tab[] tabs = Tab.values();
-        int tabWidth = 64;
+        // Narrower tabs on a narrow screen, so all of them stay on it at GUI scale 4.
+        int tabWidth = Math.max(40, Math.min(64, (this.width - 8) / tabs.length - 2));
         int tabLeft = this.width / 2 - (tabs.length * (tabWidth + 2)) / 2;
         for (int i = 0; i < tabs.length; i++) {
             Tab t = tabs[i];
@@ -107,6 +117,7 @@ public final class SettingsScreen extends Screen {
             case MINE -> mine();
             case BOSSES -> bosses();
             case PROGRESS -> progress();
+            case HALLOWEEN -> halloween();
             case PANELS -> panels();
             case COLOURS -> colours();
         }
@@ -177,7 +188,111 @@ public final class SettingsScreen extends Screen {
         cycle(1, 4, "Volume", () -> config.bossReminderVolume, v -> config.bossReminderVolume = v,
                 new int[] { 25, 50, 75, 100 }, v -> v + "%");
 
-        labels.add(new Label("Reminders wait until a timer is measured (no ?).", x(0), y(6)));
+        toggle(0, 2, "Reforger timer", () -> config.reforgerTimer, v -> config.reforgerTimer = v);
+        Button check = toggleAt(x(1), y(2), "Check on join", () -> config.reforgerAutoCheck,
+                v -> config.reforgerAutoCheck = v);
+        check.setTooltip(Tooltip.create(Component.literal("Runs /next reforger by itself after you join and "
+                + "after the Reforger leaves, and hides that answer. Typed by you, it shows as usual.")));
+        toggle(0, 5, "Reforger alert", () -> config.reforgerAlert, v -> config.reforgerAlert = v);
+
+        labels.add(new Label("Reminders wait until a timer is measured (no ?).", x(0), y(6) + 2));
+        labels.add(new Label("Open /boss index to correct every timer at once.", x(0), y(6) + 12));
+    }
+
+    /**
+     * Seven rows, some split in four, so it all clears the Done button at GUI scale 4 on a 1080p
+     * screen.
+     */
+    private void halloween() {
+        int quarter = (COLUMN_WIDTH * 2 + 10 - 12) / 4;
+
+        toggle(0, 0, "Halloween panels", () -> config.halloweenEnabled, v -> config.halloweenEnabled = v);
+        addRenderableWidget(Button.builder(Component.literal("Move Halloween panels..."), b -> {
+                    onChange.run();
+                    openHalloweenPositions.run();
+                })
+                .bounds(x(1), y(0), COLUMN_WIDTH, 20).build());
+
+        toggle(0, 1, "Candy per hour", () -> config.hwCandyRate, v -> config.hwCandyRate = v);
+        cycle(1, 1, "Rates over", () -> config.hwRateMinutes, v -> config.hwRateMinutes = v,
+                new int[] { 5, 10, 15, 30, 60 }, v -> v + " min");
+        toggle(0, 2, "Crops per hour", () -> config.hwCropRates, v -> config.hwCropRates = v);
+        toggle(1, 2, "Each crop", () -> config.hwPerCrop, v -> config.hwPerCrop = v);
+
+        toggleAt(quarterX(0, quarter), y(3), quarter, "Pests", () -> config.hwPests, v -> config.hwPests = v);
+        toggleAt(quarterX(1, quarter), y(3), quarter, "Caravan", () -> config.hwCaravan, v -> config.hwCaravan = v);
+        Button alert = toggleAt(quarterX(2, quarter), y(3), quarter, "Alert", () -> config.hwCaravanReminder,
+                v -> config.hwCaravanReminder = v);
+        alert.setTooltip(Tooltip.create(Component.literal("A reminder, with the boss reminder's sound, "
+                + "in the minute before the caravan leaves.")));
+        addRenderableWidget(Button.builder(Component.literal("Reset rates"), b -> resetHalloweenRates.run())
+                .bounds(quarterX(3, quarter), y(3), quarter, 20).build());
+
+        toggle(0, 4, "Ability timers", () -> config.hwAbilities, v -> config.hwAbilities = v);
+        toggle(1, 4, "Ready sound", () -> config.hwAbilitySound, v -> config.hwAbilitySound = v);
+
+        // Pumpkin set bars; a piece already owned gets no bar.
+        java.util.Set<String> owned = pumpkinOwned.get();
+        List<String> pieces = minerefinehud.halloween.PumpkinSet.PIECES;
+        for (int i = 0; i < pieces.size(); i++) {
+            String piece = pieces.get(i);
+            String shortName = switch (piece) {
+                case "Chestplate" -> "Chest";
+                case "Leggings" -> "Legs";
+                default -> piece;
+            };
+            if (owned.contains(piece)) {
+                Button b = Button.builder(Component.literal(shortName + ": owned"), w -> { })
+                        .bounds(quarterX(i, quarter), y(5), quarter, 20).build();
+                b.active = false;
+                addRenderableWidget(b);
+                continue;
+            }
+            pumpkinToggle(quarterX(i, quarter), y(5), quarter, piece, shortName);
+        }
+        Button set = pumpkinToggle(quarterX(0, quarter), y(6), quarter, minerefinehud.halloween.PumpkinSet.SET, "Set");
+        set.setTooltip(Tooltip.create(Component.literal("One bar for every pumpkin piece you do not have yet.")));
+        addRenderableWidget(Button.builder(Component.literal(barsLabel()), b -> {
+                    config.hwPumpkinDetailed = !config.hwPumpkinDetailed;
+                    b.setMessage(Component.literal(barsLabel()));
+                    onChange.run();
+                })
+                .bounds(quarterX(1, quarter), y(6), quarter, 20).build());
+
+        labels.add(new Label("Refine cost", x(1), y(6) + 6));
+        EditBox refine = field(x(1) + 66, y(6), COLUMN_WIDTH - 66,
+                config.hwRefineCost > 0 ? minerefinehud.halloween.HalloweenHud.amount(config.hwRefineCost).replace(",", "") : "",
+                8, s -> s.matches("[0-9]*\\.?[0-9]*"),
+                s -> {
+                    try {
+                        config.hwRefineCost = s.isEmpty() ? 0.0 : Math.max(0.0, Double.parseDouble(s));
+                        onChange.run();
+                    } catch (NumberFormatException ignored) {
+                        // Half-typed; keep the last good value.
+                    }
+                });
+        refine.setTooltip(Tooltip.create(Component.literal("Candy your next hoe refine costs. Read by itself "
+                + "when the refiner shows a candy price; empty hides the refine bar.")));
+        addRenderableWidget(refine);
+    }
+
+    private String barsLabel() {
+        return "Bars: " + (config.hwPumpkinDetailed ? "full" : "short");
+    }
+
+    /** Left edge of one of four equal buttons across both columns. */
+    private int quarterX(int i, int quarter) {
+        return x(0) + i * (quarter + 4);
+    }
+
+    private Button pumpkinToggle(int x, int y, int width, String bar, String label) {
+        java.util.function.BooleanSupplier on = () -> config.hwPumpkinBars.contains(bar);
+        return toggleAt(x, y, width, label, on, v -> {
+            config.hwPumpkinBars.remove(bar);
+            if (v) {
+                config.hwPumpkinBars.add(bar);
+            }
+        });
     }
 
     private void progress() {
@@ -299,7 +414,10 @@ public final class SettingsScreen extends Screen {
         background(1, "Bosses", config.bossLook);
         background(2, "Progress", config.progressLook);
         background(3, "Reminder", config.alertLook);
-        labels.add(new Label("Size is set in the move screen: scroll over a panel.", x(0), y(5)));
+        background(4, "Halloween", config.hwStatsLook);
+        background(5, "Pumpkin set", config.hwPumpkinLook);
+        background(6, "Abilities", config.hwAbilityLook);
+        labels.add(new Label("Size is set in the move screen: scroll over a panel.", x(1), y(0) + 6));
     }
 
     private void background(int row, String name, ModConfig.Look look) {
@@ -356,12 +474,12 @@ public final class SettingsScreen extends Screen {
         toggleAt(x(column), y(row), label, get, set);
     }
 
-    private void toggleAt(int x, int y, String label, BooleanSupplier get, Consumer<Boolean> set) {
-        toggleAt(x, y, COLUMN_WIDTH, label, get, set);
+    private Button toggleAt(int x, int y, String label, BooleanSupplier get, Consumer<Boolean> set) {
+        return toggleAt(x, y, COLUMN_WIDTH, label, get, set);
     }
 
-    private void toggleAt(int x, int y, int width, String label, BooleanSupplier get, Consumer<Boolean> set) {
-        addRenderableWidget(Button.builder(onOff(label, get.getAsBoolean()), b -> {
+    private Button toggleAt(int x, int y, int width, String label, BooleanSupplier get, Consumer<Boolean> set) {
+        return addRenderableWidget(Button.builder(onOff(label, get.getAsBoolean()), b -> {
                     set.accept(!get.getAsBoolean());
                     b.setMessage(onOff(label, get.getAsBoolean()));
                     onChange.run();

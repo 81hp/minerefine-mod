@@ -241,6 +241,112 @@ public final class ModConfig {
         colorBarTrack = fresh.colorBarTrack;
     }
 
+    // ------------------------------------------------------------- Halloween
+
+    /** The Halloween panels, which replace the mine and progress panels in that dimension. */
+    public boolean halloweenEnabled = true;
+
+    public boolean hwCandyRate = true;
+    public boolean hwCropRates = true;
+    public boolean hwPerCrop = true;
+    public boolean hwPests = true;
+    public boolean hwCaravan = true;
+    /** The alert, with sound, a minute before the caravan leaves. */
+    public boolean hwCaravanReminder = true;
+    public boolean hwRefine = true;
+    /** Minutes of play the per-hour rates are averaged over. */
+    public int hwRateMinutes = 10;
+
+    public boolean hwAbilities = true;
+    public boolean hwAbilitySound = true;
+
+    /** Pumpkin set bars: "Helmet", "Chestplate", "Leggings", "Boots", "Set". */
+    public java.util.List<String> hwPumpkinBars = new java.util.ArrayList<>();
+    /** Each currency on its own line rather than one percentage. */
+    public boolean hwPumpkinDetailed = true;
+    /** Pumpkin pieces the shop showed as bought (0/1 stock). Written by the mod. */
+    public java.util.List<String> hwPumpkinOwned = new java.util.ArrayList<>();
+    /** Pumpkin piece prices from the shop, piece to currency to amount. Written by the mod. */
+    public java.util.Map<String, java.util.Map<String, Double>> hwPumpkinPrices = new java.util.LinkedHashMap<>();
+
+    /** Candy the next hoe refine costs, typed in or read from the refiner; 0 when unknown. */
+    public double hwRefineCost = 0.0;
+    /** The hoe's refine level, from "Your hoe has been refined to [I]". Written by the mod. */
+    public int hwRefineLevel = 0;
+
+    /** Ability classes learned from the Farming Abilities menu, and the one picked. Written by the mod. */
+    public java.util.Map<String, String> hwAbilityClasses = new java.util.LinkedHashMap<>();
+    public String hwAbilityClass = "";
+
+    public minerefinehud.halloween.RecurringEvent.Saved hwCaravanState = new minerefinehud.halloween.RecurringEvent.Saved();
+
+    public static final HudLayout.Placement DEFAULT_HW_STATS_PLACEMENT = DEFAULT_MINE_PLACEMENT;
+    public static final HudLayout.Placement DEFAULT_HW_PUMPKIN_PLACEMENT = DEFAULT_PROGRESS_PLACEMENT;
+    public static final HudLayout.Placement DEFAULT_HW_ABILITY_PLACEMENT =
+            new HudLayout.Placement(Anchor.CENTER, 0, 30);
+
+    public String hwStatsAnchor = DEFAULT_HW_STATS_PLACEMENT.anchor().name();
+    public int hwStatsX = DEFAULT_HW_STATS_PLACEMENT.offsetX();
+    public int hwStatsY = DEFAULT_HW_STATS_PLACEMENT.offsetY();
+    public String hwPumpkinAnchor = DEFAULT_HW_PUMPKIN_PLACEMENT.anchor().name();
+    public int hwPumpkinX = DEFAULT_HW_PUMPKIN_PLACEMENT.offsetX();
+    public int hwPumpkinY = DEFAULT_HW_PUMPKIN_PLACEMENT.offsetY();
+    public String hwAbilityAnchor = DEFAULT_HW_ABILITY_PLACEMENT.anchor().name();
+    public int hwAbilityX = DEFAULT_HW_ABILITY_PLACEMENT.offsetX();
+    public int hwAbilityY = DEFAULT_HW_ABILITY_PLACEMENT.offsetY();
+
+    public Look hwStatsLook = new Look();
+    public Look hwPumpkinLook = new Look();
+    public Look hwAbilityLook = new Look();
+
+    public HudLayout.Placement hwStatsPlacement() {
+        return new HudLayout.Placement(
+                Anchor.parse(hwStatsAnchor).orElse(DEFAULT_HW_STATS_PLACEMENT.anchor()), hwStatsX, hwStatsY);
+    }
+
+    public void setHwStatsPlacement(HudLayout.Placement p) {
+        hwStatsAnchor = p.anchor().name();
+        hwStatsX = p.offsetX();
+        hwStatsY = p.offsetY();
+    }
+
+    public HudLayout.Placement hwPumpkinPlacement() {
+        return new HudLayout.Placement(
+                Anchor.parse(hwPumpkinAnchor).orElse(DEFAULT_HW_PUMPKIN_PLACEMENT.anchor()), hwPumpkinX, hwPumpkinY);
+    }
+
+    public void setHwPumpkinPlacement(HudLayout.Placement p) {
+        hwPumpkinAnchor = p.anchor().name();
+        hwPumpkinX = p.offsetX();
+        hwPumpkinY = p.offsetY();
+    }
+
+    public HudLayout.Placement hwAbilityPlacement() {
+        return new HudLayout.Placement(
+                Anchor.parse(hwAbilityAnchor).orElse(DEFAULT_HW_ABILITY_PLACEMENT.anchor()), hwAbilityX, hwAbilityY);
+    }
+
+    public void setHwAbilityPlacement(HudLayout.Placement p) {
+        hwAbilityAnchor = p.anchor().name();
+        hwAbilityX = p.offsetX();
+        hwAbilityY = p.offsetY();
+    }
+
+    public minerefinehud.halloween.HalloweenHud.StatsLines hwStatsLines() {
+        return new minerefinehud.halloween.HalloweenHud.StatsLines(hwCandyRate, hwCropRates, hwPerCrop,
+                hwPests, hwCaravan, hwRefine);
+    }
+
+    // -------------------------------------------------------------- Reforger
+
+    /** The Reforger's countdown in the boss panel, everywhere on the server. */
+    public boolean reforgerTimer = true;
+    /** Runs /next reforger quietly after joining, so the countdown is exact straight away. */
+    public boolean reforgerAutoCheck = true;
+    /** The alert, with sound, when the Reforger is about to arrive and when it does. */
+    public boolean reforgerAlert = true;
+    public minerefinehud.halloween.RecurringEvent.Saved reforgerState = new minerefinehud.halloween.RecurringEvent.Saved();
+
     /** Hide the overlay entirely. Also toggled by the keybind in Options, Controls. */
     public boolean enabled = true;
 
@@ -341,6 +447,40 @@ public final class ModConfig {
         if (bossWorlds == null) {
             bossWorlds = new java.util.LinkedHashMap<>();
         }
+        if (hwPumpkinBars == null) {
+            hwPumpkinBars = new java.util.ArrayList<>();
+        }
+        hwPumpkinBars.removeIf(b -> b == null || !(minerefinehud.halloween.PumpkinSet.PIECES.contains(b)
+                || b.equals(minerefinehud.halloween.PumpkinSet.SET)));
+        if (hwPumpkinOwned == null) {
+            hwPumpkinOwned = new java.util.ArrayList<>();
+        }
+        hwPumpkinOwned.removeIf(java.util.Objects::isNull);
+        if (hwPumpkinPrices == null) {
+            hwPumpkinPrices = new java.util.LinkedHashMap<>();
+        }
+        hwPumpkinPrices.values().removeIf(java.util.Objects::isNull);
+        if (hwAbilityClasses == null) {
+            hwAbilityClasses = new java.util.LinkedHashMap<>();
+        }
+        if (hwAbilityClass == null) {
+            hwAbilityClass = "";
+        }
+        if (hwCaravanState == null) {
+            hwCaravanState = new minerefinehud.halloween.RecurringEvent.Saved();
+        }
+        if (reforgerState == null) {
+            reforgerState = new minerefinehud.halloween.RecurringEvent.Saved();
+        }
+        if (Double.isNaN(hwRefineCost) || hwRefineCost < 0) {
+            hwRefineCost = 0.0;
+        }
+        hwRefineLevel = Math.max(0, hwRefineLevel);
+        hwRateMinutes = Math.max(1, Math.min(60, hwRateMinutes));
+        hwStatsLook = fix(hwStatsLook, 1.0);
+        hwPumpkinLook = fix(hwPumpkinLook, 1.0);
+        hwAbilityLook = fix(hwAbilityLook, 1.0);
+
         mineLook = fix(mineLook, 1.0);
         bossLook = fix(bossLook, 1.0);
         progressLook = fix(progressLook, 1.0);

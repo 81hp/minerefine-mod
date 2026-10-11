@@ -171,11 +171,30 @@ public final class HudModel {
      * is switched off, so a lone header is never drawn.
      */
     public static List<Line> bossPanel(List<BossTracker.BossView> bosses, Options options) {
+        return bossPanel(bosses, options, List.of());
+    }
+
+    /**
+     * Boss timers with other timers on top, the Reforger for one. Those show even before any
+     * boss has been seen, and even with the boss panel switched off.
+     */
+    public static List<Line> bossPanel(List<BossTracker.BossView> bosses, Options options, List<Line> extra) {
         List<Line> lines = new ArrayList<>();
         if (options.showBosses() && !bosses.isEmpty()) {
             appendBosses(lines, bosses, options);
         }
-        return lines.size() > 1 ? lines : new ArrayList<>();
+        if (lines.size() <= 1) {
+            lines.clear();
+        }
+        if (!extra.isEmpty()) {
+            if (lines.isEmpty()) {
+                lines.add(Line.of("Timers", Style.HEADER));
+                lines.addAll(extra);
+            } else {
+                lines.addAll(1, extra);
+            }
+        }
+        return lines;
     }
 
     /**
@@ -183,9 +202,17 @@ public final class HudModel {
      * sized apart from the timers. Usually one boss; two only if their windows overlap.
      */
     public static List<Line> alertPanel(List<String> bossNames) {
+        return alertPanel(bossNames, List.of());
+    }
+
+    /** The boss reminders plus any other alert text, the Reforger arriving for one. */
+    public static List<Line> alertPanel(List<String> bossNames, List<String> other) {
         List<Line> lines = new ArrayList<>();
         for (String name : bossNames) {
             lines.add(Line.of(name + " is about to respawn!", Style.WARN));
+        }
+        for (String text : other) {
+            lines.add(Line.of(text, Style.WARN));
         }
         return lines;
     }

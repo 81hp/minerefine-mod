@@ -59,6 +59,17 @@ public final class Compat {
     }
 
     /**
+     * Sends a command to the server as if typed, without the slash. False when not connected.
+     */
+    public static boolean sendCommand(Minecraft client, String command) {
+        if (client.player == null || client.player.connection == null) {
+            return false;
+        }
+        client.player.connection.sendCommand(command);
+        return true;
+    }
+
+    /**
      * Only lets text through that passes {@code allowed}, and reports accepted changes to
      * {@code changed}. 26.1 dropped EditBox's filter, so there a rejected edit is undone right
      * after it lands, before anything else sees it.

@@ -72,6 +72,7 @@ public final class BossTracker {
         r.status = Status.ALIVE;
         r.lastSpawnAt = nowMs;
         r.awaitingSpawn = false;
+        r.respawnAt = UNSET;
     }
 
     /** Call when the server broadcasts that a boss has been slain. */
@@ -80,6 +81,74 @@ public final class BossTracker {
         r.status = Status.DEAD;
         r.lastSlainAt = nowMs;
         r.awaitingSpawn = true;
+        r.respawnAt = UNSET;
+    }
+
+    // ------------------------------------------------------------ boss index
+
+    /** Two readings of the same respawn timer this close together are the same respawn. */
+    private static final long SAME_RESPAWN_MS = 5_000L;
+
+    /**
+     * The /boss index menu shows this boss alive ("SPAWNED!"). A spawn that was missed is taken
+     * as having happened now; nothing is learned from it, since its real time is unknown.
+     *
+     * @return true if anything changed, so the caller knows to save
+     */
+    public boolean onIndexAlive(String bossName, long nowMs) {
+        Record r = recordFor(bossName);
+        if (r.status == Status.ALIVE) {
+            return false;
+        }
+        r.status = Status.ALIVE;
+        r.lastSpawnAt = nowMs;
+        r.awaitingSpawn = false;
+        r.respawnAt = UNSET;
+        return true;
+    }
+
+    /**
+     * The /boss index menu shows this boss dead, back in {@code msLeft}. That is the server's own
+     * timer, so the countdown becomes exact. If the kill was watched, kill to respawn is also a
+     * real interval, learned once per kill.
+     *
+     * @return true if anything changed, so the caller knows to save
+     */
+    public boolean onIndexRespawnIn(String bossName, long msLeft, long nowMs) {
+        Record r = recordFor(bossName);
+        long respawnAt = nowMs + Math.max(0L, msLeft);
+        if (r.status == Status.DEAD && r.respawnAt != UNSET
+                && Math.abs(r.respawnAt - respawnAt) <= SAME_RESPAWN_MS) {
+            return false;   // the menu is read twice a second; the same timer again
+        }
+        // The kill on record is stale when the respawn it led to is already over: the boss came
+        // back and died again unseen, and this timer is for that newer kill.
+        OptionalLong known = r.estimatedInterval();
+        long previousRespawn = r.respawnAt != UNSET ? r.respawnAt
+                : known.isPresent() && r.lastSlainAt != UNSET ? r.lastSlainAt + known.getAsLong() : UNSET;
+        // A kill watched without a break would have had its respawn broadcast, so it is never stale.
+        boolean staleKill = !r.awaitingSpawn && previousRespawn != UNSET
+                && previousRespawn < nowMs - SAME_RESPAWN_MS;
+        if (r.status != Status.DEAD || r.lastSlainAt == UNSET || r.lastSlainAt > nowMs || staleKill) {
+            // The kill was missed. Put it where the learned interval says it was, so the reminder
+            // has a fixed kill to ring once for; without an interval, now will do.
+            OptionalLong interval = r.estimatedInterval();
+            r.lastSlainAt = interval.isPresent() ? respawnAt - interval.getAsLong() : nowMs;
+            r.awaitingSpawn = false;
+        } else if (r.awaitingSpawn) {
+            long gap = respawnAt - r.lastSlainAt;
+            if (gap >= MIN_PLAUSIBLE_INTERVAL_MS && gap <= MAX_PLAUSIBLE_INTERVAL_MS) {
+                r.intervals.addLast(gap);
+                while (r.intervals.size() > MAX_SAMPLES) {
+                    r.intervals.removeFirst();
+                }
+            }
+            // Learned here; the spawn broadcast must not count the same gap a second time.
+            r.awaitingSpawn = false;
+        }
+        r.status = Status.DEAD;
+        r.respawnAt = respawnAt;
+        return true;
     }
 
     /**
@@ -121,13 +190,13 @@ public final class BossTracker {
 
     /** Flat form for writing to disk, so timers survive a relog. */
     public record Persisted(String displayName, Status status, long lastSpawnAt,
-                            long lastSlainAt, List<Long> intervals) {}
+                            long lastSlainAt, List<Long> intervals, long respawnAt) {}
 
     public List<Persisted> export() {
         List<Persisted> out = new ArrayList<>(bosses.size());
         for (Record r : bosses.values()) {
             out.add(new Persisted(r.displayName, r.status, r.lastSpawnAt, r.lastSlainAt,
-                    new ArrayList<>(r.intervals)));
+                    new ArrayList<>(r.intervals), r.respawnAt));
         }
         return out;
     }
@@ -149,6 +218,8 @@ public final class BossTracker {
                     }
                 }
             }
+            // Files from before the boss index have no respawnAt, which Gson reads as 0.
+            r.respawnAt = p.respawnAt() > 0L ? p.respawnAt() : UNSET;
             // A restored session never counts as continuous.
             r.awaitingSpawn = false;
         }
@@ -166,6 +237,8 @@ public final class BossTracker {
         long lastSpawnAt = UNSET;
         long lastSlainAt = UNSET;
         boolean awaitingSpawn;
+        /** When the /boss index said this boss is back, or UNSET. Beats the learned interval. */
+        long respawnAt = UNSET;
         final Deque<Long> intervals = new ArrayDeque<>();
 
         Record(String displayName) {
@@ -190,7 +263,10 @@ public final class BossTracker {
             OptionalLong interval = estimatedInterval();
 
             OptionalLong eta = OptionalLong.empty();
-            if (status == Status.DEAD && interval.isPresent() && lastSlainAt != UNSET) {
+            boolean fromIndex = status == Status.DEAD && respawnAt != UNSET;
+            if (fromIndex) {
+                eta = OptionalLong.of(respawnAt - nowMs);
+            } else if (status == Status.DEAD && interval.isPresent() && lastSlainAt != UNSET) {
                 eta = OptionalLong.of(lastSlainAt + interval.getAsLong() - nowMs);
             }
 
@@ -200,22 +276,26 @@ public final class BossTracker {
                 case UNKNOWN -> 0L;
             };
 
-            return new BossView(displayName, status, since, eta, intervals.size(), interval);
+            return new BossView(displayName, status, since, eta, intervals.size(), interval, fromIndex);
         }
     }
 
     /** Immutable snapshot handed to the HUD. */
     public record BossView(String displayName, Status status, long sinceEventMs,
-                           OptionalLong etaMs, int sampleCount, OptionalLong intervalMs) {
+                           OptionalLong etaMs, int sampleCount, OptionalLong intervalMs,
+                           boolean fromIndex) {
 
-        /** True once at least one clean kill-to-spawn gap has been measured. */
+        /**
+         * True once the countdown can be shown: a clean kill-to-spawn gap has been measured, or
+         * the /boss index gave the server's own timer.
+         */
         public boolean intervalKnown() {
-            return intervalMs.isPresent();
+            return intervalMs.isPresent() || fromIndex;
         }
 
-        /** The estimate is still settling on a single sample. */
+        /** The estimate is past its first sample, or is the server's own timer. */
         public boolean intervalConfident() {
-            return sampleCount >= 2;
+            return sampleCount >= 2 || fromIndex;
         }
 
         /** Countdown has run out but no spawn was seen, so a message was probably missed. */

@@ -54,6 +54,16 @@ public final class ShopScanner {
         return out;
     }
 
+    /** The open container's title, "Farming Abilities", or empty. */
+    public static String screenTitle(Minecraft client) {
+        try {
+            Screen screen = Compat.screen(client);
+            return screen instanceof AbstractContainerScreen<?> ? screen.getTitle().getString() : "";
+        } catch (Exception | NoSuchMethodError | NoClassDefFoundError ignored) {
+            return "";
+        }
+    }
+
     private static String title(ItemStack stack) {
         Component name = stack.getHoverName();
         return name == null ? "" : name.getString();

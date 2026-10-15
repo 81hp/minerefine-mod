@@ -4,7 +4,8 @@
   "package": "minerefinehud.mixin",
   "compatibilityLevel": "JAVA_21",
   "client": [
-    "InGameHudMixin"
+    "InGameHudMixin",
+    "LocalPlayerDropMixin"
   ],
   "injectors": {
     "defaultRequire": 0

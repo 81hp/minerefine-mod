@@ -157,6 +157,20 @@ public final class Abilities {
         return learned;
     }
 
+    /**
+     * "Farming ability set to Witch.": that class is picked now. A class not seen yet still
+     * replaces the old pick, so the old class's timers are not shown for it; its abilities come
+     * from the menu. Returns true if the pick changed.
+     */
+    public boolean select(String className) {
+        String k = key(className);
+        if (k.isEmpty() || k.equals(selected)) {
+            return false;
+        }
+        selected = k;
+        return true;
+    }
+
     private boolean learnSelectionFrom(String ability) {
         Optional<ClassSpec> c = classWith(ability);
         if (c.isPresent() && !key(c.get().name()).equals(selected)) {

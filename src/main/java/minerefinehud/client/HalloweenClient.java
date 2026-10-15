@@ -53,6 +53,8 @@ final class HalloweenClient {
 
     private boolean inHalloween;
     private long lastHalloweenSidebarAt;
+    /** The world the Halloween sidebar was last seen in, to stay in Halloween while escorting the caravan. */
+    private String halloweenDimension = "";
     private long lastSidebarCheck;
     private boolean onMineRefine;
     /** MineRefine's sidebar was seen since joining, so this is that server and not another. */
@@ -64,8 +66,6 @@ final class HalloweenClient {
     /** Pumpkin pieces on the player right now, checked every couple of seconds. */
     private Set<String> carriedPieces = Set.of();
     private long lastCarriedCheck;
-
-    private boolean dropWasDown;
 
     // Reforger query: /next reforger, sent quietly, its answer hidden.
     private boolean wantQuery;
@@ -82,6 +82,8 @@ final class HalloweenClient {
     private long caravanWarnedAt;
 
     private static final long ACTION_BAR_FRESH_MS = 5_000L;
+    /** The Halloween sidebar this recently, then a caravan run, keeps the Halloween panels. */
+    private static final long ESCORT_GRACE_MS = 15L * 60_000L;
     private static final long ALERT_SHOW_MS = 10_000L;
     private static final Pattern HOE = Pattern.compile("\\bhoe\\b", Pattern.CASE_INSENSITIVE);
 
@@ -96,6 +98,7 @@ final class HalloweenClient {
 
     void register() {
         ClientTickEvents.END_CLIENT_TICK.register(this::tick);
+        DropKeyHook.listen(this::onDrop);
 
         // Before the message reaches chat, so the answer to the quiet /next reforger can be hidden.
         ClientReceiveMessageEvents.ALLOW_GAME.register((Component message, boolean overlay) -> {
@@ -134,6 +137,7 @@ final class HalloweenClient {
     void onJoin() {
         inHalloween = false;
         lastHalloweenSidebarAt = 0L;
+        halloweenDimension = "";
         onMineRefine = false;
         seenMineRefine = false;
         mineRefineSince = 0L;
@@ -175,18 +179,6 @@ final class HalloweenClient {
             carriedPieces = carriedPieces(client);
         }
 
-        // Drop pressed with a hoe in hand fires the ability; the server says nothing until then.
-        boolean dropDown = false;
-        try {
-            dropDown = client.options.keyDrop.isDown();
-            if (dropDown && !dropWasDown && inHalloween && Compat.screen(client) == null && holdingHoe(client)) {
-                abilities.pressed(client.options.keyShift.isDown() ? Abilities.Key.SHIFT_DROP : Abilities.Key.DROP, now);
-            }
-        } catch (Exception | NoSuchMethodError | NoSuchFieldError ignored) {
-            // A renamed key mapping costs the press detection; chat still drives the timers.
-        }
-        dropWasDown = dropDown;
-
         if (!abilities.newlyReady(now).isEmpty() && inHalloween && config.halloweenEnabled
                 && config.hwAbilities && config.hwAbilitySound) {
             sound.run();
@@ -198,16 +190,40 @@ final class HalloweenClient {
         }
     }
 
+    /**
+     * Drop pressed. With a hoe in hand in Halloween it fires the ability, and the server says
+     * nothing until it has recharged, so this is where the cooldown starts.
+     */
+    private void onDrop() {
+        Minecraft client = Minecraft.getInstance();
+        if (client == null || client.player == null || !inHalloween || !holdingHoe(client)) {
+            return;
+        }
+        boolean shift;
+        try {
+            shift = client.player.isShiftKeyDown() || client.options.keyShift.isDown();
+        } catch (Exception | NoSuchMethodError | NoSuchFieldError ignored) {
+            shift = false;
+        }
+        abilities.pressed(shift ? Abilities.Key.SHIFT_DROP : Abilities.Key.DROP, System.currentTimeMillis());
+    }
+
     private void readSidebar(Minecraft client, long now) {
         List<String> lines = SidebarReader.sidebarLines(client);
-        onMineRefine = !lines.isEmpty() && HalloweenText.isMineRefineTitle(lines.get(0));
+        onMineRefine = HalloweenText.isMineRefine(lines);
         seenMineRefine |= onMineRefine;
         HalloweenText.Sidebar sidebar = HalloweenText.sidebar(lines);
+        String dimension = dimension(client);
         if (sidebar.halloween()) {
             lastHalloweenSidebarAt = now;
+            halloweenDimension = dimension;
         }
         // A moment's grace, so a sidebar that redraws for a tick does not flip the panels.
         boolean nowIn = lastHalloweenSidebarAt > 0L && now - lastHalloweenSidebarAt < 3_000L;
+        // Escorting the caravan swaps the sidebar out. The player is still in Halloween while the
+        // caravan runs and they stay in the world they farmed in. This only keeps the panels on,
+        // never switches them on, in case the mines share that world.
+        nowIn |= inHalloween && escorting(now, dimension);
         if (nowIn != inHalloween) {
             inHalloween = nowIn;
             rates.forgetBaselines();   // nothing changed while away counts as farmed here
@@ -222,16 +238,34 @@ final class HalloweenClient {
         }
     }
 
-    /** The action bar, while in Halloween. True when it was taken, so mining code leaves it alone. */
+    /**
+     * A caravan run is on, or its one-minute warning has sounded, and the player has not left the
+     * world where they last saw the Halloween sidebar.
+     */
+    private boolean escorting(long now, String dimension) {
+        if (lastHalloweenSidebarAt <= 0L || now - lastHalloweenSidebarAt >= ESCORT_GRACE_MS
+                || dimension.isEmpty() || !dimension.equals(halloweenDimension)) {
+            return false;
+        }
+        RecurringEvent.View v = caravan.view(now);
+        return v.state() == RecurringEvent.State.ACTIVE
+                || (v.state() == RecurringEvent.State.WAITING && v.exact() && v.ms() <= 65_000L);
+    }
+
+    /**
+     * The action bar, while in Halloween. True when it was taken, so mining code leaves it alone.
+     * While escorting, with no Halloween sidebar, only a crop total is taken.
+     */
     boolean onActionBar(String text) {
         if (!inHalloween) {
             return false;
         }
-        HalloweenText.actionBar(text).ifPresent(r -> {
+        Optional<HalloweenText.CropReading> crop = HalloweenText.actionBar(text);
+        crop.ifPresent(r -> {
             actionBarCrops.put(r.crop(), r.amount());
             actionBarAt.put(r.crop(), System.currentTimeMillis());
         });
-        return true;
+        return crop.isPresent() || System.currentTimeMillis() - lastHalloweenSidebarAt < 3_000L;
     }
 
     /** Sidebar balances, with the action bar's newer crop total where it has one. */
@@ -269,6 +303,14 @@ final class HalloweenClient {
                     ? abilities.recharging(r.ability(), r.secondsLeft().getAsDouble(), now)
                     : abilities.recharged(r.ability(), now);
             if (learned) {
+                saveAbilities();
+            }
+            return;
+        }
+
+        Optional<String> picked = HalloweenText.abilitySet(text);
+        if (picked.isPresent()) {
+            if (abilities.select(picked.get())) {
                 saveAbilities();
             }
             return;
@@ -522,6 +564,14 @@ final class HalloweenClient {
         config.hwCaravanState = caravan.export();
         config.reforgerState = reforger.export();
         save.run();
+    }
+
+    private static String dimension(Minecraft client) {
+        try {
+            return client.level == null ? "" : client.level.dimension().identifier().toString();
+        } catch (Exception | NoSuchMethodError | NoClassDefFoundError ignored) {
+            return "";
+        }
     }
 
     private static boolean holdingHoe(Minecraft client) {

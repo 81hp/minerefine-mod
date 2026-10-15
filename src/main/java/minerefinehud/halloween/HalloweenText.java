@@ -16,6 +16,7 @@ import java.util.regex.Pattern;
  *   sidebar   "HALLOWEEN", "Carrots 45,395", "Beetroots 86,824", "Nether Wart 13,535", "Candy 21.5"
  *   chat      "+1.1  Candy from the Pest!", "+1 Halloween Charm from the Pest! (right-click it to redeem)"
  *             "Will-o'-Wisps is recharging (2.31s)", "Will-o'-Wisps has recharged! [DROP]"
+ *             "Farming ability set to Jack o'Lantern."
  *             "Your hoe has been refined to [I]."
  *
  * Candy has decimals, so everything here is a double. No Minecraft types.
@@ -26,7 +27,7 @@ public final class HalloweenText {
 
     /** Every crop the event might use. Only names here are read, so "Resurrection 1" never counts. */
     public static final List<String> CROPS = List.of(
-            "Carrots", "Beetroots", "Nether Wart", "Potatoes", "Wheat", "Pumpkins", "Melons");
+            "Carrots", "Beetroots", "Nether Wart", "Fire Coral", "Potatoes", "Wheat", "Pumpkins", "Melons");
 
     private static final Pattern FORMATTING = Pattern.compile("[§&][0-9A-Fa-fK-Ok-oRr]");
 
@@ -46,6 +47,27 @@ public final class HalloweenText {
         java.util.ArrayList<String> out = new java.util.ArrayList<>(CROPS);
         out.add(CANDY);
         return out;
+    }
+
+    /**
+     * The server writes headings in small capitals, "ᴍɪɴᴇʀᴇғɪɴᴇ", some of them borrowed from other
+     * alphabets (the "ғ" there is Cyrillic). These become plain letters, so "ᴍɪɴᴇʀᴇғɪɴᴇ" reads as
+     * "minerefine".
+     */
+    private static final String SMALL_CAPS = "ᴀʙᴄᴅᴇꜰғɢʜɪᴊᴋʟᴍɴᴏᴘǫʀꜱѕᴛᴜᴠᴡʏᴢ";
+    private static final String SMALL_CAPS_PLAIN = "abcdeffghijklmnopqrsstuvwyz";
+
+    public static String plainLetters(String s) {
+        if (s == null) {
+            return "";
+        }
+        StringBuilder out = new StringBuilder(s.length());
+        for (int i = 0; i < s.length(); i++) {
+            char c = s.charAt(i);
+            int at = SMALL_CAPS.indexOf(c);
+            out.append(at >= 0 ? SMALL_CAPS_PLAIN.charAt(at) : c);
+        }
+        return out.toString();
     }
 
     public static String strip(String raw) {
@@ -107,7 +129,7 @@ public final class HalloweenText {
         boolean heading = false;
         if (lines != null) {
             for (String raw : lines) {
-                String line = strip(raw);
+                String line = plainLetters(strip(raw));
                 String letters = line.replaceAll("[^\\p{L}]", "").toUpperCase(Locale.ROOT);
                 if (letters.equals("HALLOWEEN")) {
                     heading = true;
@@ -123,15 +145,29 @@ public final class HalloweenText {
         return new Sidebar(halloween, halloween ? balances : java.util.Map.of());
     }
 
-    /** The server's name in the sidebar title, "MINEREFINE", so commands only go to this server. */
+    /**
+     * The server's name, so commands only go to this server. It is the sidebar title, "ᴍɪɴᴇʀᴇғɪɴᴇ",
+     * and the address at the bottom, "ᴍɪɴᴇʀᴇꜰɪɴᴇ.ᴍɪɴᴇʜᴜᴛ.ɢɢ"; any sidebar line naming it will do.
+     */
+    public static boolean isMineRefine(List<String> sidebarLines) {
+        if (sidebarLines != null) {
+            for (String line : sidebarLines) {
+                if (isMineRefineTitle(line)) {
+                    return true;
+                }
+            }
+        }
+        return false;
+    }
+
     public static boolean isMineRefineTitle(String title) {
-        return strip(title).replaceAll("[^\\p{L}]", "").toUpperCase(Locale.ROOT).contains("MINEREFINE");
+        return plainLetters(strip(title)).replaceAll("[^\\p{L}]", "").toUpperCase(Locale.ROOT).contains("MINEREFINE");
     }
 
     // ------------------------------------------------------------- action bar
 
     private static final Pattern CROP_SPRITE = Pattern.compile(
-            "\\[item/(?<sprite>carrot|beetroot|nether_wart|potato|wheat|pumpkin|melon_slice|melon)(?:@[a-z0-9_:./\\-]+)?\\]",
+            "\\[item/(?<sprite>carrot|beetroot|nether_wart|fire_coral(?:_block|_fan)?|potato|wheat|pumpkin|melon_slice|melon)(?:@[a-z0-9_:./\\-]+)?\\]",
             Pattern.CASE_INSENSITIVE);
 
     private static String cropOfSprite(String sprite) {
@@ -139,6 +175,7 @@ public final class HalloweenText {
             case "carrot" -> "Carrots";
             case "beetroot" -> "Beetroots";
             case "nether_wart" -> "Nether Wart";
+            case "fire_coral", "fire_coral_block", "fire_coral_fan" -> "Fire Coral";
             case "potato" -> "Potatoes";
             case "wheat" -> "Wheat";
             case "pumpkin" -> "Pumpkins";
@@ -190,6 +227,8 @@ public final class HalloweenText {
             "^(?<name>.+?) is recharging \\((?<secs>[0-9]+(?:\\.[0-9]+)?)s\\)", Pattern.CASE_INSENSITIVE);
     private static final Pattern RECHARGED = Pattern.compile(
             "^(?<name>.+?) has recharged!", Pattern.CASE_INSENSITIVE);
+    private static final Pattern ABILITY_SET = Pattern.compile(
+            "^Farming ability set to (?<name>.+?)\\.?$", Pattern.CASE_INSENSITIVE);
     private static final Pattern REFINED = Pattern.compile(
             "hoe has been refined to \\[?(?<level>[IVXLC]+|[0-9]+)\\]?", Pattern.CASE_INSENSITIVE);
 
@@ -218,6 +257,12 @@ public final class HalloweenText {
             return Optional.of(new Recharge(m.group("name").trim(), OptionalDouble.empty()));
         }
         return Optional.empty();
+    }
+
+    /** The class in "Farming ability set to Jack o'Lantern.", sent when one is picked at the NPC. */
+    public static Optional<String> abilitySet(String line) {
+        Matcher m = ABILITY_SET.matcher(strip(line));
+        return m.find() ? Optional.of(m.group("name").trim()) : Optional.empty();
     }
 
     /** The refine level from "Your hoe has been refined to [I].", or 0. */

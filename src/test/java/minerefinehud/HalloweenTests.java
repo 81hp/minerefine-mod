@@ -34,6 +34,7 @@ public final class HalloweenTests {
         bossIndexIsRead();
         bossIndexFixesTimers();
         panelsRender();
+        testerReports();
 
         System.out.println();
         System.out.println("passed: " + passed + "   failed: " + failed);
@@ -308,6 +309,117 @@ public final class HalloweenTests {
     }
 
     // ---------------------------------------------------------------- helpers
+
+    /** The 1.3.0 tester reports, each from what the game really sends. */
+    private static void testerReports() {
+        // The sidebar title and address are small capitals, the title's "f" a Cyrillic letter.
+        List<String> real = List.of("ᴍɪɴᴇʀᴇғɪɴᴇ", "§b", "| 17,430,000 (ʀᴀɴᴋ #36)§7", "| ⛃ ᴄᴏɪɴѕ: 82.6B§5",
+                "ᴍɪɴᴇʀᴇꜰɪɴᴇ.ᴍɪɴᴇʜᴜᴛ.ɢɢ§0");
+        check("small-caps title is MineRefine", HalloweenText.isMineRefineTitle(real.get(0)));
+        check("any sidebar line names the server", HalloweenText.isMineRefine(real.subList(1, real.size())));
+        check("another server's sidebar is not MineRefine",
+                !HalloweenText.isMineRefine(List.of("ʜʏᴘɪxᴇʟ", "Coins: 5")));
+        check("small-caps halloween heading", HalloweenText.sidebar(List.of("ᴍɪɴᴇʀᴇғɪɴᴇ", "🎃 ʜᴀʟʟᴏᴡᴇᴇɴ")).halloween());
+        check("a mining sidebar in small caps is not Halloween", !HalloweenText.sidebar(real).halloween());
+
+        // Fire Coral is a crop: in the sidebar, the per-crop rows and the crop rate.
+        HalloweenText.Sidebar coral = HalloweenText.sidebar(List.of("🎃 HALLOWEEN", "│ Fire Coral 12,345",
+                "│ Carrots 45,395", "│ ⋈ Candy 21.5"));
+        eq("fire coral read", 12345.0, coral.balances().get("Fire Coral"));
+        eq("fire coral on the action bar", Optional.of(new HalloweenText.CropReading("Fire Coral", 1234.0)),
+                HalloweenText.actionBar("[item/fire_coral@items] 1,234"));
+        Rates rates = new Rates();
+        rates.observe("Fire Coral", 100.0);
+        for (int i = 1; i <= 240; i++) {
+            rates.tick(i * 500L, true);
+        }
+        rates.observe("Fire Coral", 160.0);
+        var stats = HalloweenHud.statsPanel(new HalloweenHud.Stats(Map.of("Fire Coral", 160.0, "Candy", 1.0),
+                rates, 600_000L, 0, 0, new RecurringEvent.View(RecurringEvent.State.UNKNOWN, 0L, false), 0, 0),
+                HalloweenHud.StatsLines.all());
+        check("fire coral has its own row", stats.stream().anyMatch(l -> l.text().startsWith(" Fire Coral 160")));
+        check("fire coral counts in the crop rate", stats.stream().anyMatch(l -> l.text().equals("Crops 1.8k/h")));
+
+        // Picking a class at the NPC says so in chat; the panel follows without reading the menu.
+        eq("ability set read", Optional.of("Witch"), HalloweenText.abilitySet("Farming ability set to Witch."));
+        eq("other chat is no pick", Optional.empty(), HalloweenText.abilitySet("Will-o'-Wisps has recharged! [DROP]"));
+        Abilities a = new Abilities();
+        a.importClasses(Map.of(), "Jack o'Lantern");
+        check("picked from chat", a.select("Witch"));
+        eq("witch timers now", "Homing Hex", a.timers(0L).get(0).ability());
+        check("same pick again changes nothing", !a.select("witch"));
+        a.select("Scarecrow");
+        check("an unseen class shows no other class's timers", a.timers(0L).isEmpty());
+
+        // Using an ability (drop with the hoe) starts its timer; the server only says "recharged".
+        Abilities used = new Abilities();
+        used.importClasses(Map.of(), "Jack o'Lantern");
+        used.pressed(Abilities.Key.DROP, 1_000L);
+        eq("cooldown runs after a use", 4_000L, used.timers(4_000L).get(0).msLeft());
+        used.recharged("Will-o'-Wisps", 8_000L);
+        check("ready at the server's recharged", used.timers(8_000L).get(0).ready());
+
+        // A missed caravan is two cycles, not one long one.
+        RecurringEvent c = RecurringEvent.caravan();
+        long t = 50_000_000L;
+        c.started(t);
+        c.started(t + 90 * 60_000L);
+        eq("cycle stays 45 minutes", 45 * 60_000L, c.cycleMs());
+        c.ended(t + 94 * 60_000L);
+        eq("next in about 41 minutes", 41 * 60_000L, c.view(t + 94 * 60_000L).ms());
+        RecurringEvent late = RecurringEvent.caravan();
+        late.started(t);
+        late.started(t + 68 * 60_000L);
+        eq("one late caravan is not two short cycles", 45 * 60_000L, late.cycleMs());
+        RecurringEvent three = RecurringEvent.caravan();
+        three.started(t);
+        three.started(t + 3 * 44 * 60_000L);
+        eq("three missed cycles of 44", 44 * 60_000L, three.cycleMs());
+        RecurringEvent.Saved bad = new RecurringEvent.Saved();
+        bad.cycleMs = 85 * 60_000L;
+        bad.lastStart = t;
+        bad.nextAt = t + 85 * 60_000L;
+        RecurringEvent old = RecurringEvent.caravan();
+        old.importFrom(bad);
+        eq("a stretched cycle saved by 1.3.0 is ignored", 45 * 60_000L, old.cycleMs());
+        RecurringEvent.Saved sane = new RecurringEvent.Saved();
+        sane.cycleMs = 40 * 60_000L;
+        RecurringEvent good = RecurringEvent.caravan();
+        good.importFrom(sane);
+        eq("a sane learned cycle is kept", 40 * 60_000L, good.cycleMs());
+
+        // A boss the index shows spawned stays in the panel, even with alive rows off.
+        HudModel.Options noAlive = new HudModel.Options(true, false, false, 200.0, true, 5,
+                HudModel.MineLines.all(), new HudModel.BossLines(false, true), HudModel.ProgressLines.all());
+        BossTracker b = new BossTracker();
+        b.onSlain("Zeus", t);
+        b.onSpawned("Zeus", t + 120_000L);
+        b.onSlain("Zeus", t + 140_000L);
+        b.onIndexAlive("Zeus", t + 400_000L);
+        List<HudModel.Line> panel = HudModel.bossPanel(b.views(t + 401_000L), noAlive);
+        check("index-up boss still shown", panel.stream().anyMatch(l -> l.text().equals("Zeus: UP")));
+        eq("unknown once its kill went unheard", BossTracker.Status.UNKNOWN,
+                b.view("Zeus", t + 400_000L + BossTracker.INDEX_UP_MS + 1_000L).orElseThrow().status());
+        b.onSlain("Zeus", t + 420_000L);
+        eq("a heard kill gives the countdown back", BossTracker.Status.DEAD,
+                b.view("Zeus", t + 430_000L).orElseThrow().status());
+        BossTracker heard = new BossTracker();
+        heard.onSpawned("Ares", t);
+        heard.onIndexAlive("Ares", t + 10_000L);
+        check("a spawn heard just now stays a normal alive row",
+                HudModel.bossPanel(heard.views(t + 10_000L), noAlive).isEmpty());
+        BossTracker stale = new BossTracker();
+        stale.onSpawned("Ares", t);
+        check("a spawn heard long ago is replaced by the index", stale.onIndexAlive("Ares", t + 3_600_000L));
+        b.onIndexAlive("Zeus", t + 500_000L);
+        long stillUp = t + 500_000L + BossTracker.INDEX_UP_MS + 1_000L;
+        check("the index saying it again renews it", b.onIndexAlive("Zeus", stillUp));
+        eq("up again", BossTracker.Status.ALIVE, b.view("Zeus", stillUp).orElseThrow().status());
+        b.onIndexAlive("Hera", t);
+        BossTracker reloaded = new BossTracker();
+        reloaded.importAll(b.export());
+        check("index-up survives a save", reloaded.view("Hera", t).orElseThrow().upFromIndex());
+    }
 
     private static void check(String name, boolean ok) {
         if (ok) {

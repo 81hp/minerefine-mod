@@ -204,7 +204,8 @@ public final class SettingsScreen extends Screen {
      * screen.
      */
     private void halloween() {
-        int quarter = (COLUMN_WIDTH * 2 + 10 - 12) / 4;
+        // Two buttons to a column, so the small buttons line up with the full-width ones above.
+        int quarter = (COLUMN_WIDTH - QUARTER_GAP) / 2;
 
         toggle(0, 0, "Halloween panels", () -> config.halloweenEnabled, v -> config.halloweenEnabled = v);
         addRenderableWidget(Button.builder(Component.literal("Move Halloween panels..."), b -> {
@@ -280,9 +281,11 @@ public final class SettingsScreen extends Screen {
         return "Bars: " + (config.hwPumpkinDetailed ? "full" : "short");
     }
 
-    /** Left edge of one of four equal buttons across both columns. */
+    private static final int QUARTER_GAP = 4;
+
+    /** Left edge of one of four equal buttons across both columns, two in each. */
     private int quarterX(int i, int quarter) {
-        return x(0) + i * (quarter + 4);
+        return x(i / 2) + (i % 2) * (quarter + QUARTER_GAP);
     }
 
     private Button pumpkinToggle(int x, int y, int width, String bar, String label) {

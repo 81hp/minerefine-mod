@@ -2,6 +2,7 @@ package minerefinehud.test;
 
 import minerefinehud.client.ActionBarHook;
 import minerefinehud.client.Compat;
+import minerefinehud.client.DropKeyHook;
 import minerefinehud.client.HudPositionScreen;
 import minerefinehud.client.SettingsScreen;
 import minerefinehud.client.ShopScanner;
@@ -116,6 +117,12 @@ public class MinerefineClientGameTest implements FabricClientGameTest {
                     "the shop scanner did not read the item's name and lore: " + items);
             context.getInput().pressKey(GLFW.GLFW_KEY_ESCAPE);
             context.waitFor(client -> Compat.screen(client) == null);
+
+            // The Halloween hoe's ability starts its cooldown on drop, seen only through the
+            // mixin on the player's drop. A quick press is the case a tick handler would miss.
+            int drops = DropKeyHook.count();
+            context.getInput().pressKey(options -> options.keyDrop);
+            context.waitFor(client -> DropKeyHook.count() > drops, 100);
         }
     }
 

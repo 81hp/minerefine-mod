@@ -54,12 +54,22 @@ public final class RecurringEvent {
         s.nextExact = true;
     }
 
-    /** The event started now. Two starts a cycle apart teach the cycle. */
+    /**
+     * The event started now. Two starts teach the cycle. Starts missed in between (the player was
+     * away) make the gap a few cycles long, so it is split into as many cycles as fit: 90 minutes
+     * after a 45 minute cycle is two caravans, not a 90 minute cycle.
+     */
     public void started(long now) {
         if (s.lastStart > 0L && now - s.lastStart > 60_000L) {
             long gap = now - s.lastStart;
-            if (gap >= minCycleMs && gap <= maxCycleMs) {
-                s.cycleMs = gap;
+            long cycle = cycleMs();
+            long cycles = Math.max(1L, Math.round((double) gap / cycle));
+            long each = gap / cycles;
+            // Split only when the pieces come out close to the cycle: 68 minutes is one late
+            // caravan, not two of 34.
+            boolean fits = cycles == 1L || Math.abs(each - cycle) <= cycle / 6;
+            if (fits && each >= minCycleMs && each <= maxCycleMs) {
+                s.cycleMs = each;
             }
         }
         // The same start announced twice (two lines of one broadcast) is one start.
@@ -171,8 +181,12 @@ public final class RecurringEvent {
         return new RecurringEvent(195L * 60_000L, 60L * 60_000L, 6L * 3_600_000L, 15L * 60_000L);
     }
 
-    /** Caravan: every 45 minutes, a run takes a few minutes. */
+    /**
+     * Caravan: every 45 minutes; a run took 2.5 to 4 minutes in the October 2026 logs, so one with
+     * no end heard is taken as over after 6. The learned cycle stays within 30 to 60 minutes, so a
+     * stray gap can never stretch the countdown to an hour and a half.
+     */
     public static RecurringEvent caravan() {
-        return new RecurringEvent(45L * 60_000L, 15L * 60_000L, 3L * 3_600_000L, 10L * 60_000L);
+        return new RecurringEvent(45L * 60_000L, 30L * 60_000L, 60L * 60_000L, 6L * 60_000L);
     }
 }

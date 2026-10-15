@@ -423,7 +423,9 @@ public final class HudModel {
 
     private static boolean rowShown(BossTracker.BossView boss, BossLines show) {
         return switch (boss.status()) {
-            case ALIVE -> show.upTimers();
+            // Up per the /boss index shows even with alive rows off: otherwise opening the index
+            // would hide every boss it found spawned.
+            case ALIVE -> show.upTimers() || boss.upFromIndex();
             case DEAD -> boss.intervalKnown() || show.learning();
             case UNKNOWN -> show.learning();
         };
@@ -433,8 +435,9 @@ public final class HudModel {
         String name = boss.displayName();
 
         return switch (boss.status()) {
-            case ALIVE -> Line.of(
-                    name + ": UP  (" + Formatting.duration(boss.sinceEventMs()) + ")",
+            // The index says it is up, not since when.
+            case ALIVE -> Line.of(boss.upFromIndex() ? name + ": UP"
+                    : name + ": UP  (" + Formatting.duration(boss.sinceEventMs()) + ")",
                     Style.GOOD);
 
             case DEAD -> {

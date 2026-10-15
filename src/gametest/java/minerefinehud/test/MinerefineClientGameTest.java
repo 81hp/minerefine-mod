@@ -73,6 +73,27 @@ public class MinerefineClientGameTest implements FabricClientGameTest {
             context.clickScreenButton("Halloween");
             context.waitTick();
             context.takeScreenshot("minerefine-hud-settings-halloween");
+
+            // The look tabs draw their own controls and the panels as previews, item icons
+            // included; every preset is clicked through the real mouse handling.
+            context.clickScreenButton("Style");
+            context.waitTick();
+            for (String preset : List.of("Fork", "Tooltip", "Ledger", "Minimal", "Icons")) {
+                check(context.computeOnClient(client -> Compat.screen(client) instanceof SettingsScreen s
+                        && s.clickOption("Preset", preset)), "could not pick the " + preset + " preset");
+                context.waitTick();
+                context.takeScreenshot("minerefine-hud-style-" + preset.toLowerCase(java.util.Locale.ROOT));
+            }
+            check(context.computeOnClient(client -> Compat.screen(client) instanceof SettingsScreen s
+                    && s.clickOption("", "Mine")), "could not switch the preview");
+            context.waitTick();
+            context.takeScreenshot("minerefine-hud-style-mine-preview");
+            context.clickScreenButton("Colours");
+            context.waitTick();
+            context.takeScreenshot("minerefine-hud-settings-colours");
+            context.clickScreenButton("Panels");
+            context.waitTick();
+            context.takeScreenshot("minerefine-hud-settings-panels");
             context.clickScreenButton("General");
             context.waitTick();
 

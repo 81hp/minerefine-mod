@@ -20,3 +20,4 @@ echo; echo "=== shop ===";   java -cp "$OUT" minerefinehud.ShopTests
 echo; echo "=== layout ==="; java -cp "$OUT" minerefinehud.LayoutTests
 echo; echo "=== progress ==="; java -cp "$OUT" minerefinehud.ProgressTests
 echo; echo "=== halloween ==="; java -cp "$OUT" minerefinehud.HalloweenTests
+echo; echo "=== style ==="; java -cp "$OUT" minerefinehud.StyleTests

@@ -5,6 +5,7 @@ import com.google.gson.GsonBuilder;
 import minerefinehud.hud.Anchor;
 import minerefinehud.hud.HudLayout;
 import minerefinehud.hud.HudModel;
+import minerefinehud.hud.HudStyle;
 import minerefinehud.hud.Theme;
 import minerefinehud.progress.ProgressPlanner;
 import minerefinehud.progress.ProgressSlot;
@@ -185,7 +186,13 @@ public final class ModConfig {
     public static final class Look {
         /** 0.5 to 4. Set in the F6 screen with the size buttons or the scroll wheel. */
         public double scale = 1.0;
+        /**
+         * Before there were background styles: on or off. Kept in step with {@link #panel} so an
+         * older version reading this config still gets a background where there is one.
+         */
         public boolean background = false;
+        /** NONE, SHADE, TOOLTIP or FRAMED. Null in configs from before it existed. */
+        public String panel = null;
         /** Background opacity, 0 to 100. */
         public int opacity = 50;
 
@@ -194,6 +201,16 @@ public final class ModConfig {
 
         Look(double scale) {
             this.scale = scale;
+        }
+
+        public HudStyle.Background backgroundStyle() {
+            return HudStyle.parse(HudStyle.Background.class, panel,
+                    background ? HudStyle.Background.SHADE : HudStyle.Background.NONE);
+        }
+
+        public void setBackground(HudStyle.Background b) {
+            panel = b.name();
+            background = b != HudStyle.Background.NONE;
         }
     }
 
@@ -213,6 +230,93 @@ public final class ModConfig {
     public String colorBar = Theme.format(Theme.defaults().barFill());
     public String colorBarDone = Theme.format(Theme.defaults().barDone());
     public String colorBarTrack = Theme.format(Theme.defaults().barTrack());
+    /** Panel borders, title bands and underlines. */
+    public String colorFrame = Theme.format(Theme.defaults().frame());
+
+    // ------------------------------------------------------------- style
+
+    /** Each one a {@link HudStyle} enum name; anything else falls back to that choice's default. */
+    public String titleStyle = HudStyle.defaults().titles().name();
+    public String numberStyle = HudStyle.defaults().numbers().name();
+    public String gearLabels = HudStyle.defaults().gearLabels().name();
+    public String bossStatus = HudStyle.defaults().bossStatus().name();
+    public String barStyle = HudStyle.defaults().bar().name();
+    public String percentStyle = HudStyle.defaults().percent().name();
+    public String barColors = HudStyle.defaults().barColor().name();
+    public String spacing = HudStyle.defaults().spacing().name();
+    public boolean textShadow = HudStyle.defaults().shadow();
+    /** "0.18b still needed" under each progress bar. */
+    public boolean showNeeded = false;
+    /** Every panel's size is multiplied by this, so the whole HUD grows or shrinks at once. */
+    public double hudScale = 1.0;
+
+    public static final double MIN_HUD_SCALE = 0.5;
+    public static final double MAX_HUD_SCALE = 2.0;
+
+    public HudStyle style() {
+        HudStyle d = HudStyle.defaults();
+        return new HudStyle(
+                HudStyle.parse(HudStyle.Titles.class, titleStyle, d.titles()),
+                HudStyle.parse(HudStyle.Numbers.class, numberStyle, d.numbers()),
+                HudStyle.parse(HudStyle.GearLabels.class, gearLabels, d.gearLabels()),
+                HudStyle.parse(HudStyle.BossStatus.class, bossStatus, d.bossStatus()),
+                HudStyle.parse(HudStyle.BarStyle.class, barStyle, d.bar()),
+                HudStyle.parse(HudStyle.Percent.class, percentStyle, d.percent()),
+                HudStyle.parse(HudStyle.BarColor.class, barColors, d.barColor()),
+                HudStyle.parse(HudStyle.Spacing.class, spacing, d.spacing()),
+                textShadow);
+    }
+
+    public void setStyle(HudStyle s) {
+        titleStyle = s.titles().name();
+        numberStyle = s.numbers().name();
+        gearLabels = s.gearLabels().name();
+        bossStatus = s.bossStatus().name();
+        barStyle = s.bar().name();
+        percentStyle = s.percent().name();
+        barColors = s.barColor().name();
+        spacing = s.spacing().name();
+        textShadow = s.shadow();
+    }
+
+    /** Every panel's look, for settings that change them all at once. */
+    public java.util.List<Look> allLooks() {
+        return java.util.List.of(mineLook, bossLook, progressLook, alertLook, hwStatsLook, hwPumpkinLook, hwAbilityLook);
+    }
+
+    /** Size a panel is drawn at: its own size times the whole HUD's. */
+    public double effectiveScale(Look look) {
+        return HudLayout.clampScale(look.scale * hudScale);
+    }
+
+    /** Sets every look setting the design does, colours and every panel's background included. */
+    public void applyPreset(HudStyle.Preset p) {
+        setStyle(p.style);
+        showCredits = p.credits;
+        showNeeded = p.needed;
+        colorHeader = Theme.format(p.accent);
+        colorBar = Theme.format(p.accent);
+        colorFrame = Theme.format(p.frame);
+        for (Look look : allLooks()) {
+            look.setBackground(p.background);
+            look.opacity = p.opacity;
+        }
+    }
+
+    /** The design these settings match exactly, if any, so the settings screen can show it picked. */
+    public Optional<HudStyle.Preset> matchingPreset() {
+        HudStyle current = style();
+        Theme theme = theme();
+        for (HudStyle.Preset p : HudStyle.Preset.values()) {
+            boolean looks = allLooks().stream().allMatch(l -> l.backgroundStyle() == p.background
+                    && (p.background == HudStyle.Background.NONE || l.opacity == p.opacity));
+            if (p.style.equals(current) && looks && showCredits == p.credits && showNeeded == p.needed
+                    && theme.header() == p.accent && theme.barFill() == p.accent && theme.frame() == p.frame) {
+                return Optional.of(p);
+            }
+        }
+        return Optional.empty();
+    }
 
     public Theme theme() {
         Theme d = Theme.defaults();
@@ -225,7 +329,8 @@ public final class ModConfig {
                 Theme.parseOr(colorDim, d.dim()),
                 Theme.parseOr(colorBar, d.barFill()),
                 Theme.parseOr(colorBarDone, d.barDone()),
-                Theme.parseOr(colorBarTrack, d.barTrack()));
+                Theme.parseOr(colorBarTrack, d.barTrack()),
+                Theme.parseOr(colorFrame, d.frame()));
     }
 
     public void resetColors() {
@@ -239,6 +344,7 @@ public final class ModConfig {
         colorBar = fresh.colorBar;
         colorBarDone = fresh.colorBarDone;
         colorBarTrack = fresh.colorBarTrack;
+        colorFrame = fresh.colorFrame;
     }
 
     // ------------------------------------------------------------- Halloween
@@ -400,7 +506,7 @@ public final class ModConfig {
                 blocksPerCreditMillions, showBosses, maxBosses,
                 new HudModel.MineLines(showSword, showTool, showArmor, showCharm, showMineTotal, showHeldUpgrade),
                 new HudModel.BossLines(showBossUpTimers, showBossLearning),
-                new HudModel.ProgressLines(showProgressText, showProgressBar));
+                new HudModel.ProgressLines(showProgressText, showProgressBar, showNeeded));
     }
 
     /**
@@ -481,6 +587,16 @@ public final class ModConfig {
         hwPumpkinLook = fix(hwPumpkinLook, 1.0);
         hwAbilityLook = fix(hwAbilityLook, 1.0);
 
+        // The old on/off for the bar is now the bar style "None".
+        if (!showProgressBar) {
+            barStyle = HudStyle.BarStyle.NONE.name();
+            showProgressBar = true;
+        }
+        if (Double.isNaN(hudScale) || hudScale <= 0.0) {
+            hudScale = 1.0;
+        }
+        hudScale = Math.max(MIN_HUD_SCALE, Math.min(MAX_HUD_SCALE, hudScale));
+
         mineLook = fix(mineLook, 1.0);
         bossLook = fix(bossLook, 1.0);
         progressLook = fix(progressLook, 1.0);
@@ -499,6 +615,7 @@ public final class ModConfig {
         Look out = look == null ? new Look(defaultScale) : look;
         out.scale = HudLayout.clampScale(out.scale);
         out.opacity = Math.max(0, Math.min(100, out.opacity));
+        out.setBackground(out.backgroundStyle());
         return out;
     }
 

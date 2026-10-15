@@ -27,6 +27,7 @@ import minerefinehud.boss.BossWorlds;
 import minerefinehud.data.ProgressionData;
 import minerefinehud.hud.HudLayout;
 import minerefinehud.hud.HudModel;
+import minerefinehud.hud.HudStyle;
 import minerefinehud.hud.Theme;
 import minerefinehud.mine.Mine;
 import minerefinehud.mine.MineDetector;
@@ -275,7 +276,7 @@ public final class MinerefineHudClient implements ClientModInitializer {
         }
         Compat.setScreen(client, new SettingsScreen(null, config, this::settingsChanged,
                 () -> openPositionScreen(client), () -> openPositionScreen(client, true),
-                () -> halloween.resetRates(), () -> halloween.owned()));
+                () -> halloween.resetRates(), () -> halloween.owned(), this::previews));
     }
 
     /** Settings apply live: the HUD reads the config every frame. This saves and re-plans now. */
@@ -298,6 +299,19 @@ public final class MinerefineHudClient implements ClientModInitializer {
     private record Movable(HudPositionScreen.Panel panel,
                            java.util.function.Consumer<HudLayout.Placement> place,
                            ModConfig.Look look) {}
+
+    /** Example panels for the settings screen's previews, drawn with the player's own settings. */
+    private SettingsScreen.Previews previews() {
+        HudModel.Options options = config.toOptions();
+        return new SettingsScreen.Previews(
+                minerefinehud.hud.SamplePanels.mine(options),
+                minerefinehud.hud.SamplePanels.bosses(options),
+                minerefinehud.hud.SamplePanels.progress(options.progressLines()),
+                minerefinehud.hud.SamplePanels.alert(),
+                minerefinehud.hud.SamplePanels.halloween(),
+                minerefinehud.hud.SamplePanels.pumpkin(),
+                minerefinehud.hud.SamplePanels.abilities());
+    }
 
     /**
      * @param halloweenPanels the Halloween panels instead of the mine and progress panels, which
@@ -344,31 +358,31 @@ public final class MinerefineHudClient implements ClientModInitializer {
                         HudModel.Line.of("Harvest Moon  12.3s", HudModel.Style.WARN));
             }
             movables.add(new Movable(new HudPositionScreen.Panel("Halloween", stats,
-                    config.hwStatsPlacement(), ModConfig.DEFAULT_HW_STATS_PLACEMENT, config.hwStatsLook.scale, 1.0),
+                    config.hwStatsPlacement(), ModConfig.DEFAULT_HW_STATS_PLACEMENT, config.hwStatsLook.scale, 1.0, HudRenderer.Look.of(config, config.hwStatsLook)),
                     config::setHwStatsPlacement, config.hwStatsLook));
             movables.add(new Movable(new HudPositionScreen.Panel("Pumpkin set", pumpkin,
-                    config.hwPumpkinPlacement(), ModConfig.DEFAULT_HW_PUMPKIN_PLACEMENT, config.hwPumpkinLook.scale, 1.0),
+                    config.hwPumpkinPlacement(), ModConfig.DEFAULT_HW_PUMPKIN_PLACEMENT, config.hwPumpkinLook.scale, 1.0, HudRenderer.Look.of(config, config.hwPumpkinLook)),
                     config::setHwPumpkinPlacement, config.hwPumpkinLook));
             movables.add(new Movable(new HudPositionScreen.Panel("Abilities", ability,
-                    config.hwAbilityPlacement(), ModConfig.DEFAULT_HW_ABILITY_PLACEMENT, config.hwAbilityLook.scale, 1.0),
+                    config.hwAbilityPlacement(), ModConfig.DEFAULT_HW_ABILITY_PLACEMENT, config.hwAbilityLook.scale, 1.0, HudRenderer.Look.of(config, config.hwAbilityLook)),
                     config::setHwAbilityPlacement, config.hwAbilityLook));
         } else {
             movables.add(new Movable(new HudPositionScreen.Panel("Mine", minePreview,
-                    config.minePlacement(), ModConfig.DEFAULT_MINE_PLACEMENT, config.mineLook.scale, 1.0),
+                    config.minePlacement(), ModConfig.DEFAULT_MINE_PLACEMENT, config.mineLook.scale, 1.0, HudRenderer.Look.of(config, config.mineLook)),
                     config::setMinePlacement, config.mineLook));
             movables.add(new Movable(new HudPositionScreen.Panel("Progress", progressPreview,
-                    config.progressPlacement(), ModConfig.DEFAULT_PROGRESS_PLACEMENT, config.progressLook.scale, 1.0),
+                    config.progressPlacement(), ModConfig.DEFAULT_PROGRESS_PLACEMENT, config.progressLook.scale, 1.0, HudRenderer.Look.of(config, config.progressLook)),
                     config::setProgressPlacement, config.progressLook));
         }
         movables.add(new Movable(new HudPositionScreen.Panel("Bosses", bossPreview,
-                config.bossPlacement(), ModConfig.DEFAULT_BOSS_PLACEMENT, config.bossLook.scale, 1.0),
+                config.bossPlacement(), ModConfig.DEFAULT_BOSS_PLACEMENT, config.bossLook.scale, 1.0, HudRenderer.Look.of(config, config.bossLook)),
                 config::setBossPlacement, config.bossLook));
         movables.add(new Movable(new HudPositionScreen.Panel("Reminder", alertPreview,
-                config.alertPlacement(), ModConfig.DEFAULT_ALERT_PLACEMENT, config.alertLook.scale, 2.0),
+                config.alertPlacement(), ModConfig.DEFAULT_ALERT_PLACEMENT, config.alertLook.scale, 2.0, HudRenderer.Look.of(config, config.alertLook)),
                 config::setAlertPlacement, config.alertLook));
 
         Compat.setScreen(client, new HudPositionScreen(null, movables.stream().map(Movable::panel).toList(),
-                config.theme(),
+                config.hudScale,
                 saved -> {
                     for (int i = 0; i < movables.size(); i++) {
                         movables.get(i).place().accept(saved.placements().get(i));
@@ -642,44 +656,46 @@ public final class MinerefineHudClient implements ClientModInitializer {
         refreshCurrentMine(client, now);
 
         HudModel.Options options = config.toOptions();
-        var theme = config.theme();
         List<BossTracker.BossView> bosses = visibleBosses(now);
+        // Parsed once a frame, not once a panel.
+        HudStyle style = config.style();
+        Theme theme = config.theme();
 
         if (halloween.active()) {
             // The Halloween panels take the mine and progress panels' place in that dimension.
             drawPanel(context, client, halloween.statsPanel(now),
-                    config.hwStatsPlacement(), config.hwStatsLook, theme);
+                    config.hwStatsPlacement(), config.hwStatsLook, style, theme);
             drawPanel(context, client, halloween.pumpkinPanel(),
-                    config.hwPumpkinPlacement(), config.hwPumpkinLook, theme);
+                    config.hwPumpkinPlacement(), config.hwPumpkinLook, style, theme);
             drawPanel(context, client, halloween.abilityPanel(now),
-                    config.hwAbilityPlacement(), config.hwAbilityLook, theme);
+                    config.hwAbilityPlacement(), config.hwAbilityLook, style, theme);
         } else {
             drawPanel(context, client, HudModel.costPanel(mineCosts, upgradeView(), options),
-                    config.minePlacement(), config.mineLook, theme);
+                    config.minePlacement(), config.mineLook, style, theme);
             drawPanel(context, client, HudModel.progressPanel(progressViews, options.progressLines()),
-                    config.progressPlacement(), config.progressLook, theme);
+                    config.progressPlacement(), config.progressLook, style, theme);
         }
         drawPanel(context, client, HudModel.bossPanel(bosses, options, halloween.reforgerRows(now)),
-                config.bossPlacement(), config.bossLook, theme);
+                config.bossPlacement(), config.bossLook, style, theme);
 
         List<String> due = config.bossReminder
                 ? BossAlerts.active(bosses, reminderLeadMs()).stream().map(BossTracker.BossView::displayName).toList()
                 : List.of();
         drawPanel(context, client, HudModel.alertPanel(due, halloween.alerts(now, false)),
-                config.alertPlacement(), config.alertLook, theme);
+                config.alertPlacement(), config.alertLook, style, theme);
     }
 
-    private static void drawPanel(net.minecraft.client.gui.GuiGraphicsExtractor context, Minecraft client,
-                                  List<HudModel.Line> lines, HudLayout.Placement placement,
-                                  ModConfig.Look look, Theme theme) {
+    private void drawPanel(net.minecraft.client.gui.GuiGraphicsExtractor context, Minecraft client,
+                           List<HudModel.Line> lines, HudLayout.Placement placement, ModConfig.Look look,
+                           HudStyle style, Theme theme) {
         if (lines.isEmpty()) {
             return;
         }
-        HudLayout.Rect rect = HudRenderer.rect(client.font, lines, placement, look.scale,
-                context.guiWidth(), context.guiHeight());
-        int background = look.background
-                ? Theme.background(look.opacity) : 0;
-        HudRenderer.render(context, lines, rect, look.scale, background, theme);
+        var painted = HudRenderer.paint(client.font, lines,
+                new HudRenderer.Look(style, look.backgroundStyle(), look.opacity, theme));
+        double scale = config.effectiveScale(look);
+        HudLayout.Rect rect = HudRenderer.rect(painted, placement, scale, context.guiWidth(), context.guiHeight());
+        HudRenderer.render(context, painted, rect, scale);
     }
 
     /** Timers for the dimension the player is in, or every dimension if they chose that. */

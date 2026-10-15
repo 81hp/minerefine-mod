@@ -9,13 +9,15 @@ import java.util.OptionalInt;
  * Stored in the config as "#RRGGBB" strings, which is what people type and what every colour
  * picker on the internet hands out. Parsing lives here rather than in the settings screen so a
  * typo is caught by a test instead of by a black-on-black panel.
+ *
+ * @param frame panel borders, title bands and underlines
  */
 public record Theme(int header, int label, int value, int good, int warn, int dim,
-                    int barFill, int barDone, int barTrack) {
+                    int barFill, int barDone, int barTrack, int frame) {
 
     public static Theme defaults() {
         return new Theme(0xFFFFD24A, 0xFFBFBFBF, 0xFFFFFFFF, 0xFF5CE65C, 0xFFFF6B6B, 0xFF8A8A8A,
-                0xFFFFD24A, 0xFF5CE65C, 0xFF3A3A3A);
+                0xFFFFD24A, 0xFF5CE65C, 0xFF3A3A3A, 0xFFFFD24A);
     }
 
     public int color(HudModel.Style style) {
@@ -66,8 +68,100 @@ public record Theme(int header, int label, int value, int good, int warn, int di
 
     /** A black panel background at this opacity, 0 to 100 percent. */
     public static int background(int opacityPercent) {
+        return alpha(0xFF000000, opacityPercent);
+    }
+
+    /** The colour at this opacity, 0 to 100 percent, whatever its own alpha was. */
+    public static int alpha(int argb, int opacityPercent) {
         int pct = Math.max(0, Math.min(100, opacityPercent));
-        int alpha = Math.round(pct * 255 / 100f);
-        return alpha << 24;
+        int a = Math.round(pct * 255 / 100f);
+        return (a << 24) | (argb & 0xFFFFFF);
+    }
+
+    // ---------------------------------------------------------- colour maths
+
+    /**
+     * Hue 0 to 360, saturation and value 0 to 1, as an opaque colour. What the colour picker's
+     * square and hue strip are drawn from.
+     */
+    public static int hsv(double hue, double saturation, double value) {
+        double h = ((hue % 360.0) + 360.0) % 360.0 / 60.0;
+        double s = clamp01(saturation);
+        double v = clamp01(value);
+        double c = v * s;
+        double x = c * (1 - Math.abs(h % 2 - 1));
+        double m = v - c;
+        double r;
+        double g;
+        double b;
+        switch ((int) h) {
+            case 0 -> { r = c; g = x; b = 0; }
+            case 1 -> { r = x; g = c; b = 0; }
+            case 2 -> { r = 0; g = c; b = x; }
+            case 3 -> { r = 0; g = x; b = c; }
+            case 4 -> { r = x; g = 0; b = c; }
+            default -> { r = c; g = 0; b = x; }
+        }
+        return rgb((int) Math.round((r + m) * 255), (int) Math.round((g + m) * 255), (int) Math.round((b + m) * 255));
+    }
+
+    /** {hue 0-360, saturation 0-1, value 0-1}. A grey keeps hue 0. */
+    public static double[] toHsv(int argb) {
+        double r = ((argb >> 16) & 0xFF) / 255.0;
+        double g = ((argb >> 8) & 0xFF) / 255.0;
+        double b = (argb & 0xFF) / 255.0;
+        double max = Math.max(r, Math.max(g, b));
+        double min = Math.min(r, Math.min(g, b));
+        double d = max - min;
+        double h;
+        if (d == 0) {
+            h = 0;
+        } else if (max == r) {
+            h = 60 * (((g - b) / d) % 6);
+        } else if (max == g) {
+            h = 60 * ((b - r) / d + 2);
+        } else {
+            h = 60 * ((r - g) / d + 4);
+        }
+        if (h < 0) {
+            h += 360;
+        }
+        return new double[] { h, max == 0 ? 0 : d / max, max };
+    }
+
+    /** Hue 0 to 360, saturation and lightness 0 to 1, as an opaque colour. */
+    public static int hsl(double hue, double saturation, double lightness) {
+        double s = clamp01(saturation);
+        double l = clamp01(lightness);
+        double a = s * Math.min(l, 1 - l);
+        int[] out = new int[3];
+        int[] ns = { 0, 8, 4 };
+        for (int i = 0; i < 3; i++) {
+            double k = (ns[i] + hue / 30.0) % 12;
+            double c = l - a * Math.max(-1, Math.min(Math.min(k - 3, 9 - k), 1));
+            out[i] = (int) Math.round(c * 255);
+        }
+        return rgb(out[0], out[1], out[2]);
+    }
+
+    /**
+     * The "red to green" bar colour: red when empty, through orange and yellow, green when nearly
+     * there. A finished bar uses its own colour instead, see {@link #barDone()}.
+     */
+    public static int progressColor(double fraction) {
+        double f = Math.max(0.0, Math.min(1.0, fraction));
+        return hsl(Math.round(f * 115), 0.80, 0.55);
+    }
+
+    private static int rgb(int r, int g, int b) {
+        return 0xFF000000 | (clamp255(r) << 16) | (clamp255(g) << 8) | clamp255(b);
+    }
+
+    private static int clamp255(int v) {
+        return Math.max(0, Math.min(255, v));
+    }
+
+    private static double clamp01(double v) {
+        return Double.isNaN(v) ? 0 : Math.max(0, Math.min(1, v));
     }
 }

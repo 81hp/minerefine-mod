@@ -113,8 +113,11 @@ public final class HalloweenHud {
             double have = s.balances().getOrDefault(HalloweenText.CANDY, 0.0);
             String level = s.refineLevel() > 0
                     ? " " + minerefinehud.shop.RomanNumerals.toRoman(s.refineLevel() + 1) : "";
-            lines.add(Line.of("Refine" + level + ": " + amount(have) + "/" + amount(s.refineCost()) + " candy",
-                    have >= s.refineCost() ? Style.GOOD : Style.VALUE));
+            Style style = have >= s.refineCost() ? Style.GOOD : Style.VALUE;
+            String amounts = amount(have) + "/" + amount(s.refineCost()) + " candy";
+            // A bar title, so the percentage can sit in it; written "Refine II: ..." as before.
+            lines.add(new Line("Refine" + level + ": " + amounts, style, Math.min(1.0, have / s.refineCost()),
+                    HudModel.Kind.PROGRESS, "Refine" + level, style, List.of(HudModel.Cell.of(amounts, style)), ""));
             lines.add(Line.bar(have / s.refineCost()));
         }
         return lines;
@@ -135,7 +138,7 @@ public final class HalloweenHud {
         for (PumpkinSet.View v : views) {
             String name = v.pieces() > 1 ? v.name() + " (" + v.pieces() + " pieces)" : v.name();
             if (v.affordable()) {
-                lines.add(Line.of(name + "  affordable", Style.GOOD));
+                lines.add(Line.progressTitle(name, "affordable", Style.GOOD, 1.0, ""));
                 lines.add(Line.bar(1.0));
                 continue;
             }
@@ -171,10 +174,12 @@ public final class HalloweenHud {
     /** The Reforger's row in the boss panel. */
     public static Line reforgerLine(RecurringEvent.View v) {
         return switch (v.state()) {
-            case ACTIVE -> Line.of("Reforger: HERE  (" + Formatting.duration(v.ms()) + " left)", Style.GOOD);
-            case UNKNOWN -> Line.of("Reforger: unknown", Style.DIM);
-            case WAITING -> Line.of("Reforger: " + (v.exact() ? "" : "~") + Formatting.duration(v.ms()),
-                    v.ms() <= 60_000L ? Style.WARN : Style.VALUE);
+            case ACTIVE -> Line.status("Reforger", Style.VALUE, new HudModel.Cell(
+                    "HERE  (" + Formatting.duration(v.ms()) + " left)", Style.GOOD, "HERE " + Formatting.duration(v.ms())));
+            case UNKNOWN -> Line.status("Reforger", Style.DIM, HudModel.Cell.of("unknown", Style.DIM));
+            case WAITING -> Line.status("Reforger", Style.VALUE, HudModel.Cell.of(
+                    (v.exact() ? "" : "~") + Formatting.duration(v.ms()),
+                    v.ms() <= 60_000L ? Style.WARN : Style.VALUE));
         };
     }
 }

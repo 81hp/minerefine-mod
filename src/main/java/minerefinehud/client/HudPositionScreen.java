@@ -2,7 +2,7 @@ package minerefinehud.client;
 
 import minerefinehud.hud.HudLayout;
 import minerefinehud.hud.HudModel;
-import minerefinehud.hud.Theme;
+import minerefinehud.hud.PanelPainter;
 import net.minecraft.client.gui.GuiGraphicsExtractor;
 import net.minecraft.client.gui.components.Button;
 import net.minecraft.client.gui.screens.Screen;
@@ -26,7 +26,7 @@ public final class HudPositionScreen extends Screen {
     /** One movable panel: what it shows, where it is and how big, and what Reset puts back. */
     public record Panel(String label, List<HudModel.Line> preview,
                         HudLayout.Placement placement, HudLayout.Placement defaults,
-                        double scale, double defaultScale) {}
+                        double scale, double defaultScale, HudRenderer.Look look) {}
 
     /** What the screen hands back on close, in the same order as the panels it was given. */
     public record Result(List<HudLayout.Placement> placements, List<Double> scales) {}
@@ -37,14 +37,20 @@ public final class HudPositionScreen extends Screen {
     private static final int KEY_DOWN = 264;
     private static final int KEY_UP = 265;
 
-    /** Previews always get a backdrop, so a panel can be found and grabbed whatever its settings. */
-    private static final int PREVIEW_BACKGROUND = 0x80000000;
+    /**
+     * Under each preview, so a panel can be found and grabbed even with no background of its own.
+     * Faint, so the panel's real look still shows.
+     */
+    private static final int PREVIEW_BACKDROP = 0x40000000;
 
     private final Screen parent;
     private final List<Panel> panels;
     private final List<HudLayout.Placement> placements;
     private final List<Double> scales;
-    private final Theme theme;
+    /** The whole HUD's size, which every panel's own size is multiplied by. */
+    private final double hudScale;
+    /** Each preview laid out once: the looks do not change while this screen is open. */
+    private final List<PanelPainter.Painted> painted = new ArrayList<>();
     private final Consumer<Result> onSave;
     private final Runnable openSettings;
 
@@ -61,20 +67,29 @@ public final class HudPositionScreen extends Screen {
     private double grabY;
 
     /** @param openSettings called after saving, when the Settings button is pressed */
-    public HudPositionScreen(Screen parent, List<Panel> panels, Theme theme,
+    public HudPositionScreen(Screen parent, List<Panel> panels, double hudScale,
                              Consumer<Result> onSave, Runnable openSettings) {
         super(Component.literal("MineRefine HUD position"));
         this.parent = parent;
         this.panels = List.copyOf(panels);
         this.placements = new ArrayList<>(panels.stream().map(Panel::placement).toList());
         this.scales = new ArrayList<>(panels.stream().map(p -> HudLayout.clampScale(p.scale())).toList());
-        this.theme = theme;
+        this.hudScale = hudScale;
         this.onSave = onSave;
         this.openSettings = openSettings;
     }
 
     @Override
     protected void init() {
+        painted.clear();
+        for (Panel p : panels) {
+            PanelPainter.Painted shown = HudRenderer.paint(this.font, p.preview(), p.look());
+            // A panel that paints to nothing (bars switched off, say) still needs something to grab.
+            painted.add(shown.isEmpty()
+                    ? HudRenderer.paint(this.font, List.of(HudModel.Line.of(p.label(), HudModel.Style.HEADER)), p.look())
+                    : shown);
+        }
+
         int y = this.height - 28;
         int left = this.width / 2 - 154;
 
@@ -104,9 +119,12 @@ public final class HudPositionScreen extends Screen {
         scales.set(selected, HudLayout.stepScale(scales.get(selected), steps));
     }
 
+    private double shownScale(int i) {
+        return HudLayout.clampScale(scales.get(i) * hudScale);
+    }
+
     private HudLayout.Rect rectOf(int i) {
-        return HudRenderer.rect(this.font, panels.get(i).preview(), placements.get(i),
-                scales.get(i), this.width, this.height);
+        return HudRenderer.rect(painted.get(i), placements.get(i), shownScale(i), this.width, this.height);
     }
 
     /** Topmost panel under the point, or -1. Later panels draw on top, so search backwards. */
@@ -137,7 +155,8 @@ public final class HudPositionScreen extends Screen {
         int hovered = dragging >= 0 ? dragging : panelAt(mouseX, mouseY);
         for (int i = 0; i < panels.size(); i++) {
             HudLayout.Rect rect = rectOf(i);
-            HudRenderer.render(context, panels.get(i).preview(), rect, scales.get(i), PREVIEW_BACKGROUND, theme);
+            context.fill(rect.x(), rect.y(), rect.x() + rect.width(), rect.y() + rect.height(), PREVIEW_BACKDROP);
+            HudRenderer.render(context, painted.get(i), rect, shownScale(i));
 
             int outline = i == selected ? 0xFFFFD24A : i == hovered ? 0xCCFFFFFF : 0x66FFFFFF;
             context.outline(rect.x(), rect.y(), rect.width(), rect.height(), outline);

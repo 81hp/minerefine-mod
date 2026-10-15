@@ -39,6 +39,7 @@ stonecutter parameters {
             replace("context.text(", "context.drawString(")
             replace("context.centeredText(", "context.drawCenteredString(")
             replace("context.outline(", "context.renderOutline(")
+            replace("context.item(", "context.renderItem(")
         }
     }
 }

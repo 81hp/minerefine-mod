@@ -30,8 +30,54 @@ public final class HudModel {
         BAR
     }
 
-    /** @param progress 0 to 1 for a BAR line, ignored otherwise */
-    public record Line(String text, Style style, double progress) {
+    /** What a line is, so the painter can lay it out: in columns, with an icon, as a chip. */
+    public enum Kind {
+        /** Plain text across the panel. */
+        TEXT,
+        /** A panel or block title. */
+        HEADER,
+        /** A label and its figures: "Sword: 20.24b  (101.2c)". */
+        ROW,
+        /** The mine total, a row set apart by a rule when the numbers are lined up. */
+        TOTAL,
+        /** A boss or event and its state: "Nekronos: due now". */
+        STATUS,
+        /** The title over a progress bar, "Debris Shovel IV  3.1b/4.39b". */
+        PROGRESS,
+        BAR
+    }
+
+    /**
+     * One figure in a row.
+     *
+     * @param chip shorter text for when the status is drawn on a coloured chip ("UP 1:20"), or
+     *             empty when this state gets no chip
+     */
+    public record Cell(String text, Style style, String chip) {
+
+        public static Cell of(String text, Style style) {
+            return new Cell(text, style, "");
+        }
+    }
+
+    /**
+     * One line of a panel. {@link #text()} is always the whole line as one string, which is how
+     * it reads with the numbers after the label; the other parts are the same line taken apart
+     * for the other layouts.
+     *
+     * @param progress   0 to 1 for a BAR or PROGRESS line, ignored otherwise
+     * @param label      the left part of a ROW, TOTAL, STATUS or PROGRESS line
+     * @param labelStyle the colour of that label when it is drawn on its own
+     * @param cells      the figures to the right of the label
+     * @param icon       the gear word an icon stands for ("sword", "total"), or empty
+     */
+    public record Line(String text, Style style, double progress, Kind kind,
+                       String label, Style labelStyle, List<Cell> cells, String icon) {
+
+        public Line(String text, Style style, double progress) {
+            this(text, style, progress, style == Style.BAR ? Kind.BAR : style == Style.HEADER ? Kind.HEADER : Kind.TEXT,
+                    "", style, List.of(), "");
+        }
 
         public Line(String text, Style style) {
             this(text, style, 0.0);
@@ -42,11 +88,52 @@ public final class HudModel {
         }
 
         public Line withStyle(Style newStyle) {
-            return new Line(text, newStyle, progress);
+            return new Line(text, newStyle, progress, kind, label, labelStyle, cells, icon);
         }
 
         public static Line bar(double progress) {
-            return new Line("", Style.BAR, Math.max(0.0, Math.min(1.0, progress)));
+            return new Line("", Style.BAR, clamp(progress));
+        }
+
+        /** "Label: figures", the label drawn in the label colour when the numbers are lined up. */
+        public static Line row(String label, String icon, Style style, Cell... cells) {
+            return new Line(label + ": " + inline(cells), style, 0.0, Kind.ROW, label, Style.LABEL,
+                    List.of(cells), icon);
+        }
+
+        /** A boss or event: the name, then its state, which can turn into a chip. */
+        public static Line status(String name, Style nameStyle, Cell state) {
+            return new Line(name + ": " + state.text(), state.style(), 0.0, Kind.STATUS, name, nameStyle,
+                    List.of(state), "");
+        }
+
+        /** The title over a bar: what it is and the amounts. Carries the fraction for the percentage. */
+        public static Line progressTitle(String piece, String amounts, Style style, double fraction, String icon) {
+            return new Line(piece + "  " + amounts, style, clamp(fraction), Kind.PROGRESS, piece, style,
+                    List.of(Cell.of(amounts, style)), icon);
+        }
+
+        /** The line without its "Label: " part, for when an icon stands in for the label. */
+        public String tail() {
+            String prefix = label + ": ";
+            return !label.isEmpty() && text.startsWith(prefix) ? text.substring(prefix.length()) : text;
+        }
+
+        /** Figures written inline: the first as is, the rest in brackets, "20.24b  (101.2c)". */
+        private static String inline(Cell... cells) {
+            StringBuilder sb = new StringBuilder();
+            for (int i = 0; i < cells.length; i++) {
+                if (i == 0) {
+                    sb.append(cells[i].text());
+                } else {
+                    sb.append("  (").append(cells[i].text()).append(')');
+                }
+            }
+            return sb.toString();
+        }
+
+        private static double clamp(double v) {
+            return Double.isNaN(v) ? 0.0 : Math.max(0.0, Math.min(1.0, v));
         }
     }
 
@@ -70,8 +157,16 @@ public final class HudModel {
         }
     }
 
-    /** @param text the "Debris Shovel IV  3.1b/4.39b" row; @param bar the bar under it */
-    public record ProgressLines(boolean text, boolean bar) {
+    /**
+     * @param text   the "Debris Shovel IV  3.1b/4.39b" row
+     * @param bar    the bar under it
+     * @param needed "0.18b still needed" under the bar
+     */
+    public record ProgressLines(boolean text, boolean bar, boolean needed) {
+
+        public ProgressLines(boolean text, boolean bar) {
+            this(text, bar, false);
+        }
 
         public static ProgressLines all() {
             return new ProgressLines(true, true);
@@ -260,21 +355,26 @@ public final class HudModel {
             ? count + v.mine() + (v.toLevel() > v.targetLevel() ? " Total" : " Total left")
             : count + v.mine() + " " + capitalise(v.gear()) + " " + tiers;
 
+        String icon = v.slot().gear();
         switch (v.state()) {
             case TRACKING -> {
                 String have = v.have().isPresent() ? Formatting.blocks(v.have().getAsLong()) : "?";
+                long cost = v.cost().getAsLong();
                 if (show.text()) {
-                    lines.add(Line.of(piece + "  " + have + "/" + Formatting.blocks(v.cost().getAsLong()),
-                            Style.VALUE));
+                    lines.add(Line.progressTitle(piece, have + "/" + Formatting.blocks(cost),
+                            Style.VALUE, v.fraction(), icon));
                 }
                 if (show.bar()) {
                     lines.add(Line.bar(v.fraction()));
                 }
+                if (show.needed() && v.have().isPresent() && cost > v.have().getAsLong()) {
+                    lines.add(Line.of(Formatting.blocks(cost - v.have().getAsLong()) + " still needed", Style.DIM));
+                }
             }
             case FINISHED -> {
                 if (show.text()) {
-                    lines.add(Line.of(piece + "  finished  " + Formatting.blocks(v.have().getAsLong()),
-                            Style.GOOD));
+                    lines.add(Line.progressTitle(piece, "finished  " + Formatting.blocks(v.have().getAsLong()),
+                            Style.GOOD, 1.0, icon));
                 }
                 if (show.bar()) {
                     lines.add(Line.bar(1.0));
@@ -324,17 +424,17 @@ public final class HudModel {
             }
             String label = capitalise(piece.gear());
             if (!piece.shown()) {
-                lines.add(Line.of(label + ": open the shop", Style.DIM));
+                lines.add(Line.row(label, piece.gear(), Style.DIM, Cell.of("open the shop", Style.DIM)));
                 continue;
             }
             if (piece.source() == MineCosts.Source.PARTIAL) {
                 // Only the tiers the shop has shown, so say which; never counted in the total.
-                lines.add(costLine(label, piece.cost().getAsLong(), "* (" + piece.tiers() + ")", options));
+                lines.add(costLine(label, piece.gear(), piece.cost().getAsLong(), "* (" + piece.tiers() + ")", options));
                 continue;
             }
             // A star marks a figure read from the shop rather than taken from the spreadsheet.
             String mark = piece.source() == MineCosts.Source.SHOP ? "*" : "";
-            lines.add(costLine(label, piece.cost().getAsLong(), mark, options));
+            lines.add(costLine(label, piece.gear(), piece.cost().getAsLong(), mark, options));
         }
 
         if (!options.mineLines().total()) {
@@ -343,9 +443,9 @@ public final class HudModel {
         // Always the whole mine, even with some rows hidden: hiding a row changes what is shown,
         // not what the mine costs.
         if (view.total().isPresent()) {
-            lines.add(costLine("Total", view.total().getAsLong(), "", options).withStyle(Style.HEADER));
+            lines.add(totalLine(view.total().getAsLong(), options));
         } else {
-            lines.add(Line.of("Total: incomplete", Style.DIM));
+            lines.add(Line.row("Total", "total", Style.DIM, Cell.of("incomplete", Style.DIM)));
         }
     }
 
@@ -358,14 +458,21 @@ public final class HudModel {
         };
     }
 
-    private static Line costLine(String label, long blocks, String mark, Options options) {
-        StringBuilder sb = new StringBuilder();
-        sb.append(label).append(": ").append(Formatting.blocks(blocks)).append(mark);
+    /** "Total: 134.22b  (671.1c)", all in the title colour, under a rule when lined up. */
+    public static Line totalLine(long blocks, Options options) {
+        Line row = costLine("Total", "total", blocks, "", options);
+        List<Cell> cells = row.cells().stream().map(c -> Cell.of(c.text(), Style.HEADER)).toList();
+        return new Line(row.text(), Style.HEADER, 0.0, Kind.TOTAL, row.label(), Style.HEADER, cells, row.icon());
+    }
+
+    /** "Sword: 20.24b*  (101.2c)", the credits a quieter column of their own when lined up. */
+    public static Line costLine(String label, String icon, long blocks, String mark, Options options) {
+        Cell amount = Cell.of(Formatting.blocks(blocks) + mark, Style.VALUE);
         if (options.showCredits()) {
-            sb.append("  (").append(Formatting.credits(blocks, options.blocksPerCreditMillions()))
-              .append(')');
+            return Line.row(label, icon, Style.VALUE, amount,
+                    Cell.of(Formatting.credits(blocks, options.blocksPerCreditMillions()), Style.DIM));
         }
-        return Line.of(sb.toString(), Style.VALUE);
+        return Line.row(label, icon, Style.VALUE, amount);
     }
 
     // -------------------------------------------------------------- upgrade
@@ -384,15 +491,15 @@ public final class HudModel {
             // A star marks a price the client read from a shop tooltip rather than one seeded
             // from the spreadsheet, so a stale seed never looks as authoritative as a real one.
             String mark = u.fromObservation() ? "*" : "";
-            lines.add(Line.of("Next: " + Formatting.blocks(u.nextCost().getAsLong()) + mark,
-                    Style.VALUE));
+            lines.add(Line.row("Next", "", Style.VALUE,
+                    Cell.of(Formatting.blocks(u.nextCost().getAsLong()) + mark, Style.VALUE)));
         } else {
-            lines.add(Line.of("Next: open the shop once", Style.DIM));
+            lines.add(Line.row("Next", "", Style.DIM, Cell.of("open the shop once", Style.DIM)));
         }
 
         if (u.remaining().isPresent()) {
-            lines.add(Line.of("To max: " + Formatting.blocks(u.remaining().getAsLong()),
-                    Style.VALUE));
+            lines.add(Line.row("To max", "", Style.VALUE,
+                    Cell.of(Formatting.blocks(u.remaining().getAsLong()), Style.VALUE)));
         }
     }
 
@@ -435,26 +542,30 @@ public final class HudModel {
         String name = boss.displayName();
 
         return switch (boss.status()) {
-            // The index says it is up, not since when.
-            case ALIVE -> Line.of(boss.upFromIndex() ? name + ": UP"
-                    : name + ": UP  (" + Formatting.duration(boss.sinceEventMs()) + ")",
-                    Style.GOOD);
+            case ALIVE -> {
+                // The index says it is up, not since when.
+                if (boss.upFromIndex()) {
+                    yield Line.status(name, Style.VALUE, new Cell("UP", Style.GOOD, "UP"));
+                }
+                String since = Formatting.duration(boss.sinceEventMs());
+                yield Line.status(name, Style.VALUE, new Cell("UP  (" + since + ")", Style.GOOD, "UP " + since));
+            }
 
             case DEAD -> {
                 if (!boss.intervalKnown()) {
                     // First kill seen. The gap to the next spawn is what teaches us the interval.
-                    yield Line.of(name + ": learning...", Style.DIM);
+                    yield Line.status(name, Style.DIM, Cell.of("learning...", Style.DIM));
                 }
                 if (boss.overdue()) {
-                    yield Line.of(name + ": due now", Style.WARN);
+                    yield Line.status(name, Style.VALUE, new Cell("due now", Style.WARN, "DUE NOW"));
                 }
                 String eta = Formatting.duration(boss.etaMs().orElse(0L));
                 // A single sample is a guess, not a measurement. Say so rather than look certain.
                 String marker = boss.intervalConfident() ? "" : " ?";
-                yield Line.of(name + ": " + eta + marker, Style.VALUE);
+                yield Line.status(name, Style.VALUE, Cell.of(eta + marker, Style.VALUE));
             }
 
-            case UNKNOWN -> Line.of(name + ": unknown", Style.DIM);
+            case UNKNOWN -> Line.status(name, Style.DIM, Cell.of("unknown", Style.DIM));
         };
     }
 

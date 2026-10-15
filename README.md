@@ -249,7 +249,7 @@ countdown. If the kill was watched, kill to respawn is also learned as the boss'
 ### Reforger
 
 `Time Until Reforger: 1h 57m 17s` in the boss panel, everywhere on the server. After joining
-MineRefine the mod runs `/next reforger` once by itself and hides only that answer; typed by you
+MineRefine the mod runs `/nextreforger` once by itself and hides only that answer; typed by you
 it shows as usual. It is asked again after the Reforger leaves. `The Reforger has arrived to town!`
 shows `HERE` with the time it has left (it stays 15 minutes) and an alert; when the countdown is
 an estimate (it comes back about 3h15m after it arrived) it is marked `~`.

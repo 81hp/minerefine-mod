@@ -296,7 +296,7 @@ public final class SettingsScreen extends Screen {
         toggle(0, 2, "Reforger timer", () -> config.reforgerTimer, v -> config.reforgerTimer = v);
         Button check = toggleAt(x(1), y(2), "Check on join", () -> config.reforgerAutoCheck,
                 v -> config.reforgerAutoCheck = v);
-        check.setTooltip(Tooltip.create(Component.literal("Runs /next reforger by itself after you join and "
+        check.setTooltip(Tooltip.create(Component.literal("Runs /nextreforger by itself after you join and "
                 + "after the Reforger leaves, and hides that answer. Typed by you, it shows as usual.")));
         toggle(0, 5, "Reforger alert", () -> config.reforgerAlert, v -> config.reforgerAlert = v);
 

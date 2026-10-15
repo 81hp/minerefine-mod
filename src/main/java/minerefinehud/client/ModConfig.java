@@ -447,7 +447,7 @@ public final class ModConfig {
 
     /** The Reforger's countdown in the boss panel, everywhere on the server. */
     public boolean reforgerTimer = true;
-    /** Runs /next reforger quietly after joining, so the countdown is exact straight away. */
+    /** Runs /nextreforger quietly after joining, so the countdown is exact straight away. */
     public boolean reforgerAutoCheck = true;
     /** The alert, with sound, when the Reforger is about to arrive and when it does. */
     public boolean reforgerAlert = true;

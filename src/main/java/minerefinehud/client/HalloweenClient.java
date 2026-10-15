@@ -67,7 +67,7 @@ final class HalloweenClient {
     private Set<String> carriedPieces = Set.of();
     private long lastCarriedCheck;
 
-    // Reforger query: /next reforger, sent quietly, its answer hidden.
+    // Reforger query: /nextreforger, sent quietly, its answer hidden.
     private boolean wantQuery;
     private long queryNotBefore;
     private long mineRefineSince;
@@ -100,7 +100,7 @@ final class HalloweenClient {
         ClientTickEvents.END_CLIENT_TICK.register(this::tick);
         DropKeyHook.listen(this::onDrop);
 
-        // Before the message reaches chat, so the answer to the quiet /next reforger can be hidden.
+        // Before the message reaches chat, so the answer to the quiet /nextreforger can be hidden.
         ClientReceiveMessageEvents.ALLOW_GAME.register((Component message, boolean overlay) -> {
             if (overlay) {
                 return true;
@@ -348,7 +348,7 @@ final class HalloweenClient {
     // -------------------------------------------------------------- reforger
 
     /**
-     * Sends /next reforger once after joining MineRefine, after the Reforger leaves, and when the
+     * Sends /nextreforger once after joining MineRefine, after the Reforger leaves, and when the
      * countdown is only an estimate, at most every half hour. Only on MineRefine itself (its name
      * is the sidebar title), so the hub never sees the command.
      */
@@ -377,7 +377,7 @@ final class HalloweenClient {
         lastQueryAt = now;
         sendingOurs = true;
         try {
-            if (Compat.sendCommand(client, "next reforger")) {
+            if (Compat.sendCommand(client, "nextreforger")) {
                 hideReplies = 1;
                 hideUntil = now + 10_000L;
             }

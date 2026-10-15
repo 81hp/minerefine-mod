@@ -11,7 +11,7 @@ import minerefinehud.shop.ShopItemParser;
 import java.util.List;
 import net.fabricmc.fabric.api.client.gametest.v1.FabricClientGameTest;
 import net.fabricmc.fabric.api.client.gametest.v1.context.ClientGameTestContext;
-import net.fabricmc.fabric.api.client.gametest.v1.context.TestSingleplayerContext;
+import net.fabricmc.fabric.api.client.gametest.v1.context.TestDedicatedServerContext;
 import net.fabricmc.loader.api.FabricLoader;
 import net.minecraft.client.gui.components.EditBox;
 import net.minecraft.network.chat.Component;
@@ -45,13 +45,18 @@ public class MinerefineClientGameTest implements FabricClientGameTest {
             client.options.simulationDistance().set(5);
         });
 
-        try (TestSingleplayerContext world = context.worldBuilder().create()) {
+        // A dedicated server rather than a singleplayer world: on GitHub's machines the built-in
+        // server of 1.21.9 to 1.21.11 freezes at "Preparing spawn area: 16%" and the test times out.
+        // It is also closer to the real thing, a client on a server.
+        // `var`: the connection's type is named differently in each Fabric API version.
+        try (TestDedicatedServerContext server = context.worldBuilder().createServer(serverProperties());
+             var connection = server.connect()) {
             context.waitFor(client -> client.player != null);
             context.waitTicks(20);
 
             // The action bar arrives as its own packet and reaches the mod only through the
             // mixin. If a Minecraft update moved the method it hooks, this is where it shows.
-            world.getServer().runCommand("title @a actionbar \"" + ACTION_BAR + "\"");
+            server.runCommand("title @a actionbar \"" + ACTION_BAR + "\"");
             context.waitFor(client -> ActionBarHook.last().contains(ACTION_BAR), 100);
 
             // The HUD draws every frame from here on; a crash in it fails the test.
@@ -126,7 +131,7 @@ public class MinerefineClientGameTest implements FabricClientGameTest {
             // Shop prices come from item names and lore in an open container. The scanner
             // swallows errors so a broken read never crashes the game, which is exactly why it is
             // checked here: an inventory is a container screen like any shop.
-            world.getServer().runCommand(
+            server.runCommand(
                     "give @a minecraft:stone[minecraft:custom_name=\"" + SHOP_ITEM
                     + "\",minecraft:lore=[\"" + SHOP_LORE + "\"]]");
             context.waitTicks(5);
@@ -145,6 +150,17 @@ public class MinerefineClientGameTest implements FabricClientGameTest {
             context.getInput().pressKey(options -> options.keyDrop);
             context.waitFor(client -> DropKeyHook.count() > drops, 100);
         }
+    }
+
+    /** A free port, so several versions tested at once each get their own server. */
+    private static java.util.Properties serverProperties() {
+        java.util.Properties p = new java.util.Properties();
+        try (java.net.ServerSocket socket = new java.net.ServerSocket(0)) {
+            p.setProperty("server-port", String.valueOf(socket.getLocalPort()));
+        } catch (java.io.IOException e) {
+            throw new java.io.UncheckedIOException(e);
+        }
+        return p;
     }
 
     private static void check(boolean ok, String failure) {

@@ -62,13 +62,17 @@ jobs:
       - name: Install a virtual display
         run: sudo apt-get update && sudo apt-get install -y xvfb libgl1-mesa-dri
 
-      # One retry: GitHub's small machines occasionally load the test world too slowly. A real
-      # bug fails both attempts.
+      # Two retries: GitHub's small machines sometimes stall loading the test world (1.21.11 sat at
+      # "Preparing spawn area: 16%" until the timeout). A real bug fails every attempt.
+      # The software renderer uses every core by default and starves the game's own server thread
+      # of CPU while it builds the world, so it gets two threads.
       - name: Start Minecraft and run the client game tests
+        env:
+          LP_NUM_THREADS: "2"
         run: |
           chmod +x gradlew
           run() { xvfb-run -a -s "-screen 0 1280x720x24" ./gradlew :${{ matrix.minecraft }}:runClientGameTest --stacktrace; }
-          run || { echo "::warning::Game test failed once on ${{ matrix.minecraft }}, retrying"; run; }
+          run || { echo "::warning::Game test failed once on ${{ matrix.minecraft }}, retrying"; run; }               || { echo "::warning::Game test failed twice on ${{ matrix.minecraft }}, last try"; run; }
 
       - name: Upload screenshots
         if: always()

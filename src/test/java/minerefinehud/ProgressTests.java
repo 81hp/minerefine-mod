@@ -73,6 +73,7 @@ public final class ProgressTests {
         pickaxeSwapsAtToolMines();
         toolMinesWithoutBundledItems();
         monarchIsTheKingAndQueen();
+        maxedToolInHandIsNotTheMine();
 
         System.out.println();
         System.out.println("passed: " + passed + "   failed: " + failed);
@@ -704,6 +705,25 @@ public final class ProgressTests {
         var v = ProgressPlanner.plan(ProgressSlot.AXE, List.of(), overworld,
                 overworld.byName("Oak"), new PriceLedger(), new ResourceBalances());
         eq("an axe is found at a mine that also sells a pickaxe", "Oak", v.mine());
+    }
+
+    /**
+     * Reported: holding a maxed axe or shovel sent the bars to that tool's mine instead of the gear
+     * being upgraded. The client leaves a maxed tool out of mine detection, by this check.
+     */
+    private static void maxedToolInHandIsNotTheMine() {
+        PriceLedger ledger = new PriceLedger();
+        ledger.knowTierCount("Debris", "shovel", 6);
+        eq("a shovel at its last tier is maxed", true, ProgressPlanner.maxed(new GearRef("Debris", "shovel", 6), CATALOG, ledger));
+        eq("one short of it is not", false, ProgressPlanner.maxed(new GearRef("Debris", "shovel", 5), CATALOG, ledger));
+        eq("the server's capitals change nothing", true, ProgressPlanner.maxed(new GearRef("Debris", "Shovel", 6), CATALOG, ledger));
+
+        // Mining Relic, but the last block was not recognised and a maxed Debris shovel is in hand.
+        Optional<String> held = Optional.of(new GearRef("Debris", "shovel", 6))
+                .filter(g -> !ProgressPlanner.maxed(g, CATALOG, ledger)).map(GearRef::mine);
+        var found = minerefinehud.mine.MineDetector.detect(CATALOG, Optional.empty(), held, Optional.of("Relic"));
+        eq("the shop opened says where the player is, not the maxed shovel", "Relic",
+                found.mine().map(Mine::name).orElse(""));
     }
 
     // ----------------------------------------------------------- mine costs

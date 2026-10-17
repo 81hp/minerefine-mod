@@ -778,9 +778,11 @@ public final class MinerefineHudClient implements ClientModInitializer {
     /**
      * The mine of the tool in hand right now, if it is a MineRefine pickaxe, axe or shovel. A
      * sword or a chestplate says nothing about where the player is, and the remembered heldGear
-     * keeps the last gear ever held, which is no evidence at all.
+     * keeps the last gear ever held, which is no evidence at all. Nor is a maxed tool: it is kept
+     * from a mine already finished (an axe for that world's wood), and taken for the mine, every
+     * bar went back to it instead of the gear being upgraded.
      */
-    private static Optional<String> toolInHand(Minecraft client) {
+    private Optional<String> toolInHand(Minecraft client) {
         try {
             if (client == null || client.player == null) {
                 return Optional.empty();
@@ -790,6 +792,7 @@ public final class MinerefineHudClient implements ClientModInitializer {
                         case "pickaxe", "axe", "shovel" -> true;
                         default -> false;
                     })
+                    .filter(g -> !ProgressPlanner.maxed(g, catalogSource.catalog(), prices))
                     .map(ShopItemParser.GearRef::mine);
         } catch (Exception | NoSuchMethodError | NoClassDefFoundError ignored) {
             return Optional.empty();

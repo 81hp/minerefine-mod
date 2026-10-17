@@ -340,6 +340,37 @@ public final class HalloweenTests {
         check("fire coral has its own row", stats.stream().anyMatch(l -> l.text().startsWith(" Fire Coral 160")));
         check("fire coral counts in the crop rate", stats.stream().anyMatch(l -> l.text().equals("Crops 1.8k/h")));
 
+        // The Halloween Update's new crop.
+        HalloweenText.Sidebar hallowed = HalloweenText.sidebar(List.of("🎃 HALLOWEEN", "│ Hallowed 4,321",
+                "│ Candy 2.5", "Resurrection 7"));
+        eq("hallowed read", 4321.0, hallowed.balances().get("Hallowed"));
+        check("candy next to hallowed alone is the event", HalloweenText.sidebar(List.of("│ Hallowed 4,321",
+                "│ Candy 2.5")).halloween());
+
+        // The Belfry shortens cooldowns below the menu's: press to "recharged" is measured.
+        Abilities belfry = new Abilities();
+        belfry.importClasses(Map.of(), "Jack o'Lantern");
+        belfry.pressed(Abilities.Key.DROP, 10_000L);
+        belfry.recharged("Will-o'-Wisps", 15_600L);
+        belfry.pressed(Abilities.Key.DROP, 20_000L);
+        eq("the measured cooldown is used next time", 5_600L, belfry.timers(20_000L).get(0).msLeft());
+        belfry.pressed(Abilities.Key.SHIFT_DROP, 30_000L);
+        eq("the other ability keeps its own", 20_000L, belfry.timers(30_000L).get(1).msLeft());
+        // A press while still recharging is answered at once; it did not fire.
+        Abilities dud = new Abilities();
+        dud.importClasses(Map.of(), "Jack o'Lantern");
+        dud.pressed(Abilities.Key.DROP, 1_000L);
+        dud.recharging("Will-o'-Wisps", 0.5, 1_100L);
+        dud.recharged("Will-o'-Wisps", 1_600L);
+        dud.pressed(Abilities.Key.DROP, 5_000L);
+        eq("a press that did not fire teaches nothing", 7_000L, dud.timers(5_000L).get(0).msLeft());
+        Abilities slow = new Abilities();
+        slow.importClasses(Map.of(), "Jack o'Lantern");
+        slow.pressed(Abilities.Key.DROP, 0L);
+        slow.recharged("Will-o'-Wisps", 60_000L);
+        slow.pressed(Abilities.Key.DROP, 70_000L);
+        eq("a minute is not a cooldown of seven seconds", 7_000L, slow.timers(70_000L).get(0).msLeft());
+
         // Picking a class at the NPC says so in chat; the panel follows without reading the menu.
         eq("ability set read", Optional.of("Witch"), HalloweenText.abilitySet("Farming ability set to Witch."));
         eq("other chat is no pick", Optional.empty(), HalloweenText.abilitySet("Will-o'-Wisps has recharged! [DROP]"));

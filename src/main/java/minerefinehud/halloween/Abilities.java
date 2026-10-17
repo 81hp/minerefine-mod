@@ -7,6 +7,7 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Optional;
+import java.util.OptionalLong;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
@@ -26,6 +27,9 @@ import java.util.regex.Pattern;
  * it is pressed too early and "Will-o'-Wisps has recharged! [DROP]" when it is back. So a cooldown
  * starts when the player presses drop with a hoe, is corrected by "recharging", and ends at
  * "recharged". Pressed and nothing fired, the timer simply runs out at the cooldown.
+ *
+ * The Belfry building shortens every cooldown below what the menu says, so the time from a press
+ * to its "recharged" is measured and used for the next press of that ability.
  *
  * No Minecraft types.
  */
@@ -60,6 +64,10 @@ public final class Abilities {
     private String selected = "";
     /** Per ability name (key()), when it is ready again. Absent or past means ready. */
     private final Map<String, Long> readyAt = new HashMap<>();
+    /** Per ability name, when a press started its cooldown, until "recharged" measures it. */
+    private final Map<String, Long> firedAt = new HashMap<>();
+    /** Per ability name, the cooldown measured from a press to its "recharged". */
+    private final Map<String, Long> measuredMs = new HashMap<>();
     /** Abilities whose "ready" has not been announced yet, for the sound. */
     private final Map<String, Boolean> waiting = new HashMap<>();
 
@@ -108,6 +116,11 @@ public final class Abilities {
         String name = HalloweenText.strip(title).replaceAll("^[^\\p{L}]+|[^\\p{L}']+$", "");
         ClassSpec spec = new ClassSpec(name, drop, shift);
         boolean changed = !spec.equals(classes.get(key(name)));
+        if (changed) {
+            // New figures from the server: they count again until the next measurement.
+            measuredMs.remove(key(drop.name()));
+            measuredMs.remove(key(shift.name()));
+        }
         classes.put(key(name), spec);
         if (isSelected && !key(name).equals(selected)) {
             selected = key(name);
@@ -138,7 +151,9 @@ public final class Abilities {
         selected().map(c -> c.on(key)).ifPresent(a -> {
             Long ready = readyAt.get(key(a.name()));
             if (ready == null || ready <= now) {
-                start(a.name(), (long) (a.cooldownSeconds() * 1000.0), now);
+                String k = key(a.name());
+                start(a.name(), measuredMs.getOrDefault(k, (long) (a.cooldownSeconds() * 1000.0)), now);
+                firedAt.put(k, now);
             }
         });
     }
@@ -146,6 +161,12 @@ public final class Abilities {
     /** "X is recharging (2.31s)": the exact time left. Returns true if the class was learned from it. */
     public boolean recharging(String ability, double secondsLeft, long now) {
         boolean learned = learnSelectionFrom(ability);
+        Long fired = firedAt.get(key(ability));
+        if (fired != null && now - fired <= 1_000L) {
+            // Most likely the press that started the timer did not fire, the ability was still
+            // recharging; measured from there, the cooldown would come out short.
+            firedAt.remove(key(ability));
+        }
         start(ability, (long) (secondsLeft * 1000.0), now);
         return learned;
     }
@@ -153,7 +174,18 @@ public final class Abilities {
     /** "X has recharged!": usable now. Returns true if the class was learned from it. */
     public boolean recharged(String ability, long now) {
         boolean learned = learnSelectionFrom(ability);
-        readyAt.put(key(ability), now);
+        String k = key(ability);
+        Long fired = firedAt.remove(k);
+        OptionalLong base = baseCooldownMs(k);
+        if (fired != null && base.isPresent()) {
+            long took = now - fired;
+            // A press long before that never fired would make it far too long; only a time that
+            // fits the cooldown, or the Belfry's shorter one, is kept.
+            if (took >= base.getAsLong() / 4 && took <= base.getAsLong() + 1_500L) {
+                measuredMs.put(k, took);
+            }
+        }
+        readyAt.put(k, now);
         return learned;
     }
 
@@ -169,6 +201,18 @@ public final class Abilities {
         }
         selected = k;
         return true;
+    }
+
+    /** The menu's cooldown for this ability (by key()), in any class known. */
+    private OptionalLong baseCooldownMs(String abilityKey) {
+        for (ClassSpec c : classes.values()) {
+            for (Key k : Key.values()) {
+                if (key(c.on(k).name()).equals(abilityKey)) {
+                    return OptionalLong.of((long) (c.on(k).cooldownSeconds() * 1000.0));
+                }
+            }
+        }
+        return OptionalLong.empty();
     }
 
     private boolean learnSelectionFrom(String ability) {

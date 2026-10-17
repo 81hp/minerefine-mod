@@ -7,6 +7,7 @@ import minerefinehud.halloween.PumpkinSet;
 import minerefinehud.halloween.Rates;
 import minerefinehud.halloween.RecurringEvent;
 import minerefinehud.hud.HudModel;
+import minerefinehud.progress.ActionBarReader;
 import minerefinehud.shop.ShopItemParser;
 import net.fabricmc.fabric.api.client.event.lifecycle.v1.ClientTickEvents;
 import net.fabricmc.fabric.api.client.message.v1.ClientReceiveMessageEvents;
@@ -57,6 +58,16 @@ final class HalloweenClient {
     private long lastHalloweenSidebarAt;
     /** The world the Halloween sidebar was last seen in, to stay in Halloween while escorting the caravan. */
     private String halloweenDimension = "";
+    /**
+     * The last sign the player left: a teleport, or mining a mine's block. One at or after the
+     * last Halloween sidebar means they warped out, not that they are escorting the caravan.
+     */
+    private long leftAt;
+    /** Where the player was at the last sidebar check, to notice a teleport. */
+    private double lastX;
+    private double lastZ;
+    private String lastDimension = "";
+    private boolean havePosition;
     private long lastSidebarCheck;
     private boolean onMineRefine;
     /** MineRefine's sidebar was seen since joining, so this is that server and not another. */
@@ -82,11 +93,16 @@ final class HalloweenClient {
     private final Set<String> rung = new HashSet<>();
     /** The last caravan warning, to show "leaves in" for its minute. */
     private long caravanWarnedAt;
+    /** When the last caravan was delivered or destroyed: its two bosses come 30 seconds later. */
+    private long caravanEndedAt;
 
     private static final long ACTION_BAR_FRESH_MS = 5_000L;
     /** The Halloween sidebar this recently, then a caravan run, keeps the Halloween panels. */
     private static final long ESCORT_GRACE_MS = 15L * 60_000L;
+    /** Further than this between two checks half a second apart is a teleport, not walking. */
+    private static final double TELEPORT_BLOCKS = 48.0;
     private static final long ALERT_SHOW_MS = 10_000L;
+    private static final long CARAVAN_BOSSES_AFTER_MS = 30_000L;
     private static final Pattern HOE = Pattern.compile("\\bhoe\\b", Pattern.CASE_INSENSITIVE);
 
     HalloweenClient(ModConfig config, Runnable save, Runnable sound, Runnable abilitySound) {
@@ -141,6 +157,8 @@ final class HalloweenClient {
         inHalloween = false;
         lastHalloweenSidebarAt = 0L;
         halloweenDimension = "";
+        leftAt = 0L;
+        havePosition = false;
         onMineRefine = false;
         seenMineRefine = false;
         mineRefineSince = 0L;
@@ -217,6 +235,9 @@ final class HalloweenClient {
         seenMineRefine |= onMineRefine;
         HalloweenText.Sidebar sidebar = HalloweenText.sidebar(lines);
         String dimension = dimension(client);
+        if (teleported(client, dimension)) {
+            leftAt = now;
+        }
         if (sidebar.halloween()) {
             lastHalloweenSidebarAt = now;
             halloweenDimension = dimension;
@@ -226,7 +247,10 @@ final class HalloweenClient {
         // Escorting the caravan swaps the sidebar out. The player is still in Halloween while the
         // caravan runs and they stay in the world they farmed in. This only keeps the panels on,
         // never switches them on, in case the mines share that world.
-        nowIn |= inHalloween && escorting(now, dimension);
+        // A warp or a mine's block at or after the last Halloween sidebar: the player left, the
+        // caravan is not why the sidebar went.
+        boolean left = leftAt > 0L && leftAt >= lastHalloweenSidebarAt - 3_000L;
+        nowIn |= inHalloween && !left && escorting(now, dimension);
         if (nowIn != inHalloween) {
             inHalloween = nowIn;
             rates.forgetBaselines();   // nothing changed while away counts as farmed here
@@ -239,6 +263,28 @@ final class HalloweenClient {
             sidebarBalances.putAll(sidebar.balances());
             sidebar.balances().forEach(rates::observe);
         }
+    }
+
+    /**
+     * The player moved further since the last check than they can walk in half a second, or
+     * changed world. A warp out of the event does this; escorting the caravan on foot does not.
+     */
+    private boolean teleported(Minecraft client, String dimension) {
+        double x;
+        double z;
+        try {
+            x = client.player.getX();
+            z = client.player.getZ();
+        } catch (Exception | NoSuchMethodError ignored) {
+            return false;
+        }
+        boolean jumped = havePosition
+                && (!dimension.equals(lastDimension) || Math.hypot(x - lastX, z - lastZ) > TELEPORT_BLOCKS);
+        lastX = x;
+        lastZ = z;
+        lastDimension = dimension;
+        havePosition = true;
+        return jumped;
     }
 
     /**
@@ -263,12 +309,20 @@ final class HalloweenClient {
         if (!inHalloween) {
             return false;
         }
+        long now = System.currentTimeMillis();
         Optional<HalloweenText.CropReading> crop = HalloweenText.actionBar(text);
         crop.ifPresent(r -> {
             actionBarCrops.put(r.crop(), r.amount());
-            actionBarAt.put(r.crop(), System.currentTimeMillis());
+            actionBarAt.put(r.crop(), now);
         });
-        return crop.isPresent() || System.currentTimeMillis() - lastHalloweenSidebarAt < 3_000L;
+        if (crop.isPresent() || now - lastHalloweenSidebarAt < 3_000L) {
+            return true;
+        }
+        // Only kept on for the caravan, and mining a mine's block: the player is back in the mines.
+        if (ActionBarReader.read(text).filter(r -> r.sprite().startsWith("block/")).isPresent()) {
+            leftAt = now;
+        }
+        return false;
     }
 
     /** Sidebar balances, with the action bar's newer crop total where it has one. */
@@ -335,6 +389,7 @@ final class HalloweenClient {
             saveTimers();
         } else if (RecurringEvent.caravanEnded(text)) {
             caravan.ended(now);
+            caravanEndedAt = now;
             saveTimers();
         } else if (RecurringEvent.reforgerArrived(text)) {
             reforger.started(now);
@@ -416,6 +471,14 @@ final class HalloweenClient {
                     && (v.exact() || now - caravanWarnedAt > 120_000L)) {
                 add(out, ring, "caravan:" + (now + v.ms()) / 10_000L,
                         "Caravan leaves in " + minerefinehud.hud.Formatting.duration(v.ms()) + "!");
+            }
+            // Delivered or destroyed, the caravan leaves two bosses 30 seconds later. The countdown
+            // is only shown; the sound is for when they are up.
+            long bosses = caravanEndedAt + CARAVAN_BOSSES_AFTER_MS;
+            if (caravanEndedAt > 0L && now < bosses && !ring) {
+                out.add("Caravan bosses in " + minerefinehud.hud.Formatting.duration(bosses - now) + "!");
+            } else if (caravanEndedAt > 0L && now >= bosses && now - bosses <= ALERT_SHOW_MS) {
+                add(out, ring, "caravan-bosses:" + bosses, "Caravan bosses have spawned!");
             }
         }
         return out;

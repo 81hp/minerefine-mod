@@ -996,6 +996,12 @@ public final class ProgressPlanner {
     /** Every boss piece the bundled table lists has two tiers. */
     private static final int BOSS_TIERS = 2;
 
+    /** The item is at its last tier, as far as the prices and the data know. */
+    public static boolean maxed(ShopItemParser.GearRef g, MineCatalog catalog, PriceLedger ledger) {
+        String gear = g.gear().toLowerCase(Locale.ROOT);
+        return g.level() >= maxLevel(ledger, catalog, catalog.serverName(g.mine()), gear);
+    }
+
     private static int maxLevel(PriceLedger ledger, MineCatalog catalog, String mine, String gear) {
         // A boss the table leaves out (Endor, Nekronos) would otherwise get the mines' guess of
         // six, and a maxed piece would wait for a tier III that does not exist.

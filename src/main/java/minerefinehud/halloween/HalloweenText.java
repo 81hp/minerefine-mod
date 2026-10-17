@@ -27,7 +27,8 @@ public final class HalloweenText {
 
     /** Every crop the event might use. Only names here are read, so "Resurrection 1" never counts. */
     public static final List<String> CROPS = List.of(
-            "Carrots", "Beetroots", "Nether Wart", "Fire Coral", "Potatoes", "Wheat", "Pumpkins", "Melons");
+            "Carrots", "Beetroots", "Nether Wart", "Fire Coral", "Hallowed", "Potatoes", "Wheat", "Pumpkins",
+            "Melons");
 
     private static final Pattern FORMATTING = Pattern.compile("[§&][0-9A-Fa-fK-Ok-oRr]");
 

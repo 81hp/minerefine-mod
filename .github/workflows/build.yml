@@ -67,6 +67,9 @@ jobs:
       # "Preparing spawn area: 16%" until the timeout). A real bug fails every attempt.
       # The software renderer uses every core by default and starves the game's own server thread
       # of CPU while it builds the world, so it gets two threads.
+      - name: Which machine
+        run: echo "$(nproc) cores, $(grep -m1 'model name' /proc/cpuinfo)"
+
       - name: Start Minecraft and run the client game tests
         env:
           LP_NUM_THREADS: "2"

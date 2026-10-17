@@ -202,7 +202,8 @@ public class MinerefineClientGameTest implements FabricClientGameTest {
      * stuck: the packet listener's class names the step (handshake, login, configuration, play).
      */
     private static void dumpConnections() {
-        StringBuilder out = new StringBuilder("[minerefine-hud-test] connections while stuck joining:\n");
+        StringBuilder out = new StringBuilder("[minerefine-hud-test] connections while stuck joining ("
+                + Runtime.getRuntime().availableProcessors() + " processors):\n");
         try {
             net.minecraft.client.Minecraft mc = net.minecraft.client.Minecraft.getInstance();
             describeFields(out, "client", mc);
@@ -216,6 +217,17 @@ public class MinerefineClientGameTest implements FabricClientGameTest {
             } else {
                 for (net.minecraft.network.Connection c : List.copyOf(s.getConnection().getConnections())) {
                     out.append("  server side: ").append(describe(c)).append('\n');
+                    // The configuration step the server waits on, and the ones queued after it.
+                    Object listener = c.getPacketListener();
+                    for (Class<?> k = listener == null ? null : listener.getClass(); k != null && k != Object.class; k = k.getSuperclass()) {
+                        for (java.lang.reflect.Field f : k.getDeclaredFields()) {
+                            if (!java.lang.reflect.Modifier.isStatic(f.getModifiers())
+                                    && (f.getType().getName().contains("Task") || f.getName().toLowerCase(java.util.Locale.ROOT).contains("task"))) {
+                                f.setAccessible(true);
+                                out.append("    ").append(f.getName()).append(": ").append(f.get(listener)).append('\n');
+                            }
+                        }
+                    }
                 }
             }
         } catch (Throwable t) {

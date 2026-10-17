@@ -157,6 +157,16 @@ public final class ModConfig {
     public boolean showBossLearning = true;
     /** Bosses from every dimension rather than only the one being mined in. */
     public boolean showAllBossWorlds = false;
+    /**
+     * Bosses chosen to watch, from every world. Empty watches none in particular: the panel shows
+     * this dimension's bosses, or every one, as above.
+     */
+    public java.util.List<String> watchedBosses = new java.util.ArrayList<>();
+    /** Open /bossindex unseen every so often, so every timer stays right away from its world. */
+    public boolean bossIndexAuto = false;
+    public long bossIndexEveryMs = 5L * 60_000L;
+    /** The index menu's title, learned when it is seen with bosses in it. Written by the mod. */
+    public String bossIndexTitle = "";
 
     public boolean showProgressText = true;
     /** Bars count every tier left to max the piece at its mine, not just the next tier. */
@@ -612,6 +622,14 @@ public final class ModConfig {
         alertLook = fix(alertLook, 2.0);
 
         maxBosses = Math.max(1, Math.min(MAX_BOSSES, maxBosses));
+        if (watchedBosses == null) {
+            watchedBosses = new java.util.ArrayList<>();
+        }
+        watchedBosses.removeIf(n -> n == null || n.isBlank());
+        bossIndexEveryMs = Math.max(BossIndexPoller.MIN_INTERVAL_MS, bossIndexEveryMs);
+        if (bossIndexTitle == null) {
+            bossIndexTitle = "";
+        }
         bossReminderSeconds = Math.max(MIN_REMINDER_SECONDS, Math.min(MAX_REMINDER_SECONDS, bossReminderSeconds));
         bossReminderVolume = Math.max(0, Math.min(100, bossReminderVolume));
     }

@@ -142,6 +142,7 @@ public final class MinerefineHudClient implements ClientModInitializer {
 
     /** The Halloween event and the Reforger. */
     private HalloweenClient halloween;
+    private BossIndexPoller bossIndex;
 
     /** Mine named by the shop most recently opened. A fallback when nothing else names one. */
     private Optional<String> lastShopMine = Optional.empty();
@@ -199,6 +200,9 @@ public final class MinerefineHudClient implements ClientModInitializer {
             }
         });
         halloween.register();
+        bossIndex = new BossIndexPoller(config, () -> config.save(configFile), halloween::onMineRefine,
+                this::readBossIndex);
+        bossIndex.register();
 
         registerKeyBindings();
         ActionBarHook.listen(this::onActionBar);
@@ -282,7 +286,7 @@ public final class MinerefineHudClient implements ClientModInitializer {
         }
         Compat.setScreen(client, new SettingsScreen(null, config, this::settingsChanged,
                 () -> openPositionScreen(client), () -> openPositionScreen(client, true),
-                () -> halloween.resetRates(), () -> halloween.owned(), this::previews));
+                () -> halloween.resetRates(), () -> halloween.owned(), this::previews, this::bossNames));
     }
 
     /** Settings apply live: the HUD reads the config every frame. This saves and re-plans now. */
@@ -449,6 +453,7 @@ public final class MinerefineHudClient implements ClientModInitializer {
             resourcePickups.reset();
             fragmentCounts.reset();
             halloween.onJoin();
+            bossIndex.onJoin();
             // Cheap, and lets a replaced progression.json in the config folder apply on rejoin.
             catalogSource.load();
         });
@@ -498,8 +503,13 @@ public final class MinerefineHudClient implements ClientModInitializer {
             lastShopScan = now;
 
             List<ShopItemParser.ItemView> items = ShopScanner.visibleItems(client);
-            halloween.scanScreen(ShopScanner.screenTitle(client), items);
-            readBossIndex(items, now);
+            String title = ShopScanner.screenTitle(client);
+            halloween.scanScreen(title, items);
+            if (readBossIndex(items, now)) {
+                // Opened by the player, or shown because its title was not known yet: from now
+                // on the automatic check knows this menu by its title.
+                bossIndex.learnTitle(title);
+            }
             List<ShopItemParser.Entry> entries = ShopItemParser.parseAll(items);
             recordUnrecognised(client, ShopItemParser.unrecognised(items).stream()
                     .filter(item -> !HalloweenClient.isHalloweenItem(item)).toList());
@@ -568,16 +578,19 @@ public final class MinerefineHudClient implements ClientModInitializer {
     }
 
     /**
-     * The /boss index menu names every boss with its state: up, or back in so long. Those are the
-     * server's own timers, so they fix a countdown that was guessed or missing.
+     * The /bossindex menu names every boss with its state: up, or back in so long. Those are the
+     * server's own timers, so they fix a countdown that was guessed or missing. True if the menu
+     * held any boss, which is how the index is told from other menus.
      */
-    private void readBossIndex(List<ShopItemParser.ItemView> items, long now) {
+    private boolean readBossIndex(List<ShopItemParser.ItemView> items, long now) {
         boolean changed = false;
+        boolean any = false;
         for (ShopItemParser.ItemView item : items) {
             var entry = minerefinehud.boss.BossIndex.entry(item.title(), item.lore());
             if (entry.isEmpty()) {
                 continue;
             }
+            any = true;
             var e = entry.get();
             changed |= e.alive() ? bossTracker.onIndexAlive(e.bossName(), now)
                     : bossTracker.onIndexRespawnIn(e.bossName(), e.respawnMs(), now);
@@ -585,6 +598,7 @@ public final class MinerefineHudClient implements ClientModInitializer {
         if (changed) {
             bossStore.save(bossTracker);
         }
+        return any;
     }
 
     /**
@@ -721,8 +735,32 @@ public final class MinerefineHudClient implements ClientModInitializer {
 
     /** Timers for the dimension the player is in, or every dimension if they chose that. */
     private List<BossTracker.BossView> visibleBosses(long now) {
+        if (!config.watchedBosses.isEmpty()) {
+            return BossWorlds.watching(bossTracker.views(now), config.watchedBosses);
+        }
         return bossWorlds.filter(bossTracker.views(now), currentWorld, catalogSource.catalog(),
                 config.showAllBossWorlds);
+    }
+
+    /**
+     * Every boss the player could pick to watch: the names the timers use, then the data's bosses
+     * not heard of yet.
+     */
+    private List<String> bossNames() {
+        List<String> out = new java.util.ArrayList<>();
+        java.util.Set<String> seen = new java.util.HashSet<>();
+        for (BossTracker.BossView v : bossTracker.views(System.currentTimeMillis())) {
+            if (seen.add(BossWorlds.key(v.displayName()))) {
+                out.add(v.displayName());
+            }
+        }
+        for (Mine boss : catalogSource.catalog().bosses()) {
+            if (seen.add(BossWorlds.key(boss.name()))) {
+                out.add(boss.name());
+            }
+        }
+        out.sort(String.CASE_INSENSITIVE_ORDER);
+        return out;
     }
 
     private long reminderLeadMs() {
@@ -734,6 +772,11 @@ public final class MinerefineHudClient implements ClientModInitializer {
      * sounds with the inventory or a shop open, when the HUD is not drawn.
      */
     private void registerBossReminder() {
+        ClientTickEvents.END_CLIENT_TICK.register(client -> {
+            if (client != null && client.player != null) {
+                bossIndex.tick(client, System.currentTimeMillis());
+            }
+        });
         ClientTickEvents.END_CLIENT_TICK.register(client -> {
             if (client == null || client.player == null || !config.bossReminder) {
                 return;
@@ -1283,6 +1326,10 @@ public final class MinerefineHudClient implements ClientModInitializer {
         out.add(" boss worlds learned: " + (bossWorlds.learnedCount() == 0 ? "none"
                 : bossWorlds.export().toString()));
         out.addAll(halloween.debug(System.currentTimeMillis()));
+        out.add(" boss index check: " + (config.bossIndexAuto ? "every " + minerefinehud.boss.Interval.format(
+                bossIndex.intervalMs()) : "off") + ", menus read " + BossIndexPoller.readCount()
+                + ", title " + (config.bossIndexTitle.isBlank() ? "not learned yet" : "'" + config.bossIndexTitle + "'")
+                + ", watching " + (config.watchedBosses.isEmpty() ? "this dimension" : config.watchedBosses));
         out.add(" progress: " + (progressViews.isEmpty() ? "no bars"
                 : String.join(", ", progressViews.stream().map(v -> (v.quantity() > 1 ? v.quantity() + "x " : "")
                         + v.slot().label() + " -> " + v.mine() + " " + v.gear() + " " + v.targetLevel()

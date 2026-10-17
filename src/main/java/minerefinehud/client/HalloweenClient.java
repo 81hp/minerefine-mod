@@ -176,6 +176,11 @@ final class HalloweenClient {
         return config.halloweenEnabled && inHalloween;
     }
 
+    /** The sidebar is MineRefine's, so commands go to that server and not another. */
+    boolean onMineRefine() {
+        return onMineRefine;
+    }
+
     boolean inHalloween() {
         return inHalloween;
     }

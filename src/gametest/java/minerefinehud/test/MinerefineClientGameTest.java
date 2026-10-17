@@ -1,6 +1,8 @@
 package minerefinehud.test;
 
 import minerefinehud.client.ActionBarHook;
+import minerefinehud.client.BossIndexPoller;
+import minerefinehud.client.BossPickScreen;
 import minerefinehud.client.Compat;
 import minerefinehud.client.DropKeyHook;
 import minerefinehud.client.HudPositionScreen;
@@ -79,6 +81,16 @@ public class MinerefineClientGameTest implements FabricClientGameTest {
             context.waitTick();
             context.takeScreenshot("minerefine-hud-settings-halloween");
 
+            // The Bosses tab and its boss picker, there and back.
+            context.clickScreenButton("Bosses");
+            context.waitTick();
+            context.takeScreenshot("minerefine-hud-settings-bosses");
+            context.clickScreenButton("Choose bosses...");
+            context.waitForScreen(BossPickScreen.class);
+            context.takeScreenshot("minerefine-hud-boss-picker");
+            context.getInput().pressKey(GLFW.GLFW_KEY_ESCAPE);
+            context.waitForScreen(SettingsScreen.class);
+
             // The look tabs draw their own controls and the panels as previews, item icons
             // included; every preset is clicked through the real mouse handling.
             context.clickScreenButton("Style");
@@ -149,6 +161,32 @@ public class MinerefineClientGameTest implements FabricClientGameTest {
             int drops = DropKeyHook.count();
             context.getInput().pressKey(options -> options.keyDrop);
             context.waitFor(client -> DropKeyHook.count() > drops, 100);
+
+            // The automatic /bossindex check: the menu it asked for is read and never shown. A test
+            // server has no such command, so the menu's packets are handed to the game directly,
+            // through the same handlers (and mixin) the server's would go through.
+            server.runCommand("give @a minecraft:dragon_head[minecraft:custom_name=\"« Zeus »\","
+                    + "minecraft:lore=[\"Total Loot\",\"9m 40s\"]]");
+            context.waitTicks(5);
+            int menusRead = BossIndexPoller.readCount();
+            context.runOnClient(client -> {
+                net.minecraft.world.item.ItemStack zeus = client.player.getInventory().getNonEquipmentItems().stream()
+                        .filter(s -> s.getHoverName().getString().contains("Zeus")).findFirst()
+                        .orElseThrow(() -> new AssertionError("the boss item was not given"));
+                BossIndexPoller.expectForTest();
+                client.getConnection().handleOpenScreen(new net.minecraft.network.protocol.game.ClientboundOpenScreenPacket(
+                        77, net.minecraft.world.inventory.MenuType.GENERIC_9x3, Component.literal("Boss Index")));
+                java.util.List<net.minecraft.world.item.ItemStack> slots = new java.util.ArrayList<>();
+                for (int i = 0; i < 63; i++) {
+                    slots.add(i == 4 ? zeus.copy() : net.minecraft.world.item.ItemStack.EMPTY);
+                }
+                client.getConnection().handleContainerContent(
+                        new net.minecraft.network.protocol.game.ClientboundContainerSetContentPacket(
+                                77, 1, slots, net.minecraft.world.item.ItemStack.EMPTY));
+            });
+            check(context.computeOnClient(client -> Compat.screen(client) == null), "the boss index menu was shown");
+            context.waitFor(client -> BossIndexPoller.readCount() > menusRead, 100);
+            check(context.computeOnClient(client -> Compat.screen(client) == null), "the boss index menu was shown");
         }
     }
 

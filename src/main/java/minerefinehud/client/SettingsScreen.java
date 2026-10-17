@@ -90,6 +90,8 @@ public final class SettingsScreen extends Screen {
     /** Pumpkin pieces the player has, which get no bar. */
     private final Supplier<java.util.Set<String>> pumpkinOwned;
     private final Supplier<Previews> previews;
+    /** Every boss that can be picked to watch. */
+    private final Supplier<List<String>> bossNames;
 
     private Tab tab = Tab.GENERAL;
 
@@ -132,7 +134,8 @@ public final class SettingsScreen extends Screen {
 
     public SettingsScreen(Screen parent, ModConfig config, Runnable onChange, Runnable openPositions,
                           Runnable openHalloweenPositions, Runnable resetHalloweenRates,
-                          Supplier<java.util.Set<String>> pumpkinOwned, Supplier<Previews> previews) {
+                          Supplier<java.util.Set<String>> pumpkinOwned, Supplier<Previews> previews,
+                          Supplier<List<String>> bossNames) {
         super(Component.literal("MineRefine HUD settings"));
         this.parent = parent;
         this.config = config;
@@ -142,6 +145,7 @@ public final class SettingsScreen extends Screen {
         this.resetHalloweenRates = resetHalloweenRates;
         this.pumpkinOwned = pumpkinOwned;
         this.previews = previews;
+        this.bossNames = bossNames;
     }
 
     private int left() {
@@ -280,13 +284,19 @@ public final class SettingsScreen extends Screen {
     }
 
     private void bosses() {
-        toggle(0, 0, "Only this dimension", () -> !config.showAllBossWorlds, v -> config.showAllBossWorlds = !v);
+        Button dims = toggleAt(x(0), y(0), "Only this dimension", () -> !config.showAllBossWorlds,
+                v -> config.showAllBossWorlds = !v);
+        dims.setTooltip(Tooltip.create(Component.literal("With bosses picked to watch, those show from every "
+                + "dimension instead.")));
         cycle(1, 0, "Max shown", () -> config.maxBosses, v -> config.maxBosses = v,
                 new int[] { 1, 2, 3, 4, 5, 6, 8, 10, 15 }, String::valueOf);
         toggle(0, 1, "Alive timers", () -> config.showBossUpTimers, v -> config.showBossUpTimers = v);
         toggle(1, 1, "Still learning", () -> config.showBossLearning, v -> config.showBossLearning = v);
 
-        toggle(0, 3, "Respawn reminder", () -> config.bossReminder, v -> config.bossReminder = v);
+        Button reminder = toggleAt(x(0), y(3), "Respawn reminder", () -> config.bossReminder,
+                v -> config.bossReminder = v);
+        reminder.setTooltip(Tooltip.create(Component.literal("Reminders wait until a timer is measured (no ?). "
+                + "Opening /bossindex corrects every timer at once.")));
         cycle(1, 3, "Remind", () -> config.bossReminderSeconds, v -> config.bossReminderSeconds = v,
                 new int[] { 5, 10, 15, 20, 30, 45, 60 }, v -> v + "s before");
         toggle(0, 4, "Reminder sound", () -> config.bossReminderSound, v -> config.bossReminderSound = v);
@@ -299,9 +309,35 @@ public final class SettingsScreen extends Screen {
         check.setTooltip(Tooltip.create(Component.literal("Runs /nextreforger by itself after you join and "
                 + "after the Reforger leaves, and hides that answer. Typed by you, it shows as usual.")));
         toggle(0, 5, "Reforger alert", () -> config.reforgerAlert, v -> config.reforgerAlert = v);
+        addRenderableWidget(Button.builder(Component.literal(watchLabel()), b -> {
+                    onChange.run();
+                    if (this.minecraft != null) {
+                        Compat.setScreen(this.minecraft, new BossPickScreen(this, config, bossNames.get(), onChange));
+                    }
+                })
+                .bounds(x(1), y(5), COLUMN_WIDTH, 20).build());
 
-        labels.add(new Label("Reminders wait until a timer is measured (no ?).", x(0), y(6) + 2));
-        labels.add(new Label("Open /boss index to correct every timer at once.", x(0), y(6) + 12));
+        Button auto = toggleAt(x(0), y(6), "Auto /bossindex", () -> config.bossIndexAuto,
+                v -> config.bossIndexAuto = v);
+        auto.setTooltip(Tooltip.create(Component.literal("Runs /bossindex by itself every so often and reads "
+                + "it without opening it on your screen, so every boss timer stays right in every dimension. "
+                + "It is a real command sent as you; it waits while you have a menu or chat open.")));
+        labels.add(new Label("Every", x(1), y(6) + 6));
+        int labelWidth = this.font.width("Every") + 6;
+        EditBox every = field(x(1) + labelWidth, y(6), COLUMN_WIDTH - labelWidth,
+                minerefinehud.boss.Interval.format(config.bossIndexEveryMs), 24, s -> true, s ->
+                        minerefinehud.boss.Interval.parse(s).ifPresent(ms -> {
+                            config.bossIndexEveryMs = Math.max(BossIndexPoller.MIN_INTERVAL_MS, ms);
+                            onChange.run();
+                        }));
+        every.setTooltip(Tooltip.create(Component.literal("How often: 30s, 1 minute, 5m, 1h 30m, 2 hours... "
+                + "Shortest 30 seconds. Something it cannot read keeps the last good time.")));
+        addRenderableWidget(every);
+    }
+
+    private String watchLabel() {
+        int n = config.watchedBosses.size();
+        return n == 0 ? "Choose bosses..." : "Watching " + n + (n == 1 ? " boss..." : " bosses...");
     }
 
     /**

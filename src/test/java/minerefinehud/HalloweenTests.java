@@ -32,6 +32,7 @@ public final class HalloweenTests {
         abilityTimers();
         reforgerAndCaravan();
         bossIndexIsRead();
+        bossIndexIntervalsAndWatchList();
         bossIndexFixesTimers();
         panelsRender();
         testerReports();
@@ -235,6 +236,45 @@ public final class HalloweenTests {
         RecurringEvent saved = RecurringEvent.caravan();
         saved.importFrom(c.export());
         eq("state survives a save", c.view(later).ms(), saved.view(later).ms());
+    }
+
+    private static void bossIndexIntervalsAndWatchList() {
+        long s = 1_000L;
+        long m = 60_000L;
+        eq("1s", java.util.OptionalLong.of(s), minerefinehud.boss.Interval.parse("1s"));
+        eq("1 second", java.util.OptionalLong.of(s), minerefinehud.boss.Interval.parse("1 second"));
+        eq("90 secs", java.util.OptionalLong.of(90 * s), minerefinehud.boss.Interval.parse("90 secs"));
+        eq("5m", java.util.OptionalLong.of(5 * m), minerefinehud.boss.Interval.parse("5m"));
+        eq("5 Minutes", java.util.OptionalLong.of(5 * m), minerefinehud.boss.Interval.parse(" 5 Minutes "));
+        eq("5min", java.util.OptionalLong.of(5 * m), minerefinehud.boss.Interval.parse("5min"));
+        eq("2 hours", java.util.OptionalLong.of(120 * m), minerefinehud.boss.Interval.parse("2 hours"));
+        eq("1h30m", java.util.OptionalLong.of(90 * m), minerefinehud.boss.Interval.parse("1h30m"));
+        eq("1 hour and 30 minutes", java.util.OptionalLong.of(90 * m),
+                minerefinehud.boss.Interval.parse("1 hour and 30 minutes"));
+        eq("1h, 2m, 3s", java.util.OptionalLong.of(3600 * s + 123 * s), minerefinehud.boss.Interval.parse("1h, 2m, 3s"));
+        eq("1.5h", java.util.OptionalLong.of(90 * m), minerefinehud.boss.Interval.parse("1.5h"));
+        eq("a plain number is seconds", java.util.OptionalLong.of(45 * s), minerefinehud.boss.Interval.parse("45"));
+        eq("half-typed is nothing", java.util.OptionalLong.empty(), minerefinehud.boss.Interval.parse("5 mi"));
+        eq("words are nothing", java.util.OptionalLong.empty(), minerefinehud.boss.Interval.parse("soon"));
+        eq("milliseconds are not minutes", java.util.OptionalLong.empty(), minerefinehud.boss.Interval.parse("5ms"));
+        eq("empty is nothing", java.util.OptionalLong.empty(), minerefinehud.boss.Interval.parse(""));
+        eq("5m back", "5m", minerefinehud.boss.Interval.format(5 * m));
+        eq("1h 30m back", "1h 30m", minerefinehud.boss.Interval.format(90 * m));
+        eq("45s back", "45s", minerefinehud.boss.Interval.format(45 * s));
+        for (long v : new long[] { 30 * s, 125 * s, 90 * m, 3 * 3_600_000L + 5 * s }) {
+            eq("reads its own " + v, java.util.OptionalLong.of(v),
+                    minerefinehud.boss.Interval.parse(minerefinehud.boss.Interval.format(v)));
+        }
+
+        BossTracker t = new BossTracker();
+        t.onSpawned("Zeus", 0L);
+        t.onSpawned("Guardian 'o Toole", 0L);
+        t.onSpawned("Endor", 0L);
+        var views = t.views(1_000L);
+        var picked = minerefinehud.boss.BossWorlds.watching(views, List.of("zeus", "Guardian o' Toole"));
+        eq("only the picked bosses", 2, picked.size());
+        check("spelling and case do not matter", picked.stream().anyMatch(v -> v.displayName().startsWith("Guardian")));
+        check("an unpicked boss is left out", picked.stream().noneMatch(v -> v.displayName().equals("Endor")));
     }
 
     private static void bossIndexIsRead() {

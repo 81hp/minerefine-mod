@@ -177,6 +177,26 @@ public final class BossWorlds {
         return out;
     }
 
+    /**
+     * The bosses the player chose to watch, from every world: the /boss index keeps their timers
+     * right wherever the player is. An empty choice watches none in particular, and the world
+     * filter decides as before.
+     */
+    public static List<BossTracker.BossView> watching(List<BossTracker.BossView> views,
+                                                      java.util.Collection<String> watched) {
+        java.util.Set<String> keys = new java.util.HashSet<>();
+        for (String name : watched == null ? List.<String>of() : watched) {
+            keys.add(key(name));
+        }
+        List<BossTracker.BossView> out = new ArrayList<>();
+        for (BossTracker.BossView v : views) {
+            if (keys.contains(key(v.displayName()))) {
+                out.add(v);
+            }
+        }
+        return out;
+    }
+
     public int learnedCount() {
         return learned.size();
     }

@@ -43,6 +43,9 @@ public class MinerefineClientGameTest implements FabricClientGameTest {
             client.options.enableVsync().set(false);
             client.options.renderDistance().set(2);
             client.options.simulationDistance().set(5);
+            // The blur behind the "Connecting" screen is the slowest thing software rendering draws,
+            // and the server only ticks as fast as the client does (see serverProperties).
+            client.options.menuBackgroundBlurriness().set(0);
         });
 
         // A dedicated server rather than a singleplayer world: on GitHub's machines the built-in
@@ -271,11 +274,18 @@ public class MinerefineClientGameTest implements FabricClientGameTest {
         System.out.println(out);
     }
 
-    /** A free port, so several versions tested at once each get their own server. */
+    /**
+     * A free port, so several versions tested at once each get their own server, and a server that
+     * never pauses while the player joins.
+     */
     private static java.util.Properties serverProperties() {
         java.util.Properties p = new java.util.Properties();
         try (java.net.ServerSocket socket = new java.net.ServerSocket(0)) {
             p.setProperty("server-port", String.valueOf(socket.getLocalPort()));
+            // A joining player counts as nobody until the spawn chunks are loaded, so after 60
+            // seconds the server paused itself and the join never finished. On GitHub's AMD EPYC
+            // 7763 machines the test's lockstep ticking takes longer than that (October 2026).
+            p.setProperty("pause-when-empty-seconds", "0");
         } catch (java.io.IOException e) {
             throw new java.io.UncheckedIOException(e);
         }

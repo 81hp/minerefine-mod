@@ -62,6 +62,7 @@ public class MinerefineClientGameTest implements FabricClientGameTest {
                 }
                 if (!joined.get()) {
                     dumpThreads();
+                    dumpConnections();
                 }
             }, "minerefine-hud-test join watchdog");
             watchdog.setDaemon(true);
@@ -188,6 +189,63 @@ public class MinerefineClientGameTest implements FabricClientGameTest {
     }
 
     private static final int CONNECT_ATTEMPTS = 3;
+
+    /** The test's server, for the watchdog: the test thread is blocked inside connect() by then. */
+    private static volatile net.minecraft.server.MinecraftServer liveServer;
+
+    static {
+        net.fabricmc.fabric.api.event.lifecycle.v1.ServerLifecycleEvents.SERVER_STARTED.register(s -> liveServer = s);
+    }
+
+    /**
+     * Which login step each side's connection is at, read from another thread while the join is
+     * stuck: the packet listener's class names the step (handshake, login, configuration, play).
+     */
+    private static void dumpConnections() {
+        StringBuilder out = new StringBuilder("[minerefine-hud-test] connections while stuck joining:\n");
+        try {
+            net.minecraft.client.Minecraft mc = net.minecraft.client.Minecraft.getInstance();
+            describeFields(out, "client", mc);
+            Object screen = Compat.screen(mc);
+            if (screen != null) {
+                describeFields(out, "screen " + screen.getClass().getSimpleName(), screen);
+            }
+            net.minecraft.server.MinecraftServer s = liveServer;
+            if (s == null) {
+                out.append("  server: not started\n");
+            } else {
+                for (net.minecraft.network.Connection c : List.copyOf(s.getConnection().getConnections())) {
+                    out.append("  server side: ").append(describe(c)).append('\n');
+                }
+            }
+        } catch (Throwable t) {
+            out.append("  failed: ").append(t).append('\n');
+        }
+        System.out.println(out);
+    }
+
+    private static void describeFields(StringBuilder out, String owner, Object o) throws IllegalAccessException {
+        for (Class<?> k = o.getClass(); k != null && k != Object.class; k = k.getSuperclass()) {
+            for (java.lang.reflect.Field f : k.getDeclaredFields()) {
+                if (!java.lang.reflect.Modifier.isStatic(f.getModifiers())
+                        && net.minecraft.network.Connection.class.isAssignableFrom(f.getType())) {
+                    f.setAccessible(true);
+                    out.append("  ").append(owner).append('.').append(f.getName()).append(": ")
+                            .append(describe((net.minecraft.network.Connection) f.get(o))).append('\n');
+                }
+            }
+        }
+    }
+
+    private static String describe(net.minecraft.network.Connection c) {
+        if (c == null) {
+            return "null";
+        }
+        Object listener = c.getPacketListener();
+        return (listener == null ? "no listener" : listener.getClass().getName())
+                + ", connected " + c.isConnected() + ", connecting " + c.isConnecting()
+                + ", remote " + c.getRemoteAddress();
+    }
 
     /** Every thread's stack, to see where a join that never finishes is stuck. */
     private static void dumpThreads() {

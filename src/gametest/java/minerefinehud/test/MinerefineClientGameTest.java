@@ -49,107 +49,139 @@ public class MinerefineClientGameTest implements FabricClientGameTest {
         // server of 1.21.9 to 1.21.11 freezes at "Preparing spawn area: 16%" and the test times out.
         // It is also closer to the real thing, a client on a server.
         // `var`: the connection's type is named differently in each Fabric API version.
-        try (TestDedicatedServerContext server = context.worldBuilder().createServer(serverProperties());
-             var connection = server.connect()) {
-            context.waitFor(client -> client.player != null);
-            context.waitTicks(20);
+        for (int attempt = 1; ; attempt++) {
+            boolean connected = false;
+            try (TestDedicatedServerContext server = context.worldBuilder().createServer(serverProperties());
+                 var connection = server.connect()) {
+                connected = true;
+                context.waitFor(client -> client.player != null);
+                context.waitTicks(20);
 
-            // The action bar arrives as its own packet and reaches the mod only through the
-            // mixin. If a Minecraft update moved the method it hooks, this is where it shows.
-            server.runCommand("title @a actionbar \"" + ACTION_BAR + "\"");
-            context.waitFor(client -> ActionBarHook.last().contains(ACTION_BAR), 100);
+                // The action bar arrives as its own packet and reaches the mod only through the
+                // mixin. If a Minecraft update moved the method it hooks, this is where it shows.
+                server.runCommand("title @a actionbar \"" + ACTION_BAR + "\"");
+                context.waitFor(client -> ActionBarHook.last().contains(ACTION_BAR), 100);
 
-            // The HUD draws every frame from here on; a crash in it fails the test.
-            context.runOnClient(client -> Compat.chat(client, Component.literal("[MineRefine] test message")));
-            context.waitTicks(5);
-            check(context.computeOnClient(client -> !Compat.hudHidden(client)), "HUD reported hidden");
-            context.takeScreenshot("minerefine-hud-in-game");
+                // The HUD draws every frame from here on; a crash in it fails the test.
+                context.runOnClient(client -> Compat.chat(client, Component.literal("[MineRefine] test message")));
+                context.waitTicks(5);
+                check(context.computeOnClient(client -> !Compat.hudHidden(client)), "HUD reported hidden");
+                context.takeScreenshot("minerefine-hud-in-game");
 
-            // The default key opens the move screen, which links on to the others.
-            context.getInput().pressKey(GLFW.GLFW_KEY_F6);
-            context.waitForScreen(HudPositionScreen.class);
-            context.takeScreenshot("minerefine-hud-position-screen");
+                // The default key opens the move screen, which links on to the others.
+                context.getInput().pressKey(GLFW.GLFW_KEY_F6);
+                context.waitForScreen(HudPositionScreen.class);
+                context.takeScreenshot("minerefine-hud-position-screen");
 
-            context.clickScreenButton("Settings...");
-            context.waitForScreen(SettingsScreen.class);
-            context.takeScreenshot("minerefine-hud-settings-screen");
+                context.clickScreenButton("Settings...");
+                context.waitForScreen(SettingsScreen.class);
+                context.takeScreenshot("minerefine-hud-settings-screen");
 
-            // The Halloween tab, then back to General for the turret button.
-            context.clickScreenButton("Halloween");
-            context.waitTick();
-            context.takeScreenshot("minerefine-hud-settings-halloween");
-
-            // The look tabs draw their own controls and the panels as previews, item icons
-            // included; every preset is clicked through the real mouse handling.
-            context.clickScreenButton("Style");
-            context.waitTick();
-            for (String preset : List.of("Fork", "Tooltip", "Ledger", "Minimal", "Icons")) {
-                check(context.computeOnClient(client -> Compat.screen(client) instanceof SettingsScreen s
-                        && s.clickOption("Preset", preset)), "could not pick the " + preset + " preset");
+                // The Halloween tab, then back to General for the turret button.
+                context.clickScreenButton("Halloween");
                 context.waitTick();
-                context.takeScreenshot("minerefine-hud-style-" + preset.toLowerCase(java.util.Locale.ROOT));
+                context.takeScreenshot("minerefine-hud-settings-halloween");
+
+                // The look tabs draw their own controls and the panels as previews, item icons
+                // included; every preset is clicked through the real mouse handling.
+                context.clickScreenButton("Style");
+                context.waitTick();
+                for (String preset : List.of("Fork", "Tooltip", "Ledger", "Minimal", "Icons")) {
+                    check(context.computeOnClient(client -> Compat.screen(client) instanceof SettingsScreen s
+                            && s.clickOption("Preset", preset)), "could not pick the " + preset + " preset");
+                    context.waitTick();
+                    context.takeScreenshot("minerefine-hud-style-" + preset.toLowerCase(java.util.Locale.ROOT));
+                }
+                check(context.computeOnClient(client -> Compat.screen(client) instanceof SettingsScreen s
+                        && s.clickOption("", "Mine")), "could not switch the preview");
+                context.waitTick();
+                context.takeScreenshot("minerefine-hud-style-mine-preview");
+                context.clickScreenButton("Colours");
+                context.waitTick();
+                context.takeScreenshot("minerefine-hud-settings-colours");
+                context.clickScreenButton("Panels");
+                context.waitTick();
+                context.takeScreenshot("minerefine-hud-settings-panels");
+                context.clickScreenButton("General");
+                context.waitTick();
+
+                context.clickScreenButton("Turret size calculator...");
+                context.waitForScreen(TurretScreen.class);
+
+                // The first field takes numbers only; the letter has to be refused.
+                context.getInput().typeChars("12a.5");
+                context.waitTick();
+                String typed = context.computeOnClient(client ->
+                        Compat.screen(client).getFocused() instanceof EditBox box ? box.getValue() : null);
+                check("12.5".equals(typed), "turret field holds '" + typed + "', expected '12.5'");
+
+                // A refused character must leave the cursor where it was: two left, x refused, 9 in.
+                context.getInput().pressKey(GLFW.GLFW_KEY_LEFT);
+                context.getInput().pressKey(GLFW.GLFW_KEY_LEFT);
+                context.getInput().typeChars("x9");
+                context.waitTick();
+                typed = context.computeOnClient(client ->
+                        Compat.screen(client).getFocused() instanceof EditBox box ? box.getValue() : null);
+                check("129.5".equals(typed), "turret field holds '" + typed + "', expected '129.5'");
+                context.takeScreenshot("minerefine-hud-turret-screen");
+
+                // Escape walks back through each screen's onClose: turret, settings, game.
+                context.getInput().pressKey(GLFW.GLFW_KEY_ESCAPE);
+                context.waitForScreen(SettingsScreen.class);
+                context.getInput().pressKey(GLFW.GLFW_KEY_ESCAPE);
+                context.waitFor(client -> Compat.screen(client) == null);
+
+                // Shop prices come from item names and lore in an open container. The scanner
+                // swallows errors so a broken read never crashes the game, which is exactly why it is
+                // checked here: an inventory is a container screen like any shop.
+                server.runCommand(
+                        "give @a minecraft:stone[minecraft:custom_name=\"" + SHOP_ITEM
+                        + "\",minecraft:lore=[\"" + SHOP_LORE + "\"]]");
+                context.waitTicks(5);
+                context.getInput().pressKey(options -> options.keyInventory);
+                context.waitFor(client -> Compat.screen(client) != null);
+                List<ShopItemParser.ItemView> items = context.computeOnClient(ShopScanner::visibleItems);
+                check(items.stream().anyMatch(item -> item.title().equals(SHOP_ITEM)
+                                && item.lore().contains(SHOP_LORE)),
+                        "the shop scanner did not read the item's name and lore: " + items);
+                context.getInput().pressKey(GLFW.GLFW_KEY_ESCAPE);
+                context.waitFor(client -> Compat.screen(client) == null);
+
+                // The Halloween hoe's ability starts its cooldown on drop, seen only through the
+                // mixin on the player's drop. A quick press is the case a tick handler would miss.
+                int drops = DropKeyHook.count();
+                context.getInput().pressKey(options -> options.keyDrop);
+                context.waitFor(client -> DropKeyHook.count() > drops, 100);
+            } catch (AssertionError e) {
+                // Never got into the world: the 1.21.11 client on GitHub's machines can sit on
+                // "Connecting" for good (October 2026). The threads say where, then a fresh server.
+                if (connected || attempt >= CONNECT_ATTEMPTS) {
+                    if (!connected) {
+                        dumpThreads();
+                    }
+                    throw e;
+                }
+                dumpThreads();
+                System.out.println("[minerefine-hud-test] could not join, attempt " + attempt + ", trying again");
             }
-            check(context.computeOnClient(client -> Compat.screen(client) instanceof SettingsScreen s
-                    && s.clickOption("", "Mine")), "could not switch the preview");
-            context.waitTick();
-            context.takeScreenshot("minerefine-hud-style-mine-preview");
-            context.clickScreenButton("Colours");
-            context.waitTick();
-            context.takeScreenshot("minerefine-hud-settings-colours");
-            context.clickScreenButton("Panels");
-            context.waitTick();
-            context.takeScreenshot("minerefine-hud-settings-panels");
-            context.clickScreenButton("General");
-            context.waitTick();
-
-            context.clickScreenButton("Turret size calculator...");
-            context.waitForScreen(TurretScreen.class);
-
-            // The first field takes numbers only; the letter has to be refused.
-            context.getInput().typeChars("12a.5");
-            context.waitTick();
-            String typed = context.computeOnClient(client ->
-                    Compat.screen(client).getFocused() instanceof EditBox box ? box.getValue() : null);
-            check("12.5".equals(typed), "turret field holds '" + typed + "', expected '12.5'");
-
-            // A refused character must leave the cursor where it was: two left, x refused, 9 in.
-            context.getInput().pressKey(GLFW.GLFW_KEY_LEFT);
-            context.getInput().pressKey(GLFW.GLFW_KEY_LEFT);
-            context.getInput().typeChars("x9");
-            context.waitTick();
-            typed = context.computeOnClient(client ->
-                    Compat.screen(client).getFocused() instanceof EditBox box ? box.getValue() : null);
-            check("129.5".equals(typed), "turret field holds '" + typed + "', expected '129.5'");
-            context.takeScreenshot("minerefine-hud-turret-screen");
-
-            // Escape walks back through each screen's onClose: turret, settings, game.
-            context.getInput().pressKey(GLFW.GLFW_KEY_ESCAPE);
-            context.waitForScreen(SettingsScreen.class);
-            context.getInput().pressKey(GLFW.GLFW_KEY_ESCAPE);
-            context.waitFor(client -> Compat.screen(client) == null);
-
-            // Shop prices come from item names and lore in an open container. The scanner
-            // swallows errors so a broken read never crashes the game, which is exactly why it is
-            // checked here: an inventory is a container screen like any shop.
-            server.runCommand(
-                    "give @a minecraft:stone[minecraft:custom_name=\"" + SHOP_ITEM
-                    + "\",minecraft:lore=[\"" + SHOP_LORE + "\"]]");
-            context.waitTicks(5);
-            context.getInput().pressKey(options -> options.keyInventory);
-            context.waitFor(client -> Compat.screen(client) != null);
-            List<ShopItemParser.ItemView> items = context.computeOnClient(ShopScanner::visibleItems);
-            check(items.stream().anyMatch(item -> item.title().equals(SHOP_ITEM)
-                            && item.lore().contains(SHOP_LORE)),
-                    "the shop scanner did not read the item's name and lore: " + items);
-            context.getInput().pressKey(GLFW.GLFW_KEY_ESCAPE);
-            context.waitFor(client -> Compat.screen(client) == null);
-
-            // The Halloween hoe's ability starts its cooldown on drop, seen only through the
-            // mixin on the player's drop. A quick press is the case a tick handler would miss.
-            int drops = DropKeyHook.count();
-            context.getInput().pressKey(options -> options.keyDrop);
-            context.waitFor(client -> DropKeyHook.count() > drops, 100);
+            if (connected) {
+                return;
+            }
         }
+    }
+
+    private static final int CONNECT_ATTEMPTS = 3;
+
+    /** Every thread's stack, to see where a join that never finishes is stuck. */
+    private static void dumpThreads() {
+        StringBuilder out = new StringBuilder("[minerefine-hud-test] threads while stuck joining:\n");
+        Thread.getAllStackTraces().forEach((thread, stack) -> {
+            out.append("  \"").append(thread.getName()).append("\" ").append(thread.getState()).append('\n');
+            for (int i = 0; i < Math.min(stack.length, 30); i++) {
+                out.append("      at ").append(stack[i]).append('\n');
+            }
+        });
+        System.out.println(out);
     }
 
     /** A free port, so several versions tested at once each get their own server. */

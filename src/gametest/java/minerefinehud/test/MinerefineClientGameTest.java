@@ -51,8 +51,25 @@ public class MinerefineClientGameTest implements FabricClientGameTest {
         // `var`: the connection's type is named differently in each Fabric API version.
         for (int attempt = 1; ; attempt++) {
             boolean connected = false;
+            // The dump after a failed join comes once the server has stopped; this one comes while
+            // both sides are still stuck, so the server's login thread shows too.
+            java.util.concurrent.atomic.AtomicBoolean joined = new java.util.concurrent.atomic.AtomicBoolean();
+            Thread watchdog = new Thread(() -> {
+                try {
+                    Thread.sleep(30_000L);
+                } catch (InterruptedException e) {
+                    return;
+                }
+                if (!joined.get()) {
+                    dumpThreads();
+                }
+            }, "minerefine-hud-test join watchdog");
+            watchdog.setDaemon(true);
+            watchdog.start();
             try (TestDedicatedServerContext server = context.worldBuilder().createServer(serverProperties());
                  var connection = server.connect()) {
+                joined.set(true);
+                watchdog.interrupt();
                 connected = true;
                 context.waitFor(client -> client.player != null);
                 context.waitTicks(20);
@@ -177,7 +194,7 @@ public class MinerefineClientGameTest implements FabricClientGameTest {
         StringBuilder out = new StringBuilder("[minerefine-hud-test] threads while stuck joining:\n");
         Thread.getAllStackTraces().forEach((thread, stack) -> {
             out.append("  \"").append(thread.getName()).append("\" ").append(thread.getState()).append('\n');
-            for (int i = 0; i < Math.min(stack.length, 30); i++) {
+            for (int i = 0; i < Math.min(stack.length, 60); i++) {
                 out.append("      at ").append(stack[i]).append('\n');
             }
         });

@@ -62,6 +62,10 @@ jobs:
       - name: Install a virtual display
         run: sudo apt-get update && sudo apt-get install -y xvfb libgl1-mesa-dri
 
+      # The machine's CPU: GitHub's AMD EPYC 7763 machines are the slow ones.
+      - name: Which machine
+        run: echo "$(nproc) cores, $(grep -m1 'model name' /proc/cpuinfo)"
+
       # Two retries: GitHub's small machines sometimes stall loading the test world (1.21.11 sat at
       # "Preparing spawn area: 16%" until the timeout). A real bug fails every attempt.
       # The software renderer uses every core by default and starves the game's own server thread

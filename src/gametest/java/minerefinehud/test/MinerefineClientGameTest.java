@@ -55,7 +55,7 @@ public class MinerefineClientGameTest implements FabricClientGameTest {
         for (int attempt = 1; ; attempt++) {
             boolean connected = false;
             // The dump after a failed join comes once the server has stopped; this one comes while
-            // both sides are still stuck, so the server's login thread shows too.
+            // both sides are still stuck, with the login step each side's connection is at.
             java.util.concurrent.atomic.AtomicBoolean joined = new java.util.concurrent.atomic.AtomicBoolean();
             Thread watchdog = new Thread(() -> {
                 try {
@@ -174,8 +174,9 @@ public class MinerefineClientGameTest implements FabricClientGameTest {
                 context.getInput().pressKey(options -> options.keyDrop);
                 context.waitFor(client -> DropKeyHook.count() > drops, 100);
             } catch (AssertionError e) {
-                // Never got into the world: the 1.21.11 client on GitHub's machines can sit on
-                // "Connecting" for good (October 2026). The threads say where, then a fresh server.
+                // Never got into the world. 1.21.11 on GitHub's machines sat on "Connecting" for good
+                // until the server stopped pausing (October 2026, see serverProperties). The threads
+                // say where, then a fresh server.
                 if (connected || attempt >= CONNECT_ATTEMPTS) {
                     if (!connected) {
                         dumpThreads();
@@ -184,6 +185,9 @@ public class MinerefineClientGameTest implements FabricClientGameTest {
                 }
                 dumpThreads();
                 System.out.println("[minerefine-hud-test] could not join, attempt " + attempt + ", trying again");
+            } finally {
+                // A join that failed early must not have its watchdog fire during the next attempt.
+                watchdog.interrupt();
             }
             if (connected) {
                 return;

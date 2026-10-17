@@ -45,8 +45,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        minecraft: ["1.21.11"]
-        copy: [1, 2, 3, 4]   # TEMPORARY: catch a stuck join on an eastus/westus machine
+        minecraft: ["1.21.11", "26.1.2", "26.2"]
     steps:
       - uses: actions/checkout@v7
 
@@ -63,13 +62,14 @@ jobs:
       - name: Install a virtual display
         run: sudo apt-get update && sudo apt-get install -y xvfb libgl1-mesa-dri
 
+      # The machine's CPU: GitHub's AMD EPYC 7763 machines are the slow ones.
+      - name: Which machine
+        run: echo "$(nproc) cores, $(grep -m1 'model name' /proc/cpuinfo)"
+
       # Two retries: GitHub's small machines sometimes stall loading the test world (1.21.11 sat at
       # "Preparing spawn area: 16%" until the timeout). A real bug fails every attempt.
       # The software renderer uses every core by default and starves the game's own server thread
       # of CPU while it builds the world, so it gets two threads.
-      - name: Which machine
-        run: echo "$(nproc) cores, $(grep -m1 'model name' /proc/cpuinfo)"
-
       - name: Start Minecraft and run the client game tests
         env:
           LP_NUM_THREADS: "2"
@@ -82,7 +82,7 @@ jobs:
         if: always()
         uses: actions/upload-artifact@v7
         with:
-          name: screenshots-${{ matrix.minecraft }}-${{ matrix.copy }}
+          name: screenshots-${{ matrix.minecraft }}
           path: versions/${{ matrix.minecraft }}/build/run/clientGameTest/screenshots
           if-no-files-found: ignore
 

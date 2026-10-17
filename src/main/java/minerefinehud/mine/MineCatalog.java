@@ -157,6 +157,14 @@ public final class MineCatalog {
      */
     public Optional<Mine> boss(String shopName) {
         String k = letters(shopName);
+        String alias = BOSS_SPELLINGS.get(k);
+        if (alias != null) {
+            for (Mine b : bosses) {
+                if (letters(b.name()).equals(alias)) {
+                    return Optional.of(b);
+                }
+            }
+        }
         if (k.length() < 4) {
             return Optional.empty();
         }
@@ -184,6 +192,13 @@ public final class MineCatalog {
         }
         return Optional.ofNullable(found);
     }
+
+    /**
+     * Boss gear named nothing like the boss, letters only: Darkwater Palace's The King & Queen
+     * sell Monarch gear. Without this the Monarch shop counted as a mine, and every bar there
+     * asked for gear it does not sell ("Monarch Shovel I, open the Monarch shop").
+     */
+    private static final Map<String, String> BOSS_SPELLINGS = Map.of("monarch", "thekingqueen");
 
     /** One letter added, dropped or changed, and no more. */
     public static boolean oneLetterOff(String a, String b) {

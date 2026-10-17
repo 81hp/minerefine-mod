@@ -40,6 +40,8 @@ final class HalloweenClient {
     private final Runnable save;
     /** Plays the reminder sound, at the boss reminder's volume. */
     private final Runnable sound;
+    /** Plays the ability-ready sound, which is not the ping, so the two are told apart. */
+    private final Runnable abilitySound;
 
     private final Rates rates = new Rates();
     private final Abilities abilities = new Abilities();
@@ -87,10 +89,11 @@ final class HalloweenClient {
     private static final long ALERT_SHOW_MS = 10_000L;
     private static final Pattern HOE = Pattern.compile("\\bhoe\\b", Pattern.CASE_INSENSITIVE);
 
-    HalloweenClient(ModConfig config, Runnable save, Runnable sound) {
+    HalloweenClient(ModConfig config, Runnable save, Runnable sound, Runnable abilitySound) {
         this.config = config;
         this.save = save;
         this.sound = sound;
+        this.abilitySound = abilitySound;
         abilities.importClasses(config.hwAbilityClasses, config.hwAbilityClass);
         caravan.importFrom(config.hwCaravanState);
         reforger.importFrom(config.reforgerState);
@@ -181,7 +184,7 @@ final class HalloweenClient {
 
         if (!abilities.newlyReady(now).isEmpty() && inHalloween && config.halloweenEnabled
                 && config.hwAbilities && config.hwAbilitySound) {
-            sound.run();
+            abilitySound.run();
         }
 
         // Marked rung even with the sound off, so switching it on later does not ring old alerts.

@@ -186,10 +186,16 @@ public final class MinerefineHudClient implements ClientModInitializer {
         PriceStore.loadTierCounts(prices);
         priceStore = new PriceStore(dir.resolve("prices.json"));
         priceStore.load(prices);
+        prices.importLearnedTiers(config.learnedTierCounts);
+        PriceStore.loadVerifiedPrices(prices);
 
         halloween = new HalloweenClient(config, () -> config.save(configFile), () -> {
             if (config.bossReminderVolume > 0) {
                 playReminderSound(Minecraft.getInstance());
+            }
+        }, () -> {
+            if (config.bossReminderVolume > 0) {
+                playSound(Minecraft.getInstance(), SoundEvents.NOTE_BLOCK_CHIME.value());
             }
         });
         halloween.register();
@@ -497,9 +503,17 @@ public final class MinerefineHudClient implements ClientModInitializer {
             List<ShopItemParser.Entry> entries = ShopItemParser.parseAll(items);
             recordUnrecognised(client, ShopItemParser.unrecognised(items).stream()
                     .filter(item -> !HalloweenClient.isHalloweenItem(item)).toList());
-            ShopItemParser.balances(items).forEach((currency, amount) -> {
-                balances.update(currency, amount, now);
-                if (miningBlocks.onShopBalance(currency, amount, now)) {
+            ShopItemParser.balanceReadings(items).forEach((currency, reading) -> {
+                // "(637M)" is rounded: an exact balance it could be rounded from is kept, so the
+                // bars do not jump to the rounded figure every time a shop is opened.
+                boolean keepExact = reading.precision() > 1L && balances.get(currency)
+                        .filter(r -> reading.agreesWith(r.amount())).isPresent();
+                if (!keepExact) {
+                    balances.update(currency, reading.amount(), now);
+                }
+                // Matching a mined total to a balance needs it to the percent; "(5B)" is not.
+                if ((reading.precision() == 1L || reading.precision() * 100L <= reading.amount())
+                        && miningBlocks.onShopBalance(currency, reading.amount(), now)) {
                     saveLearnedBlocks();
                 }
             });
@@ -508,6 +522,11 @@ public final class MinerefineHudClient implements ClientModInitializer {
                 if (prices.record(entry, now) != PriceLedger.Result.UNCHANGED) {
                     pricesChanged = true;
                 }
+            }
+            if (prices.listingsSeen(entries, now)) {
+                pricesChanged = true;
+                config.learnedTierCounts = new java.util.LinkedHashMap<>(prices.exportLearnedTiers());
+                config.save(configFile);
             }
             // Saved the moment something new is read, not on close or disconnect: a crash with
             // the shop still open must not lose what was just learned.
@@ -526,7 +545,9 @@ public final class MinerefineHudClient implements ClientModInitializer {
             }
 
             // Only priced rows count: the player's own inventory is part of the same screen.
+            // A boss's shop, Monarch's, stands in no mine.
             MineDetector.mostCommon(entries.stream().map(ShopItemParser.Entry::mine).toList())
+                    .filter(mine -> !MineDetector.isBossName(catalogSource.catalog(), mine))
                     .ifPresent(mine -> {
                         lastShopMine = Optional.of(mine);
                         lastShopAt = now;
@@ -730,10 +751,14 @@ public final class MinerefineHudClient implements ClientModInitializer {
      * the player stands and is not heard by anyone else, unlike a sound played at the player.
      */
     private void playReminderSound(Minecraft client) {
+        playSound(client, SoundEvents.NOTE_BLOCK_PLING.value());
+    }
+
+    /** Same, any sound: the Halloween ability chimes rather than pings, so it is not taken for a boss. */
+    private void playSound(Minecraft client, net.minecraft.sounds.SoundEvent sound) {
         try {
             float volume = config.bossReminderVolume / 100f;
-            client.getSoundManager().play(SimpleSoundInstance.forUI(
-                    SoundEvents.NOTE_BLOCK_PLING.value(), 1.0f, volume));
+            client.getSoundManager().play(SimpleSoundInstance.forUI(sound, 1.0f, volume));
         } catch (Exception | NoSuchMethodError | NoClassDefFoundError ignored) {
             // A missing sound must not cost the title, which is drawn separately.
         }

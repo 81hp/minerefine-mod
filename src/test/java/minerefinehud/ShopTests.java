@@ -63,6 +63,9 @@ public final class ShopTests {
         tierCountsComeFromTheSheet();
         unreadableShopItemsAreCaught();
         charmsHaveOneTier();
+        roundedBalancesStillParse();
+        listingsLearnTierCounts();
+        verifiedPricesReplaceOlderOnes();
 
         System.out.println();
         System.out.println("passed: " + passed + "   failed: " + failed);
@@ -360,6 +363,115 @@ public final class ShopTests {
         PriceLedger sixOfSix = ladder("Relic", "pickaxe", 5, 6_560_000_000L, 6_880_000_000L);
         eq("top tiers only, rest missing below: still six", 6,
                 sixOfSix.maxLevel("Relic", "pickaxe", java.util.OptionalLong.of(31_560_000_000L)));
+    }
+
+    // October 2026: the balance in brackets is rounded too, and every such item went unread.
+    private static final List<String> GLACITE_III_LORE = List.of(
+            "",
+            " Protection: +568‌⛨",
+            " Fortune: +26%‌‌☘",
+            "",
+            "[ 2 Empty Enchantment Slots ]",
+            "",
+            "FROSTED CHESTPLATE",
+            "                         ",
+            "Cost: ",
+            "➼ [Glacite Chestplate] [II] x1 (0) ✗",
+            "➼ Glacite x98.02M (637M) ✔",
+            "",
+            "CLICK to purchase!");
+
+    private static void roundedBalancesStillParse() {
+        Optional<ShopItemParser.Entry> e = ShopItemParser.parse("[Glacite Chestplate] [III]", GLACITE_III_LORE);
+        yes("an item with a rounded balance is read", e.isPresent());
+        e.ifPresent(x -> {
+            eq("its tier", 3, x.level());
+            eq("its price", 98_020_000L, x.price());
+            eq("its currency", "Glacite", x.currency());
+        });
+        List<ShopItemParser.ItemView> view = List.of(new ShopItemParser.ItemView("[Glacite Chestplate] [III]", GLACITE_III_LORE));
+        yes("no longer reported as unreadable", ShopItemParser.unrecognised(view).isEmpty());
+        yes("a rounded balance is not an exact one", ShopItemParser.balances(view).isEmpty());
+        ShopItemParser.Balance b = ShopItemParser.balanceReadings(view).get("Glacite");
+        yes("but it is read", b != null);
+        if (b != null) {
+            eq("rounded amount", 637_000_000L, b.amount());
+            eq("to the million", 1_000_000L, b.precision());
+            yes("an exact balance it rounds from agrees", b.agreesWith(636_612_345L));
+            yes("one it cannot round from does not", !b.agreesWith(638_100_000L));
+        }
+        eq("precision of 17.25M", 10_000L, Amounts.precision("17.25M"));
+        eq("precision of an exact figure", 1L, Amounts.precision("7,725,607,214"));
+        eq("precision of 5B", 1_000_000_000L, Amounts.precision("5B"));
+        eq("precision of nonsense", 0L, Amounts.precision("abc"));
+    }
+
+    private static ShopItemParser.Entry entry(String mine, String gear, int level, long price) {
+        return new ShopItemParser.Entry(mine, gear, level, mine, price);
+    }
+
+    /** Pine armour lost tier IV; the old tier IV price kept the bar on a Pine Chestplate IV. */
+    private static void listingsLearnTierCounts() {
+        PriceLedger ledger = new PriceLedger();
+        ledger.knowTierCount("Pine", "chestplate", 4);
+        for (int l = 1; l <= 4; l++) {
+            ledger.record(entry("Pine", "chestplate", l, l * 10L), 1_000L);
+        }
+        eq("before: four tiers", 4, ledger.maxLevel("Pine", "chestplate"));
+
+        List<ShopItemParser.Entry> listing = List.of(entry("Pine", "chestplate", 1, 17L),
+                entry("Pine", "chestplate", 2, 29L), entry("Pine", "chestplate", 3, 43L),
+                entry("Pine", "helmet", 3, 26L));
+        listing.forEach(x -> ledger.record(x, 2_000L));
+        yes("a listing of I to III is learned", ledger.listingsSeen(listing, 2_000L));
+        eq("now three tiers, over the table's four", 3, ledger.maxLevel("Pine", "chestplate"));
+        yes("the old tier IV price is gone", ledger.price("Pine", "chestplate", 4).isEmpty());
+        yes("seen again, nothing changes", !ledger.listingsSeen(listing, 2_500L));
+        yes("one tier on its own teaches nothing", !ledger.exportLearnedTiers().containsKey("pine|helmet"));
+        eq("saved", 3, ledger.exportLearnedTiers().get("pine|chestplate").tiers);
+
+        PriceLedger reloaded = new PriceLedger();
+        reloaded.knowTierCount("Pine", "chestplate", 4);
+        reloaded.importLearnedTiers(ledger.exportLearnedTiers());
+        eq("still three after a restart", 3, reloaded.maxLevel("Pine", "chestplate"));
+        yes("and counted as known", reloaded.knowsTierCount("Pine", "chestplate"));
+    }
+
+    private static void verifiedPricesReplaceOlderOnes() {
+        PriceLedger ledger = new PriceLedger();
+        // The table ships with the prices, updated from the same shop visit.
+        ledger.knowTierCount("Glacite", "chestplate", 3);
+        for (int l = 1; l <= 4; l++) {
+            ledger.record(entry("Glacite", "chestplate", l, l * 10L), 1_000L);
+        }
+        ledger.record(entry("Glacite", "helmet", 1, 5L), 9_000L);
+        ledger.importVerified(List.of(
+                new PriceLedger.Persisted("glacite|chestplate|1", 40_970_000L, "Glacite", 5_000L),
+                new PriceLedger.Persisted("glacite|chestplate|2", 67_610_000L, "Glacite", 5_000L),
+                new PriceLedger.Persisted("glacite|chestplate|3", 98_020_000L, "Glacite", 5_000L),
+                new PriceLedger.Persisted("glacite|helmet|1", 26_330_000L, "Glacite", 5_000L)));
+        eq("an older price is replaced", 40_970_000L, ledger.price("Glacite", "chestplate", 1).get().amount());
+        yes("an older tier above the last is dropped", ledger.price("Glacite", "chestplate", 4).isEmpty());
+        eq("so the ladder ends at III", 3, ledger.maxLevel("Glacite", "chestplate"));
+        eq("a price seen since stays", 5L, ledger.price("Glacite", "helmet", 1).get().amount());
+
+        // A listing since showed two tiers: the shipped tier III must not come back on a restart.
+        PriceLedger later = new PriceLedger();
+        later.knowTierCount("Glacite", "chestplate", 3);
+        later.importLearnedTiers(java.util.Map.of("glacite|chestplate", new PriceLedger.Learned(2, 9_000L)));
+        later.importVerified(List.of(
+                new PriceLedger.Persisted("glacite|chestplate|2", 67_610_000L, "Glacite", 5_000L),
+                new PriceLedger.Persisted("glacite|chestplate|3", 98_020_000L, "Glacite", 5_000L)));
+        eq("a newer listing's count stands", 2, later.maxLevel("Glacite", "chestplate"));
+        yes("its dropped tier stays dropped", later.price("Glacite", "chestplate", 3).isEmpty());
+
+        // A count learned before the shipped prices were read gives way to them.
+        PriceLedger older = new PriceLedger();
+        older.knowTierCount("Glacite", "chestplate", 3);
+        older.importLearnedTiers(java.util.Map.of("glacite|chestplate", new PriceLedger.Learned(4, 1_000L)));
+        older.importVerified(List.of(
+                new PriceLedger.Persisted("glacite|chestplate|3", 98_020_000L, "Glacite", 5_000L)));
+        eq("an older learned count gives way", 3, older.maxLevel("Glacite", "chestplate"));
     }
 
     private static void eq(String what, Object expected, Object actual) {

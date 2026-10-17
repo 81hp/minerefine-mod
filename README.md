@@ -180,7 +180,15 @@ Things the shop taught that the code relies on:
 - **Charms have no tier.** `Honeystone Charm`, one per mine, requiring the previous charm by name
   without brackets (`Vase Charm x1`).
 - **Gear spelling differs** from the spreadsheet for three mines: Rust (Rusty), Pine (Pine Tree)
-  and Pale Wood (Pale Tree). Boss gear uses short names (Archaeologist, Guardian o', Björn).
+  and Pale Wood (Pale Tree). Boss gear uses short names (Archaeologist, Guardian o', Björn), and
+  The King & Queen's is called Monarch.
+- **Balances can be rounded** (`Glacite x67.61M (637M)`, since October 2026). An exact balance the
+  mod already knows is kept when the rounded one agrees with it.
+- **The highest tier a shop lists is the last one.** A shop lists every tier above the ones owned,
+  so two or more tiers of an item tell the mod its tier count, and older prices for tiers above it
+  are dropped. In October 2026 the server took tier IV off the early Arctic armour (Blue Ice to
+  Marble); `verified-prices.json` ships what the shops showed after that, so old saves catch up
+  without a shop visit (`tools/export-verified-prices.py` builds it).
 - **Tier I names the mine before it** (`[Suspicious Sand Shovel] [VI]` to buy Debris Shovel I).
   The mod saves these links, so the progress bar carries on into dimensions the spreadsheet does
   not list yet, through boss gear where the server requires it.
@@ -266,7 +274,7 @@ progress panels, and the action bar's crop total is kept away from the mining co
 - **Pumpkin set:** a bar per piece, or one for every piece still to buy, against candy, carrots,
   beetroots and nether wart. Prices and whether a piece is bought (`0/1 Lifetime Stock`) come from
   the shop; a piece in your inventory or worn gets no bar.
-- **Abilities:** drop and shift-drop ability cooldowns with a sound when ready. The class and its
+- **Abilities:** drop and shift-drop ability cooldowns with a chime when ready (not the boss ping). The class and its
   cooldowns come from the Farming Abilities menu, or from the first `has recharged!` message.
 
 ### Turret size calculator

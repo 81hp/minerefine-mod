@@ -55,9 +55,12 @@ public final class ShopItemParser {
      */
     private static final Pattern TITLE_NO_LEVEL = Pattern.compile("^\\[?\\s*(?<name>[^\\[\\]]+?)\\s*\\]?$");
 
-    /** "Debris x5B (0)" or "Debris x1.96B (7,725,607,214)". Not an item line, which starts "[". */
+    /**
+     * "Debris x5B (0)", "Debris x1.96B (7,725,607,214)", or since October 2026 with the balance
+     * rounded as well, "Glacite x67.61M (637M)". Not an item line, which starts "[".
+     */
     private static final Pattern MATERIAL_COST = Pattern.compile(
-            "^(?<currency>[\\p{L}][\\p{L} '\\-]*?)\\s*[x×]\\s*(?<amount>[0-9][0-9,.]*\\s*[KMBTkmbt]?)\\s*(?:\\((?<have>[0-9,]+)\\))?\\s*$");
+            "^(?<currency>[\\p{L}][\\p{L} '\\-]*?)\\s*[x×]\\s*(?<amount>[0-9][0-9,.]*\\s*[KMBTkmbt]?)\\s*(?:\\((?<have>[0-9][0-9,.]*\\s*[KMBTkmbt]?)\\))?\\s*$");
 
     private static final Pattern COST_HEADER = Pattern.compile("^cost\\s*:?$", Pattern.CASE_INSENSITIVE);
 
@@ -321,14 +324,41 @@ public final class ShopItemParser {
     }
 
     /**
-     * The player's balance of each currency, read from the bracketed figure on cost lines:
-     * "Debris x1.96B (7,725,607,214)" means 7,725,607,214 Debris held.
+     * The player's exact balance of each currency, read from the bracketed figure on cost lines:
+     * "Debris x1.96B (7,725,607,214)" means 7,725,607,214 Debris held. A rounded one, "(637M)", is
+     * left out; see {@link #balanceReadings}.
+     */
+    public static java.util.Map<String, Long> balances(List<ItemView> stacks) {
+        java.util.Map<String, Long> out = new java.util.LinkedHashMap<>();
+        balanceReadings(stacks).forEach((currency, b) -> {
+            if (b.precision() == 1L) {
+                out.put(currency, b.amount());
+            }
+        });
+        return out;
+    }
+
+    /**
+     * A balance as the shop printed it, and one unit of its last digit: 1 when exact, a million
+     * for "637M".
+     */
+    public record Balance(long amount, long precision) {
+
+        /** Whether a balance known to the unit could be the one this was rounded from. */
+        public boolean agreesWith(long exact) {
+            return Math.abs(exact - amount) * 2L <= precision;
+        }
+    }
+
+    /**
+     * Every balance on the cost lines, exact or rounded. Since October 2026 the server prints big
+     * balances rounded: "Glacite x67.61M (637M)".
      *
      * Prerequisite rows are skipped for the same reason as in pricing: "[Debris Shovel] [V] x1 (0)"
      * is a count of items owned, not a balance.
      */
-    public static java.util.Map<String, Long> balances(List<ItemView> stacks) {
-        java.util.Map<String, Long> out = new java.util.LinkedHashMap<>();
+    public static java.util.Map<String, Balance> balanceReadings(List<ItemView> stacks) {
+        java.util.Map<String, Balance> out = new java.util.LinkedHashMap<>();
         if (stacks == null) {
             return out;
         }
@@ -348,11 +378,11 @@ public final class ShopItemParser {
                 }
                 Matcher m = MATERIAL_COST.matcher(line);
                 if (m.matches() && m.group("have") != null && !isItem(m.group("currency"))) {
-                    try {
-                        out.put(m.group("currency").trim(),
-                                Long.parseLong(m.group("have").replace(",", "")));
-                    } catch (NumberFormatException ignored) {
-                        // Beyond a long is not a balance this mod can do anything useful with.
+                    // Beyond a long is not a balance this mod can do anything useful with.
+                    OptionalLong have = Amounts.parse(m.group("have"));
+                    long precision = Amounts.precision(m.group("have"));
+                    if (have.isPresent() && precision > 0L) {
+                        out.put(m.group("currency").trim(), new Balance(have.getAsLong(), precision));
                     }
                 }
             }

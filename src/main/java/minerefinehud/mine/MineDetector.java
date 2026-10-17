@@ -160,7 +160,9 @@ public final class MineDetector {
 
     /**
      * Item and shop names are the mine name exactly, so a catalog miss means missing data rather
-     * than a misread, and the name is kept as a placeholder instead of being thrown away.
+     * than a misread, and the name is kept as a placeholder instead of being thrown away. Except
+     * a boss's name ("Monarch", "Archaeologist"): its shop and its gear say nothing about which
+     * mine the player is in, and taken for a mine, every bar asked for gear the boss never sells.
      */
     private static Optional<Mine> byItemName(MineCatalog catalog, Optional<String> name) {
         if (name.isEmpty() || name.get().isBlank()) {
@@ -170,6 +172,14 @@ public final class MineDetector {
         if (known.isPresent()) {
             return known;
         }
+        if (isBossName(catalog, name.get())) {
+            return Optional.empty();
+        }
         return Optional.of(new Mine(null, "mine", "", name.get().trim(), Map.of(), null));
+    }
+
+    /** A boss's gear name, "Monarch", rather than a mine's, known or new. */
+    public static boolean isBossName(MineCatalog catalog, String name) {
+        return name != null && catalog.detectFrom(name).isEmpty() && catalog.boss(name).isPresent();
     }
 }

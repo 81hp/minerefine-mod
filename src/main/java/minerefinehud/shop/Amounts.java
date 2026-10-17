@@ -56,6 +56,31 @@ public final class Amounts {
         }
     }
 
+    /**
+     * How far a figure can be from the true value it was rounded from, as one unit of its last
+     * digit: 1 for "7,725,607,214", a million for "637M", ten thousand for "17.25M". Zero when it
+     * cannot be read.
+     */
+    public static long precision(String raw) {
+        if (raw == null || parse(raw).isEmpty()) {
+            return 0L;
+        }
+        String s = raw.trim().replace(",", "").replace(" ", "");
+        int digits = switch (Character.toUpperCase(s.charAt(s.length() - 1))) {
+            case 'K' -> 3;
+            case 'M' -> 6;
+            case 'B' -> 9;
+            case 'T' -> 12;
+            default -> 0;
+        };
+        if (digits == 0) {
+            return 1L;
+        }
+        int dot = s.indexOf('.');
+        int decimals = dot < 0 ? 0 : s.length() - 1 - dot - 1;
+        return BigDecimal.ONE.scaleByPowerOfTen(Math.max(0, digits - decimals)).longValueExact();
+    }
+
     /** Renders back in the server's own style, for the HUD. */
     public static String format(long value) {
         if (value >= 1_000_000_000L) {

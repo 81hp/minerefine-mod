@@ -93,9 +93,166 @@ public final class PriceLedger {
         }
     }
 
-    /** Whether the bundled table gives this item's tier count. */
+    /** Whether the bundled table, or a shop listing since, gives this item's tier count. */
     public boolean knowsTierCount(String mine, String gear) {
-        return knownTiers.containsKey(normalise(mine) + '|' + normalise(gear));
+        String k = normalise(mine) + '|' + normalise(gear);
+        return learnedTiers.containsKey(k) || knownTiers.containsKey(k);
+    }
+
+    /** A tier count read from a shop listing, and when. Plain fields, so the config file can hold it. */
+    public static final class Learned {
+        public int tiers;
+        public long at;
+
+        public Learned() {
+        }
+
+        public Learned(int tiers, long at) {
+            this.tiers = tiers;
+            this.at = at;
+        }
+    }
+
+    /** Tier counts read from shop listings in game, keyed "mine|gear"; they win over the table. */
+    private final Map<String, Learned> learnedTiers = new HashMap<>();
+
+    private Integer tierCount(String mine, String gear) {
+        String k = normalise(mine) + '|' + normalise(gear);
+        Learned learned = learnedTiers.get(k);
+        return learned != null ? Integer.valueOf(learned.tiers) : knownTiers.get(k);
+    }
+
+    /**
+     * How many tiers an item has, as a shop listing just showed: the shop lists every tier above
+     * the ones owned, so the highest one listed is the last. Tiers above it that were seen before
+     * this listing no longer exist and are dropped. The server took a tier off most armour in
+     * October 2026 (Pine went from IV to III), and an old tier IV price kept the bar waiting for a
+     * Pine Chestplate IV nobody can buy. Learned, the count also beats the bundled table.
+     *
+     * @return true when something changed, so the caller knows to save
+     */
+    public boolean learnTierCount(String mine, String gear, int tiers, long nowMs) {
+        if (tiers < 1 || mine == null || mine.isBlank() || gear == null || gear.isBlank()) {
+            return false;
+        }
+        boolean changed = dropOlderAbove(mine, gear, tiers, nowMs);
+        Learned old = learnedTiers.put(normalise(mine) + '|' + normalise(gear), new Learned(tiers, nowMs));
+        return changed || old == null || old.tiers != tiers;
+    }
+
+    /** Forgets tiers above {@code tiers} that were seen before {@code beforeMs}. */
+    private boolean dropOlderAbove(String mine, String gear, int tiers, long beforeMs) {
+        boolean changed = false;
+        for (int level = tiers + 1; level <= MAX_PROBED_LEVEL; level++) {
+            String k = key(mine, gear, level);
+            Price p = observed.get(k);
+            if (p != null && p.seenAt() < beforeMs) {
+                observed.remove(k);
+                changed = true;
+            }
+        }
+        return changed;
+    }
+
+    /**
+     * Tier counts learned from shop listings, after {@link #learnTierCount} and
+     * {@link #listingsSeen}, to be saved by the caller.
+     */
+    public Map<String, Learned> exportLearnedTiers() {
+        Map<String, Learned> out = new java.util.TreeMap<>();
+        learnedTiers.forEach((k, v) -> out.put(k, new Learned(v.tiers, v.at)));
+        return out;
+    }
+
+    /** Before {@link #importVerified}, which needs them to tell which is newer. */
+    public void importLearnedTiers(Map<String, Learned> saved) {
+        if (saved == null) {
+            return;
+        }
+        saved.forEach((k, v) -> {
+            if (k != null && v != null && v.tiers > 0 && k.indexOf('|') > 0) {
+                learnedTiers.put(normalise(k), new Learned(v.tiers, v.at));
+            }
+        });
+    }
+
+    /**
+     * Learns the tier count of every item a shop screen lists two or more tiers of. One tier on
+     * its own could be a purchase screen or the only tier left above what is owned, so it proves
+     * nothing about the last one.
+     *
+     * @return true when something changed
+     */
+    public boolean listingsSeen(List<ShopItemParser.Entry> entries, long nowMs) {
+        Map<String, List<ShopItemParser.Entry>> byItem = new java.util.LinkedHashMap<>();
+        for (ShopItemParser.Entry e : entries) {
+            byItem.computeIfAbsent(normalise(e.mine()) + '|' + normalise(e.gear()), x -> new ArrayList<>()).add(e);
+        }
+        boolean changed = false;
+        for (List<ShopItemParser.Entry> tiers : byItem.values()) {
+            long distinct = tiers.stream().mapToInt(ShopItemParser.Entry::level).distinct().count();
+            // A charm has one tier and is never a ladder.
+            if (distinct < 2 || "charm".equals(normalise(tiers.get(0).gear()))) {
+                continue;
+            }
+            int top = tiers.stream().mapToInt(ShopItemParser.Entry::level).max().orElse(0);
+            changed |= learnTierCount(tiers.get(0).mine(), tiers.get(0).gear(), top, nowMs);
+        }
+        return changed;
+    }
+
+    /**
+     * Prices shipped with the mod, read in game after a server change. Each replaces a price the
+     * player saw before it was read, and tiers above the last one it lists that were seen before
+     * then are dropped, so a save from before the change (four tiers at old prices) catches up
+     * without a shop visit. A price seen since stays, and so does a tier count a shop listing
+     * showed since: the shipped tiers above it are left out, or they would come back on every
+     * start.
+     */
+    public void importVerified(List<Persisted> verified) {
+        if (verified == null) {
+            return;
+        }
+        Map<String, Persisted> topOfItem = new HashMap<>();
+        for (Persisted p : verified) {
+            if (p == null || p.key() == null) {
+                continue;
+            }
+            int bar = p.key().lastIndexOf('|');
+            if (bar <= 0) {
+                continue;
+            }
+            Learned learned = learnedTiers.get(normalise(p.key().substring(0, bar)));
+            if (learned != null && learned.at >= p.seenAt() && level(p.key()) > learned.tiers) {
+                continue;
+            }
+            Price existing = observed.get(p.key());
+            if (existing == null || existing.seenAt() < p.seenAt()) {
+                observed.put(p.key(), new Price(p.amount(), p.currency(), Source.OBSERVED, p.seenAt()));
+            }
+            String item = p.key().substring(0, bar);
+            Persisted top = topOfItem.get(item);
+            if (top == null || level(p.key()) > level(top.key())) {
+                topOfItem.put(item, p);
+            }
+        }
+        topOfItem.forEach((item, top) -> {
+            int bar = item.lastIndexOf('|');
+            dropOlderAbove(item.substring(0, bar), item.substring(bar + 1), level(top.key()), top.seenAt());
+            // A count learned before these were read is out of date.
+            Learned learned = learnedTiers.get(normalise(item));
+            if (learned != null && learned.at < top.seenAt()) {
+                learnedTiers.remove(normalise(item));
+            }
+        });
+    }
+
+    private static int level(String key) {
+        try {
+            return Integer.parseInt(key.substring(key.lastIndexOf('|') + 1));
+        } catch (NumberFormatException e) {
+            return 0;
+        }
     }
 
     /** Seeds a fallback price. Never overwrites something the client observed. */
@@ -149,13 +306,13 @@ public final class PriceLedger {
     private static final int MAX_PROBED_LEVEL = 20;
 
     /**
-     * The bundled tier count, else six, unless the shop has shown more. Only ever raised by
-     * observation, never lowered, because a shop that lists just the next tier would otherwise
-     * look like a short ladder.
+     * The tier count a shop listing showed, else the bundled one, else six, unless the shop has
+     * shown more. A lone price never lowers it, because a shop that lists just the next tier
+     * would otherwise look like a short ladder; see {@link #listingsSeen}.
      */
     public int maxLevel(String mine, String gear) {
         // A charm is a single item per mine, never a ladder.
-        Integer known = knownTiers.get(normalise(mine) + '|' + normalise(gear));
+        Integer known = tierCount(mine, gear);
         int max = known != null ? known : "charm".equals(normalise(gear)) ? 1 : DEFAULT_MAX_LEVEL;
         while (max < MAX_PROBED_LEVEL && price(mine, gear, max + 1).isPresent()) {
             max++;

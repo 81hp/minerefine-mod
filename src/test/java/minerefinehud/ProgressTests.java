@@ -72,6 +72,7 @@ public final class ProgressTests {
         bossArmorSetBar();
         pickaxeSwapsAtToolMines();
         toolMinesWithoutBundledItems();
+        monarchIsTheKingAndQueen();
 
         System.out.println();
         System.out.println("passed: " + passed + "   failed: " + failed);
@@ -1509,6 +1510,23 @@ public final class ProgressTests {
         items.put("armor", 1L);
         items.put("charm", 1L);
         return new Mine("mine-" + name, "mine", "Ruins", name, items, null);
+    }
+
+    /** Monarch gear is The King & Queen's; its shop opened, every bar asked for a Monarch Shovel. */
+    private static void monarchIsTheKingAndQueen() {
+        MineCatalog catalog = new MineCatalog(List.of(
+                new Mine("mine-darkwater-palace-throne", "mine", "Darkwater Palace", "Throne", new LinkedHashMap<>(), null),
+                new Mine("boss-darkwater-palace-the-king-queen", "boss", "Darkwater Palace", "The King & Queen",
+                        new LinkedHashMap<>(), null)));
+        eq("Monarch is the boss", Optional.of("The King & Queen"), catalog.boss("Monarch").map(Mine::name));
+        yes("its shop is no mine", !MineDetector.detect(catalog, Optional.empty(), Optional.empty(),
+                Optional.of("Monarch")).found());
+        yes("nor its gear in hand", !MineDetector.detect(catalog, Optional.empty(), Optional.of("Monarch"),
+                Optional.empty()).found());
+        eq("a mine's shop still is", Optional.of("Throne"), MineDetector.detect(catalog, Optional.empty(),
+                Optional.empty(), Optional.of("Throne")).mine().map(Mine::name));
+        eq("and a mine the data lacks", Optional.of("Newstone"), MineDetector.detect(catalog, Optional.empty(),
+                Optional.empty(), Optional.of("Newstone")).mine().map(Mine::name));
     }
 
     private static void eq(String what, Object expected, Object actual) {

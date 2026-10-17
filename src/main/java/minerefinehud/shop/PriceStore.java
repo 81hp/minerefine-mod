@@ -65,6 +65,23 @@ public final class PriceStore {
         }
     }
 
+    /**
+     * Shipped with the mod: prices read in game after a server change, with when they were read.
+     * See {@link PriceLedger#importVerified}.
+     */
+    private static final String BUNDLED_PRICES = "/assets/minerefine-hud/verified-prices.json";
+
+    /** Brings prices seen before the latest server change up to date, without a shop visit. */
+    public static void loadVerifiedPrices(PriceLedger ledger) {
+        try (InputStream in = PriceStore.class.getResourceAsStream(BUNDLED_PRICES)) {
+            if (in != null) {
+                ledger.importVerified(GSON.fromJson(new String(in.readAllBytes(), StandardCharsets.UTF_8), LIST));
+            }
+        } catch (Exception ignored) {
+            // Without them the old prices stand until the shop is opened.
+        }
+    }
+
     public void save(PriceLedger ledger) {
         try {
             Path parent = file.getParent();

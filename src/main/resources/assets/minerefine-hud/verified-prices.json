@@ -1,0 +1,2624 @@
+[
+  {
+    "key": "aethermud|boots|1",
+    "amount": 3650000,
+    "currency": "Aethermud",
+    "seenAt": 1792226614848
+  },
+  {
+    "key": "aethermud|boots|2",
+    "amount": 6020000,
+    "currency": "Aethermud",
+    "seenAt": 1792226614848
+  },
+  {
+    "key": "aethermud|boots|3",
+    "amount": 8730000,
+    "currency": "Aethermud",
+    "seenAt": 1792226614848
+  },
+  {
+    "key": "aethermud|chestplate|2",
+    "amount": 8430000,
+    "currency": "Aethermud",
+    "seenAt": 1792226614848
+  },
+  {
+    "key": "aethermud|chestplate|3",
+    "amount": 12200000,
+    "currency": "Aethermud",
+    "seenAt": 1792226614848
+  },
+  {
+    "key": "aethermud|helmet|1",
+    "amount": 3290000,
+    "currency": "Aethermud",
+    "seenAt": 1792226614848
+  },
+  {
+    "key": "aethermud|helmet|2",
+    "amount": 5410000,
+    "currency": "Aethermud",
+    "seenAt": 1792226614848
+  },
+  {
+    "key": "aethermud|helmet|3",
+    "amount": 7860000,
+    "currency": "Aethermud",
+    "seenAt": 1792226614848
+  },
+  {
+    "key": "aethermud|leggings|1",
+    "amount": 4380000,
+    "currency": "Aethermud",
+    "seenAt": 1792226614848
+  },
+  {
+    "key": "aethermud|leggings|2",
+    "amount": 7230000,
+    "currency": "Aethermud",
+    "seenAt": 1792226614848
+  },
+  {
+    "key": "aethermud|leggings|3",
+    "amount": 10500000,
+    "currency": "Aethermud",
+    "seenAt": 1792226614848
+  },
+  {
+    "key": "aethersoil|boots|1",
+    "amount": 3920000,
+    "currency": "Aethersoil",
+    "seenAt": 1792226614848
+  },
+  {
+    "key": "aethersoil|boots|2",
+    "amount": 6480000,
+    "currency": "Aethersoil",
+    "seenAt": 1792226614848
+  },
+  {
+    "key": "aethersoil|boots|3",
+    "amount": 9400000,
+    "currency": "Aethersoil",
+    "seenAt": 1792226614848
+  },
+  {
+    "key": "aethersoil|chestplate|2",
+    "amount": 9070000,
+    "currency": "Aethersoil",
+    "seenAt": 1792226614848
+  },
+  {
+    "key": "aethersoil|chestplate|3",
+    "amount": 13100000,
+    "currency": "Aethersoil",
+    "seenAt": 1792226614848
+  },
+  {
+    "key": "aethersoil|helmet|1",
+    "amount": 3540000,
+    "currency": "Aethersoil",
+    "seenAt": 1792226614848
+  },
+  {
+    "key": "aethersoil|helmet|2",
+    "amount": 5840000,
+    "currency": "Aethersoil",
+    "seenAt": 1792226614848
+  },
+  {
+    "key": "aethersoil|helmet|3",
+    "amount": 8450000,
+    "currency": "Aethersoil",
+    "seenAt": 1792226614848
+  },
+  {
+    "key": "aethersoil|leggings|1",
+    "amount": 4710000,
+    "currency": "Aethersoil",
+    "seenAt": 1792226614848
+  },
+  {
+    "key": "aethersoil|leggings|2",
+    "amount": 7780000,
+    "currency": "Aethersoil",
+    "seenAt": 1792226614848
+  },
+  {
+    "key": "aethersoil|leggings|3",
+    "amount": 11300000,
+    "currency": "Aethersoil",
+    "seenAt": 1792226614848
+  },
+  {
+    "key": "aurora|boots|1",
+    "amount": 46170000,
+    "currency": "Aurora",
+    "seenAt": 1792226614848
+  },
+  {
+    "key": "aurora|boots|2",
+    "amount": 76180000,
+    "currency": "Aurora",
+    "seenAt": 1792226614848
+  },
+  {
+    "key": "aurora|boots|3",
+    "amount": 110500000,
+    "currency": "Aurora",
+    "seenAt": 1792226614848
+  },
+  {
+    "key": "aurora|boots|4",
+    "amount": 119300000,
+    "currency": "Aurora",
+    "seenAt": 1792226614848
+  },
+  {
+    "key": "aurora|chestplate|1",
+    "amount": 64630000,
+    "currency": "Aurora",
+    "seenAt": 1792226614848
+  },
+  {
+    "key": "aurora|chestplate|2",
+    "amount": 106700000,
+    "currency": "Aurora",
+    "seenAt": 1792226614848
+  },
+  {
+    "key": "aurora|chestplate|3",
+    "amount": 154600000,
+    "currency": "Aurora",
+    "seenAt": 1792226614848
+  },
+  {
+    "key": "aurora|chestplate|4",
+    "amount": 167000000,
+    "currency": "Aurora",
+    "seenAt": 1792226614848
+  },
+  {
+    "key": "aurora|helmet|1",
+    "amount": 41550000,
+    "currency": "Aurora",
+    "seenAt": 1792226614848
+  },
+  {
+    "key": "aurora|helmet|2",
+    "amount": 68560000,
+    "currency": "Aurora",
+    "seenAt": 1792226614848
+  },
+  {
+    "key": "aurora|helmet|3",
+    "amount": 99410000,
+    "currency": "Aurora",
+    "seenAt": 1792226614848
+  },
+  {
+    "key": "aurora|helmet|4",
+    "amount": 107400000,
+    "currency": "Aurora",
+    "seenAt": 1792226614848
+  },
+  {
+    "key": "aurora|leggings|1",
+    "amount": 55400000,
+    "currency": "Aurora",
+    "seenAt": 1792226614848
+  },
+  {
+    "key": "aurora|leggings|2",
+    "amount": 91410000,
+    "currency": "Aurora",
+    "seenAt": 1792226614848
+  },
+  {
+    "key": "aurora|leggings|3",
+    "amount": 132600000,
+    "currency": "Aurora",
+    "seenAt": 1792226614848
+  },
+  {
+    "key": "aurora|leggings|4",
+    "amount": 143200000,
+    "currency": "Aurora",
+    "seenAt": 1792226614848
+  },
+  {
+    "key": "azurite|boots|1",
+    "amount": 34810000,
+    "currency": "Azurite",
+    "seenAt": 1792226614848
+  },
+  {
+    "key": "azurite|boots|2",
+    "amount": 57440000,
+    "currency": "Azurite",
+    "seenAt": 1792226614848
+  },
+  {
+    "key": "azurite|boots|3",
+    "amount": 83290000,
+    "currency": "Azurite",
+    "seenAt": 1792226614848
+  },
+  {
+    "key": "azurite|chestplate|2",
+    "amount": 80410000,
+    "currency": "Azurite",
+    "seenAt": 1792226614848
+  },
+  {
+    "key": "azurite|chestplate|3",
+    "amount": 116600000,
+    "currency": "Azurite",
+    "seenAt": 1792226614848
+  },
+  {
+    "key": "azurite|helmet|1",
+    "amount": 31340000,
+    "currency": "Azurite",
+    "seenAt": 1792226614848
+  },
+  {
+    "key": "azurite|helmet|2",
+    "amount": 51700000,
+    "currency": "Azurite",
+    "seenAt": 1792226614848
+  },
+  {
+    "key": "azurite|helmet|3",
+    "amount": 74950000,
+    "currency": "Azurite",
+    "seenAt": 1792226614848
+  },
+  {
+    "key": "azurite|leggings|1",
+    "amount": 41770000,
+    "currency": "Azurite",
+    "seenAt": 1792226614848
+  },
+  {
+    "key": "azurite|leggings|2",
+    "amount": 68920000,
+    "currency": "Azurite",
+    "seenAt": 1792226614848
+  },
+  {
+    "key": "azurite|leggings|3",
+    "amount": 99950000,
+    "currency": "Azurite",
+    "seenAt": 1792226614848
+  },
+  {
+    "key": "blue ice|boots|1",
+    "amount": 24590000,
+    "currency": "Blue Ice",
+    "seenAt": 1792226614848
+  },
+  {
+    "key": "blue ice|boots|2",
+    "amount": 40580000,
+    "currency": "Blue Ice",
+    "seenAt": 1792226614848
+  },
+  {
+    "key": "blue ice|boots|3",
+    "amount": 58830000,
+    "currency": "Blue Ice",
+    "seenAt": 1792226614848
+  },
+  {
+    "key": "blue ice|chestplate|1",
+    "amount": 34420000,
+    "currency": "Blue Ice",
+    "seenAt": 1792226614848
+  },
+  {
+    "key": "blue ice|chestplate|2",
+    "amount": 56810000,
+    "currency": "Blue Ice",
+    "seenAt": 1792226614848
+  },
+  {
+    "key": "blue ice|chestplate|3",
+    "amount": 82370000,
+    "currency": "Blue Ice",
+    "seenAt": 1792226614848
+  },
+  {
+    "key": "blue ice|helmet|1",
+    "amount": 22130000,
+    "currency": "Blue Ice",
+    "seenAt": 1792226614848
+  },
+  {
+    "key": "blue ice|helmet|2",
+    "amount": 36510000,
+    "currency": "Blue Ice",
+    "seenAt": 1792226614848
+  },
+  {
+    "key": "blue ice|helmet|3",
+    "amount": 52950000,
+    "currency": "Blue Ice",
+    "seenAt": 1792226614848
+  },
+  {
+    "key": "blue ice|leggings|1",
+    "amount": 29510000,
+    "currency": "Blue Ice",
+    "seenAt": 1792226614848
+  },
+  {
+    "key": "blue ice|leggings|2",
+    "amount": 48680000,
+    "currency": "Blue Ice",
+    "seenAt": 1792226614848
+  },
+  {
+    "key": "blue ice|leggings|3",
+    "amount": 70600000,
+    "currency": "Blue Ice",
+    "seenAt": 1792226614848
+  },
+  {
+    "key": "bricked prismarine|boots|1",
+    "amount": 14200000,
+    "currency": "Bricked Prismarine",
+    "seenAt": 1792226614848
+  },
+  {
+    "key": "bricked prismarine|boots|2",
+    "amount": 23400000,
+    "currency": "Bricked Prismarine",
+    "seenAt": 1792226614848
+  },
+  {
+    "key": "bricked prismarine|boots|3",
+    "amount": 33900000,
+    "currency": "Bricked Prismarine",
+    "seenAt": 1792226614848
+  },
+  {
+    "key": "bricked prismarine|chestplate|1",
+    "amount": 19800000,
+    "currency": "Bricked Prismarine",
+    "seenAt": 1792226614848
+  },
+  {
+    "key": "bricked prismarine|chestplate|2",
+    "amount": 32700000,
+    "currency": "Bricked Prismarine",
+    "seenAt": 1792226614848
+  },
+  {
+    "key": "bricked prismarine|chestplate|3",
+    "amount": 47500000,
+    "currency": "Bricked Prismarine",
+    "seenAt": 1792226614848
+  },
+  {
+    "key": "bricked prismarine|helmet|1",
+    "amount": 12800000,
+    "currency": "Bricked Prismarine",
+    "seenAt": 1792226614848
+  },
+  {
+    "key": "bricked prismarine|helmet|2",
+    "amount": 21000000,
+    "currency": "Bricked Prismarine",
+    "seenAt": 1792226614848
+  },
+  {
+    "key": "bricked prismarine|helmet|3",
+    "amount": 30500000,
+    "currency": "Bricked Prismarine",
+    "seenAt": 1792226614848
+  },
+  {
+    "key": "bricked prismarine|leggings|1",
+    "amount": 17000000,
+    "currency": "Bricked Prismarine",
+    "seenAt": 1792226614848
+  },
+  {
+    "key": "bricked prismarine|leggings|2",
+    "amount": 28100000,
+    "currency": "Bricked Prismarine",
+    "seenAt": 1792226614848
+  },
+  {
+    "key": "bricked prismarine|leggings|3",
+    "amount": 40700000,
+    "currency": "Bricked Prismarine",
+    "seenAt": 1792226614848
+  },
+  {
+    "key": "bricked prismarine|pickaxe|1",
+    "amount": 8640000,
+    "currency": "Bricked Prismarine",
+    "seenAt": 1792226614848
+  },
+  {
+    "key": "bricked prismarine|pickaxe|2",
+    "amount": 13000000,
+    "currency": "Bricked Prismarine",
+    "seenAt": 1792226614848
+  },
+  {
+    "key": "bricked prismarine|pickaxe|3",
+    "amount": 16800000,
+    "currency": "Bricked Prismarine",
+    "seenAt": 1792226614848
+  },
+  {
+    "key": "bricked prismarine|pickaxe|4",
+    "amount": 19400000,
+    "currency": "Bricked Prismarine",
+    "seenAt": 1792226614848
+  },
+  {
+    "key": "bricked prismarine|pickaxe|5",
+    "amount": 20900000,
+    "currency": "Bricked Prismarine",
+    "seenAt": 1792226614848
+  },
+  {
+    "key": "bubble coral|boots|1",
+    "amount": 23900000,
+    "currency": "Bubble Coral",
+    "seenAt": 1792226614848
+  },
+  {
+    "key": "bubble coral|boots|2",
+    "amount": 39400000,
+    "currency": "Bubble Coral",
+    "seenAt": 1792226614848
+  },
+  {
+    "key": "bubble coral|boots|3",
+    "amount": 57100000,
+    "currency": "Bubble Coral",
+    "seenAt": 1792226614848
+  },
+  {
+    "key": "bubble coral|chestplate|1",
+    "amount": 33400000,
+    "currency": "Bubble Coral",
+    "seenAt": 1792226614848
+  },
+  {
+    "key": "bubble coral|chestplate|2",
+    "amount": 55100000,
+    "currency": "Bubble Coral",
+    "seenAt": 1792226614848
+  },
+  {
+    "key": "bubble coral|chestplate|3",
+    "amount": 80000000,
+    "currency": "Bubble Coral",
+    "seenAt": 1792226614848
+  },
+  {
+    "key": "bubble coral|helmet|1",
+    "amount": 21500000,
+    "currency": "Bubble Coral",
+    "seenAt": 1792226614848
+  },
+  {
+    "key": "bubble coral|helmet|2",
+    "amount": 35400000,
+    "currency": "Bubble Coral",
+    "seenAt": 1792226614848
+  },
+  {
+    "key": "bubble coral|helmet|3",
+    "amount": 51400000,
+    "currency": "Bubble Coral",
+    "seenAt": 1792226614848
+  },
+  {
+    "key": "bubble coral|leggings|1",
+    "amount": 28600000,
+    "currency": "Bubble Coral",
+    "seenAt": 1792226614848
+  },
+  {
+    "key": "bubble coral|leggings|2",
+    "amount": 47300000,
+    "currency": "Bubble Coral",
+    "seenAt": 1792226614848
+  },
+  {
+    "key": "bubble coral|leggings|3",
+    "amount": 68500000,
+    "currency": "Bubble Coral",
+    "seenAt": 1792226614848
+  },
+  {
+    "key": "cloudite|boots|1",
+    "amount": 4230000,
+    "currency": "Cloudite",
+    "seenAt": 1792226614848
+  },
+  {
+    "key": "cloudite|boots|2",
+    "amount": 6980000,
+    "currency": "Cloudite",
+    "seenAt": 1792226614848
+  },
+  {
+    "key": "cloudite|boots|3",
+    "amount": 10100000,
+    "currency": "Cloudite",
+    "seenAt": 1792226614848
+  },
+  {
+    "key": "cloudite|chestplate|1",
+    "amount": 5920000,
+    "currency": "Cloudite",
+    "seenAt": 1792226614848
+  },
+  {
+    "key": "cloudite|chestplate|2",
+    "amount": 9770000,
+    "currency": "Cloudite",
+    "seenAt": 1792226614848
+  },
+  {
+    "key": "cloudite|chestplate|3",
+    "amount": 14200000,
+    "currency": "Cloudite",
+    "seenAt": 1792226614848
+  },
+  {
+    "key": "cloudite|helmet|1",
+    "amount": 3810000,
+    "currency": "Cloudite",
+    "seenAt": 1792226614848
+  },
+  {
+    "key": "cloudite|helmet|2",
+    "amount": 6280000,
+    "currency": "Cloudite",
+    "seenAt": 1792226614848
+  },
+  {
+    "key": "cloudite|helmet|3",
+    "amount": 9110000,
+    "currency": "Cloudite",
+    "seenAt": 1792226614848
+  },
+  {
+    "key": "cloudite|leggings|1",
+    "amount": 5080000,
+    "currency": "Cloudite",
+    "seenAt": 1792226614848
+  },
+  {
+    "key": "cloudite|leggings|2",
+    "amount": 8370000,
+    "currency": "Cloudite",
+    "seenAt": 1792226614848
+  },
+  {
+    "key": "cloudite|leggings|3",
+    "amount": 12200000,
+    "currency": "Cloudite",
+    "seenAt": 1792226614848
+  },
+  {
+    "key": "cryocopper|boots|1",
+    "amount": 41430000,
+    "currency": "Cryocopper",
+    "seenAt": 1792226614848
+  },
+  {
+    "key": "cryocopper|boots|2",
+    "amount": 68360000,
+    "currency": "Cryocopper",
+    "seenAt": 1792226614848
+  },
+  {
+    "key": "cryocopper|boots|3",
+    "amount": 99120000,
+    "currency": "Cryocopper",
+    "seenAt": 1792226614848
+  },
+  {
+    "key": "cryocopper|chestplate|1",
+    "amount": 58000000,
+    "currency": "Cryocopper",
+    "seenAt": 1792226614848
+  },
+  {
+    "key": "cryocopper|chestplate|2",
+    "amount": 95710000,
+    "currency": "Cryocopper",
+    "seenAt": 1792226614848
+  },
+  {
+    "key": "cryocopper|chestplate|3",
+    "amount": 138800000,
+    "currency": "Cryocopper",
+    "seenAt": 1792226614848
+  },
+  {
+    "key": "cryocopper|helmet|1",
+    "amount": 37280000,
+    "currency": "Cryocopper",
+    "seenAt": 1792226614848
+  },
+  {
+    "key": "cryocopper|helmet|2",
+    "amount": 61530000,
+    "currency": "Cryocopper",
+    "seenAt": 1792226614848
+  },
+  {
+    "key": "cryocopper|helmet|3",
+    "amount": 89200000,
+    "currency": "Cryocopper",
+    "seenAt": 1792226614848
+  },
+  {
+    "key": "cryocopper|leggings|1",
+    "amount": 49710000,
+    "currency": "Cryocopper",
+    "seenAt": 1792226614848
+  },
+  {
+    "key": "cryocopper|leggings|2",
+    "amount": 82030000,
+    "currency": "Cryocopper",
+    "seenAt": 1792226614848
+  },
+  {
+    "key": "cryocopper|leggings|3",
+    "amount": 119000000,
+    "currency": "Cryocopper",
+    "seenAt": 1792226614848
+  },
+  {
+    "key": "dandelion|boots|1",
+    "amount": 7430000,
+    "currency": "Dandelion",
+    "seenAt": 1792226614848
+  },
+  {
+    "key": "dandelion|boots|2",
+    "amount": 12300000,
+    "currency": "Dandelion",
+    "seenAt": 1792226614848
+  },
+  {
+    "key": "dandelion|boots|3",
+    "amount": 17800000,
+    "currency": "Dandelion",
+    "seenAt": 1792226614848
+  },
+  {
+    "key": "dandelion|boots|4",
+    "amount": 19200000,
+    "currency": "Dandelion",
+    "seenAt": 1792226614848
+  },
+  {
+    "key": "dandelion|chestplate|2",
+    "amount": 17200000,
+    "currency": "Dandelion",
+    "seenAt": 1792226614848
+  },
+  {
+    "key": "dandelion|chestplate|3",
+    "amount": 24900000,
+    "currency": "Dandelion",
+    "seenAt": 1792226614848
+  },
+  {
+    "key": "dandelion|chestplate|4",
+    "amount": 26900000,
+    "currency": "Dandelion",
+    "seenAt": 1792226614848
+  },
+  {
+    "key": "dandelion|helmet|1",
+    "amount": 6700000,
+    "currency": "Dandelion",
+    "seenAt": 1792226614848
+  },
+  {
+    "key": "dandelion|helmet|2",
+    "amount": 11000000,
+    "currency": "Dandelion",
+    "seenAt": 1792226614848
+  },
+  {
+    "key": "dandelion|helmet|3",
+    "amount": 16000000,
+    "currency": "Dandelion",
+    "seenAt": 1792226614848
+  },
+  {
+    "key": "dandelion|helmet|4",
+    "amount": 17300000,
+    "currency": "Dandelion",
+    "seenAt": 1792226614848
+  },
+  {
+    "key": "dandelion|leggings|1",
+    "amount": 8920000,
+    "currency": "Dandelion",
+    "seenAt": 1792226614848
+  },
+  {
+    "key": "dandelion|leggings|2",
+    "amount": 14700000,
+    "currency": "Dandelion",
+    "seenAt": 1792226614848
+  },
+  {
+    "key": "dandelion|leggings|3",
+    "amount": 21300000,
+    "currency": "Dandelion",
+    "seenAt": 1792226614848
+  },
+  {
+    "key": "dandelion|leggings|4",
+    "amount": 23000000,
+    "currency": "Dandelion",
+    "seenAt": 1792226614848
+  },
+  {
+    "key": "dark prismarine|boots|1",
+    "amount": 16800000,
+    "currency": "Dark Prismarine",
+    "seenAt": 1792226614848
+  },
+  {
+    "key": "dark prismarine|boots|2",
+    "amount": 27800000,
+    "currency": "Dark Prismarine",
+    "seenAt": 1792226614848
+  },
+  {
+    "key": "dark prismarine|boots|3",
+    "amount": 40300000,
+    "currency": "Dark Prismarine",
+    "seenAt": 1792226614848
+  },
+  {
+    "key": "dark prismarine|chestplate|1",
+    "amount": 23600000,
+    "currency": "Dark Prismarine",
+    "seenAt": 1792226614848
+  },
+  {
+    "key": "dark prismarine|chestplate|2",
+    "amount": 38900000,
+    "currency": "Dark Prismarine",
+    "seenAt": 1792226614848
+  },
+  {
+    "key": "dark prismarine|chestplate|3",
+    "amount": 56400000,
+    "currency": "Dark Prismarine",
+    "seenAt": 1792226614848
+  },
+  {
+    "key": "dark prismarine|helmet|1",
+    "amount": 15200000,
+    "currency": "Dark Prismarine",
+    "seenAt": 1792226614848
+  },
+  {
+    "key": "dark prismarine|helmet|2",
+    "amount": 25000000,
+    "currency": "Dark Prismarine",
+    "seenAt": 1792226614848
+  },
+  {
+    "key": "dark prismarine|helmet|3",
+    "amount": 36300000,
+    "currency": "Dark Prismarine",
+    "seenAt": 1792226614848
+  },
+  {
+    "key": "dark prismarine|leggings|1",
+    "amount": 20200000,
+    "currency": "Dark Prismarine",
+    "seenAt": 1792226614848
+  },
+  {
+    "key": "dark prismarine|leggings|2",
+    "amount": 33400000,
+    "currency": "Dark Prismarine",
+    "seenAt": 1792226614848
+  },
+  {
+    "key": "dark prismarine|leggings|3",
+    "amount": 48400000,
+    "currency": "Dark Prismarine",
+    "seenAt": 1792226614848
+  },
+  {
+    "key": "diorite|boots|1",
+    "amount": 3390000,
+    "currency": "Diorite",
+    "seenAt": 1792226614848
+  },
+  {
+    "key": "diorite|boots|2",
+    "amount": 5600000,
+    "currency": "Diorite",
+    "seenAt": 1792226614848
+  },
+  {
+    "key": "diorite|boots|3",
+    "amount": 8120000,
+    "currency": "Diorite",
+    "seenAt": 1792226614848
+  },
+  {
+    "key": "diorite|chestplate|1",
+    "amount": 4740000,
+    "currency": "Diorite",
+    "seenAt": 1792226614848
+  },
+  {
+    "key": "diorite|chestplate|2",
+    "amount": 7820000,
+    "currency": "Diorite",
+    "seenAt": 1792226614848
+  },
+  {
+    "key": "diorite|chestplate|3",
+    "amount": 11300000,
+    "currency": "Diorite",
+    "seenAt": 1792226614848
+  },
+  {
+    "key": "diorite|helmet|1",
+    "amount": 3050000,
+    "currency": "Diorite",
+    "seenAt": 1792226614848
+  },
+  {
+    "key": "diorite|helmet|2",
+    "amount": 5040000,
+    "currency": "Diorite",
+    "seenAt": 1792226614848
+  },
+  {
+    "key": "diorite|helmet|3",
+    "amount": 7300000,
+    "currency": "Diorite",
+    "seenAt": 1792226614848
+  },
+  {
+    "key": "diorite|leggings|1",
+    "amount": 4070000,
+    "currency": "Diorite",
+    "seenAt": 1792226614848
+  },
+  {
+    "key": "diorite|leggings|2",
+    "amount": 6710000,
+    "currency": "Diorite",
+    "seenAt": 1792226614848
+  },
+  {
+    "key": "diorite|leggings|3",
+    "amount": 9730000,
+    "currency": "Diorite",
+    "seenAt": 1792226614848
+  },
+  {
+    "key": "fire coral|boots|1",
+    "amount": 25100000,
+    "currency": "Fire Coral",
+    "seenAt": 1792226614848
+  },
+  {
+    "key": "fire coral|boots|2",
+    "amount": 41300000,
+    "currency": "Fire Coral",
+    "seenAt": 1792226614848
+  },
+  {
+    "key": "fire coral|boots|3",
+    "amount": 60000000,
+    "currency": "Fire Coral",
+    "seenAt": 1792226614848
+  },
+  {
+    "key": "fire coral|boots|4",
+    "amount": 64800000,
+    "currency": "Fire Coral",
+    "seenAt": 1792226614848
+  },
+  {
+    "key": "fire coral|chestplate|2",
+    "amount": 57900000,
+    "currency": "Fire Coral",
+    "seenAt": 1792226614848
+  },
+  {
+    "key": "fire coral|chestplate|3",
+    "amount": 84000000,
+    "currency": "Fire Coral",
+    "seenAt": 1792226614848
+  },
+  {
+    "key": "fire coral|chestplate|4",
+    "amount": 90700000,
+    "currency": "Fire Coral",
+    "seenAt": 1792226614848
+  },
+  {
+    "key": "fire coral|helmet|1",
+    "amount": 22600000,
+    "currency": "Fire Coral",
+    "seenAt": 1792226614848
+  },
+  {
+    "key": "fire coral|helmet|2",
+    "amount": 37200000,
+    "currency": "Fire Coral",
+    "seenAt": 1792226614848
+  },
+  {
+    "key": "fire coral|helmet|3",
+    "amount": 54000000,
+    "currency": "Fire Coral",
+    "seenAt": 1792226614848
+  },
+  {
+    "key": "fire coral|helmet|4",
+    "amount": 58300000,
+    "currency": "Fire Coral",
+    "seenAt": 1792226614848
+  },
+  {
+    "key": "fire coral|leggings|1",
+    "amount": 30100000,
+    "currency": "Fire Coral",
+    "seenAt": 1792226614848
+  },
+  {
+    "key": "fire coral|leggings|2",
+    "amount": 49600000,
+    "currency": "Fire Coral",
+    "seenAt": 1792226614848
+  },
+  {
+    "key": "fire coral|leggings|3",
+    "amount": 71900000,
+    "currency": "Fire Coral",
+    "seenAt": 1792226614848
+  },
+  {
+    "key": "fire coral|leggings|4",
+    "amount": 77700000,
+    "currency": "Fire Coral",
+    "seenAt": 1792226614848
+  },
+  {
+    "key": "garden wall|boots|1",
+    "amount": 5950000,
+    "currency": "Garden Wall",
+    "seenAt": 1792226614848
+  },
+  {
+    "key": "garden wall|boots|2",
+    "amount": 9830000,
+    "currency": "Garden Wall",
+    "seenAt": 1792226614848
+  },
+  {
+    "key": "garden wall|boots|3",
+    "amount": 14300000,
+    "currency": "Garden Wall",
+    "seenAt": 1792226614848
+  },
+  {
+    "key": "garden wall|chestplate|2",
+    "amount": 13800000,
+    "currency": "Garden Wall",
+    "seenAt": 1792226614848
+  },
+  {
+    "key": "garden wall|chestplate|3",
+    "amount": 19900000,
+    "currency": "Garden Wall",
+    "seenAt": 1792226614848
+  },
+  {
+    "key": "garden wall|helmet|1",
+    "amount": 5360000,
+    "currency": "Garden Wall",
+    "seenAt": 1792226614848
+  },
+  {
+    "key": "garden wall|helmet|2",
+    "amount": 8840000,
+    "currency": "Garden Wall",
+    "seenAt": 1792226614848
+  },
+  {
+    "key": "garden wall|helmet|3",
+    "amount": 12800000,
+    "currency": "Garden Wall",
+    "seenAt": 1792226614848
+  },
+  {
+    "key": "garden wall|leggings|1",
+    "amount": 7150000,
+    "currency": "Garden Wall",
+    "seenAt": 1792226614848
+  },
+  {
+    "key": "garden wall|leggings|2",
+    "amount": 11800000,
+    "currency": "Garden Wall",
+    "seenAt": 1792226614848
+  },
+  {
+    "key": "garden wall|leggings|3",
+    "amount": 17100000,
+    "currency": "Garden Wall",
+    "seenAt": 1792226614848
+  },
+  {
+    "key": "glacite|boots|1",
+    "amount": 29270000,
+    "currency": "Glacite",
+    "seenAt": 1792226614848
+  },
+  {
+    "key": "glacite|boots|2",
+    "amount": 48290000,
+    "currency": "Glacite",
+    "seenAt": 1792226614848
+  },
+  {
+    "key": "glacite|boots|3",
+    "amount": 70010000,
+    "currency": "Glacite",
+    "seenAt": 1792226614848
+  },
+  {
+    "key": "glacite|chestplate|1",
+    "amount": 40970000,
+    "currency": "Glacite",
+    "seenAt": 1792226614848
+  },
+  {
+    "key": "glacite|chestplate|2",
+    "amount": 67610000,
+    "currency": "Glacite",
+    "seenAt": 1792226614848
+  },
+  {
+    "key": "glacite|chestplate|3",
+    "amount": 98020000,
+    "currency": "Glacite",
+    "seenAt": 1792226614848
+  },
+  {
+    "key": "glacite|helmet|1",
+    "amount": 26330000,
+    "currency": "Glacite",
+    "seenAt": 1792226614848
+  },
+  {
+    "key": "glacite|helmet|2",
+    "amount": 43450000,
+    "currency": "Glacite",
+    "seenAt": 1792226614848
+  },
+  {
+    "key": "glacite|helmet|3",
+    "amount": 63020000,
+    "currency": "Glacite",
+    "seenAt": 1792226614848
+  },
+  {
+    "key": "glacite|leggings|1",
+    "amount": 35120000,
+    "currency": "Glacite",
+    "seenAt": 1792226614848
+  },
+  {
+    "key": "glacite|leggings|2",
+    "amount": 57940000,
+    "currency": "Glacite",
+    "seenAt": 1792226614848
+  },
+  {
+    "key": "glacite|leggings|3",
+    "amount": 84020000,
+    "currency": "Glacite",
+    "seenAt": 1792226614848
+  },
+  {
+    "key": "granite|boots|1",
+    "amount": 3150000,
+    "currency": "Granite",
+    "seenAt": 1792226614848
+  },
+  {
+    "key": "granite|boots|2",
+    "amount": 5190000,
+    "currency": "Granite",
+    "seenAt": 1792226614848
+  },
+  {
+    "key": "granite|boots|3",
+    "amount": 7530000,
+    "currency": "Granite",
+    "seenAt": 1792226614848
+  },
+  {
+    "key": "granite|chestplate|2",
+    "amount": 7260000,
+    "currency": "Granite",
+    "seenAt": 1792226614848
+  },
+  {
+    "key": "granite|chestplate|3",
+    "amount": 10500000,
+    "currency": "Granite",
+    "seenAt": 1792226614848
+  },
+  {
+    "key": "granite|helmet|1",
+    "amount": 2840000,
+    "currency": "Granite",
+    "seenAt": 1792226614848
+  },
+  {
+    "key": "granite|helmet|2",
+    "amount": 4670000,
+    "currency": "Granite",
+    "seenAt": 1792226614848
+  },
+  {
+    "key": "granite|helmet|3",
+    "amount": 6790000,
+    "currency": "Granite",
+    "seenAt": 1792226614848
+  },
+  {
+    "key": "granite|leggings|1",
+    "amount": 3780000,
+    "currency": "Granite",
+    "seenAt": 1792226614848
+  },
+  {
+    "key": "granite|leggings|2",
+    "amount": 6240000,
+    "currency": "Granite",
+    "seenAt": 1792226614848
+  },
+  {
+    "key": "granite|leggings|3",
+    "amount": 9040000,
+    "currency": "Granite",
+    "seenAt": 1792226614848
+  },
+  {
+    "key": "grass|boots|1",
+    "amount": 5540000,
+    "currency": "Grass",
+    "seenAt": 1792226614848
+  },
+  {
+    "key": "grass|boots|2",
+    "amount": 9130000,
+    "currency": "Grass",
+    "seenAt": 1792226614848
+  },
+  {
+    "key": "grass|boots|3",
+    "amount": 13200000,
+    "currency": "Grass",
+    "seenAt": 1792226614848
+  },
+  {
+    "key": "grass|chestplate|2",
+    "amount": 12800000,
+    "currency": "Grass",
+    "seenAt": 1792226614848
+  },
+  {
+    "key": "grass|chestplate|3",
+    "amount": 18500000,
+    "currency": "Grass",
+    "seenAt": 1792226614848
+  },
+  {
+    "key": "grass|helmet|1",
+    "amount": 4990000,
+    "currency": "Grass",
+    "seenAt": 1792226614848
+  },
+  {
+    "key": "grass|helmet|2",
+    "amount": 8210000,
+    "currency": "Grass",
+    "seenAt": 1792226614848
+  },
+  {
+    "key": "grass|helmet|3",
+    "amount": 11900000,
+    "currency": "Grass",
+    "seenAt": 1792226614848
+  },
+  {
+    "key": "grass|leggings|1",
+    "amount": 6640000,
+    "currency": "Grass",
+    "seenAt": 1792226614848
+  },
+  {
+    "key": "grass|leggings|2",
+    "amount": 11000000,
+    "currency": "Grass",
+    "seenAt": 1792226614848
+  },
+  {
+    "key": "grass|leggings|3",
+    "amount": 15900000,
+    "currency": "Grass",
+    "seenAt": 1792226614848
+  },
+  {
+    "key": "horn coral|boots|1",
+    "amount": 26300000,
+    "currency": "Horn Coral",
+    "seenAt": 1792226614848
+  },
+  {
+    "key": "horn coral|boots|2",
+    "amount": 43400000,
+    "currency": "Horn Coral",
+    "seenAt": 1792226614848
+  },
+  {
+    "key": "horn coral|boots|3",
+    "amount": 63000000,
+    "currency": "Horn Coral",
+    "seenAt": 1792226614848
+  },
+  {
+    "key": "horn coral|boots|4",
+    "amount": 68000000,
+    "currency": "Horn Coral",
+    "seenAt": 1792226614848
+  },
+  {
+    "key": "horn coral|chestplate|1",
+    "amount": 36800000,
+    "currency": "Horn Coral",
+    "seenAt": 1792226614848
+  },
+  {
+    "key": "horn coral|chestplate|2",
+    "amount": 60800000,
+    "currency": "Horn Coral",
+    "seenAt": 1792226614848
+  },
+  {
+    "key": "horn coral|chestplate|3",
+    "amount": 88100000,
+    "currency": "Horn Coral",
+    "seenAt": 1792226614848
+  },
+  {
+    "key": "horn coral|chestplate|4",
+    "amount": 95200000,
+    "currency": "Horn Coral",
+    "seenAt": 1792226614848
+  },
+  {
+    "key": "horn coral|helmet|1",
+    "amount": 23700000,
+    "currency": "Horn Coral",
+    "seenAt": 1792226614848
+  },
+  {
+    "key": "horn coral|helmet|2",
+    "amount": 39100000,
+    "currency": "Horn Coral",
+    "seenAt": 1792226614848
+  },
+  {
+    "key": "horn coral|helmet|3",
+    "amount": 56700000,
+    "currency": "Horn Coral",
+    "seenAt": 1792226614848
+  },
+  {
+    "key": "horn coral|helmet|4",
+    "amount": 61200000,
+    "currency": "Horn Coral",
+    "seenAt": 1792226614848
+  },
+  {
+    "key": "horn coral|leggings|1",
+    "amount": 31600000,
+    "currency": "Horn Coral",
+    "seenAt": 1792226614848
+  },
+  {
+    "key": "horn coral|leggings|2",
+    "amount": 52100000,
+    "currency": "Horn Coral",
+    "seenAt": 1792226614848
+  },
+  {
+    "key": "horn coral|leggings|3",
+    "amount": 75500000,
+    "currency": "Horn Coral",
+    "seenAt": 1792226614848
+  },
+  {
+    "key": "horn coral|leggings|4",
+    "amount": 81600000,
+    "currency": "Horn Coral",
+    "seenAt": 1792226614848
+  },
+  {
+    "key": "koi pond|boots|1",
+    "amount": 6410000,
+    "currency": "Koi Pond",
+    "seenAt": 1792226614848
+  },
+  {
+    "key": "koi pond|boots|2",
+    "amount": 10600000,
+    "currency": "Koi Pond",
+    "seenAt": 1792226614848
+  },
+  {
+    "key": "koi pond|boots|3",
+    "amount": 15300000,
+    "currency": "Koi Pond",
+    "seenAt": 1792226614848
+  },
+  {
+    "key": "koi pond|chestplate|1",
+    "amount": 8980000,
+    "currency": "Koi Pond",
+    "seenAt": 1792226614848
+  },
+  {
+    "key": "koi pond|chestplate|2",
+    "amount": 14800000,
+    "currency": "Koi Pond",
+    "seenAt": 1792226614848
+  },
+  {
+    "key": "koi pond|chestplate|3",
+    "amount": 21500000,
+    "currency": "Koi Pond",
+    "seenAt": 1792226614848
+  },
+  {
+    "key": "koi pond|helmet|1",
+    "amount": 5770000,
+    "currency": "Koi Pond",
+    "seenAt": 1792226614848
+  },
+  {
+    "key": "koi pond|helmet|2",
+    "amount": 9520000,
+    "currency": "Koi Pond",
+    "seenAt": 1792226614848
+  },
+  {
+    "key": "koi pond|helmet|3",
+    "amount": 13800000,
+    "currency": "Koi Pond",
+    "seenAt": 1792226614848
+  },
+  {
+    "key": "koi pond|leggings|1",
+    "amount": 7700000,
+    "currency": "Koi Pond",
+    "seenAt": 1792226614848
+  },
+  {
+    "key": "koi pond|leggings|2",
+    "amount": 12700000,
+    "currency": "Koi Pond",
+    "seenAt": 1792226614848
+  },
+  {
+    "key": "koi pond|leggings|3",
+    "amount": 18400000,
+    "currency": "Koi Pond",
+    "seenAt": 1792226614848
+  },
+  {
+    "key": "marble|boots|1",
+    "amount": 49310000,
+    "currency": "Marble",
+    "seenAt": 1792226614848
+  },
+  {
+    "key": "marble|boots|2",
+    "amount": 81350000,
+    "currency": "Marble",
+    "seenAt": 1792226614848
+  },
+  {
+    "key": "marble|boots|3",
+    "amount": 118000000,
+    "currency": "Marble",
+    "seenAt": 1792226614848
+  },
+  {
+    "key": "marble|chestplate|2",
+    "amount": 113900000,
+    "currency": "Marble",
+    "seenAt": 1792226614848
+  },
+  {
+    "key": "marble|chestplate|3",
+    "amount": 165200000,
+    "currency": "Marble",
+    "seenAt": 1792226614848
+  },
+  {
+    "key": "marble|helmet|1",
+    "amount": 44380000,
+    "currency": "Marble",
+    "seenAt": 1792226614848
+  },
+  {
+    "key": "marble|helmet|2",
+    "amount": 73220000,
+    "currency": "Marble",
+    "seenAt": 1792226614848
+  },
+  {
+    "key": "marble|helmet|3",
+    "amount": 106200000,
+    "currency": "Marble",
+    "seenAt": 1792226614848
+  },
+  {
+    "key": "marble|leggings|1",
+    "amount": 59170000,
+    "currency": "Marble",
+    "seenAt": 1792226614848
+  },
+  {
+    "key": "marble|leggings|2",
+    "amount": 97630000,
+    "currency": "Marble",
+    "seenAt": 1792226614848
+  },
+  {
+    "key": "marble|leggings|3",
+    "amount": 141600000,
+    "currency": "Marble",
+    "seenAt": 1792226614848
+  },
+  {
+    "key": "mistcore|boots|1",
+    "amount": 5310000,
+    "currency": "Mistcore",
+    "seenAt": 1792226614848
+  },
+  {
+    "key": "mistcore|boots|2",
+    "amount": 7980000,
+    "currency": "Mistcore",
+    "seenAt": 1792226614848
+  },
+  {
+    "key": "mistcore|boots|3",
+    "amount": 10360000,
+    "currency": "Mistcore",
+    "seenAt": 1792226614848
+  },
+  {
+    "key": "mistcore|boots|4",
+    "amount": 11610000,
+    "currency": "Mistcore",
+    "seenAt": 1792226614848
+  },
+  {
+    "key": "mistcore|chestplate|1",
+    "amount": 7480000,
+    "currency": "Mistcore",
+    "seenAt": 1792226614848
+  },
+  {
+    "key": "mistcore|chestplate|2",
+    "amount": 11200000,
+    "currency": "Mistcore",
+    "seenAt": 1792226614848
+  },
+  {
+    "key": "mistcore|chestplate|3",
+    "amount": 14550000,
+    "currency": "Mistcore",
+    "seenAt": 1792226614848
+  },
+  {
+    "key": "mistcore|chestplate|4",
+    "amount": 16310000,
+    "currency": "Mistcore",
+    "seenAt": 1792226614848
+  },
+  {
+    "key": "mistcore|helmet|1",
+    "amount": 4780000,
+    "currency": "Mistcore",
+    "seenAt": 1792226614848
+  },
+  {
+    "key": "mistcore|helmet|2",
+    "amount": 7170000,
+    "currency": "Mistcore",
+    "seenAt": 1792226614848
+  },
+  {
+    "key": "mistcore|helmet|3",
+    "amount": 9330000,
+    "currency": "Mistcore",
+    "seenAt": 1792226614848
+  },
+  {
+    "key": "mistcore|helmet|4",
+    "amount": 10450000,
+    "currency": "Mistcore",
+    "seenAt": 1792226614848
+  },
+  {
+    "key": "mistcore|leggings|1",
+    "amount": 6380000,
+    "currency": "Mistcore",
+    "seenAt": 1792226614848
+  },
+  {
+    "key": "mistcore|leggings|2",
+    "amount": 9570000,
+    "currency": "Mistcore",
+    "seenAt": 1792226614848
+  },
+  {
+    "key": "mistcore|leggings|3",
+    "amount": 12440000,
+    "currency": "Mistcore",
+    "seenAt": 1792226614848
+  },
+  {
+    "key": "mistcore|leggings|4",
+    "amount": 13960000,
+    "currency": "Mistcore",
+    "seenAt": 1792226614848
+  },
+  {
+    "key": "pale wood|boots|1",
+    "amount": 10000000,
+    "currency": "Pale Tree",
+    "seenAt": 1792226614848
+  },
+  {
+    "key": "pale wood|boots|2",
+    "amount": 17000000,
+    "currency": "Pale Tree",
+    "seenAt": 1792226614848
+  },
+  {
+    "key": "pale wood|boots|3",
+    "amount": 25000000,
+    "currency": "Pale Tree",
+    "seenAt": 1792226614848
+  },
+  {
+    "key": "pale wood|boots|4",
+    "amount": 27000000,
+    "currency": "Pale Tree",
+    "seenAt": 1792226614848
+  },
+  {
+    "key": "pale wood|chestplate|1",
+    "amount": 15000000,
+    "currency": "Pale Tree",
+    "seenAt": 1792226614848
+  },
+  {
+    "key": "pale wood|chestplate|2",
+    "amount": 24000000,
+    "currency": "Pale Tree",
+    "seenAt": 1792226614848
+  },
+  {
+    "key": "pale wood|chestplate|3",
+    "amount": 35000000,
+    "currency": "Pale Tree",
+    "seenAt": 1792226614848
+  },
+  {
+    "key": "pale wood|chestplate|4",
+    "amount": 38000000,
+    "currency": "Pale Tree",
+    "seenAt": 1792226614848
+  },
+  {
+    "key": "pale wood|helmet|1",
+    "amount": 9400000,
+    "currency": "Pale Tree",
+    "seenAt": 1792226614848
+  },
+  {
+    "key": "pale wood|helmet|2",
+    "amount": 15000000,
+    "currency": "Pale Tree",
+    "seenAt": 1792226614848
+  },
+  {
+    "key": "pale wood|helmet|3",
+    "amount": 22000000,
+    "currency": "Pale Tree",
+    "seenAt": 1792226614848
+  },
+  {
+    "key": "pale wood|helmet|4",
+    "amount": 24000000,
+    "currency": "Pale Tree",
+    "seenAt": 1792226614848
+  },
+  {
+    "key": "pale wood|leggings|1",
+    "amount": 12000000,
+    "currency": "Pale Tree",
+    "seenAt": 1792226614848
+  },
+  {
+    "key": "pale wood|leggings|2",
+    "amount": 21000000,
+    "currency": "Pale Tree",
+    "seenAt": 1792226614848
+  },
+  {
+    "key": "pale wood|leggings|3",
+    "amount": 30000000,
+    "currency": "Pale Tree",
+    "seenAt": 1792226614848
+  },
+  {
+    "key": "pale wood|leggings|4",
+    "amount": 32000000,
+    "currency": "Pale Tree",
+    "seenAt": 1792226614848
+  },
+  {
+    "key": "permafrost|boots|1",
+    "amount": 38790000,
+    "currency": "Permafrost",
+    "seenAt": 1792226614848
+  },
+  {
+    "key": "permafrost|boots|2",
+    "amount": 64010000,
+    "currency": "Permafrost",
+    "seenAt": 1792226614848
+  },
+  {
+    "key": "permafrost|boots|3",
+    "amount": 92810000,
+    "currency": "Permafrost",
+    "seenAt": 1792226614848
+  },
+  {
+    "key": "permafrost|boots|4",
+    "amount": 100200000,
+    "currency": "Permafrost",
+    "seenAt": 1792226614848
+  },
+  {
+    "key": "permafrost|chestplate|1",
+    "amount": 54310000,
+    "currency": "Permafrost",
+    "seenAt": 1792226614848
+  },
+  {
+    "key": "permafrost|chestplate|2",
+    "amount": 89610000,
+    "currency": "Permafrost",
+    "seenAt": 1792226614848
+  },
+  {
+    "key": "permafrost|chestplate|3",
+    "amount": 129900000,
+    "currency": "Permafrost",
+    "seenAt": 1792226614848
+  },
+  {
+    "key": "permafrost|chestplate|4",
+    "amount": 140300000,
+    "currency": "Permafrost",
+    "seenAt": 1792226614848
+  },
+  {
+    "key": "permafrost|helmet|1",
+    "amount": 34910000,
+    "currency": "Permafrost",
+    "seenAt": 1792226614848
+  },
+  {
+    "key": "permafrost|helmet|2",
+    "amount": 57610000,
+    "currency": "Permafrost",
+    "seenAt": 1792226614848
+  },
+  {
+    "key": "permafrost|helmet|3",
+    "amount": 83530000,
+    "currency": "Permafrost",
+    "seenAt": 1792226614848
+  },
+  {
+    "key": "permafrost|helmet|4",
+    "amount": 90210000,
+    "currency": "Permafrost",
+    "seenAt": 1792226614848
+  },
+  {
+    "key": "permafrost|leggings|1",
+    "amount": 46550000,
+    "currency": "Permafrost",
+    "seenAt": 1792226614848
+  },
+  {
+    "key": "permafrost|leggings|2",
+    "amount": 76810000,
+    "currency": "Permafrost",
+    "seenAt": 1792226614848
+  },
+  {
+    "key": "permafrost|leggings|3",
+    "amount": 111400000,
+    "currency": "Permafrost",
+    "seenAt": 1792226614848
+  },
+  {
+    "key": "permafrost|leggings|4",
+    "amount": 120300000,
+    "currency": "Permafrost",
+    "seenAt": 1792226614848
+  },
+  {
+    "key": "pine|boots|1",
+    "amount": 13000000,
+    "currency": "Pine Tree",
+    "seenAt": 1792226614848
+  },
+  {
+    "key": "pine|boots|2",
+    "amount": 21000000,
+    "currency": "Pine Tree",
+    "seenAt": 1792226614848
+  },
+  {
+    "key": "pine|boots|3",
+    "amount": 30000000,
+    "currency": "Pine Tree",
+    "seenAt": 1792226614848
+  },
+  {
+    "key": "pine|chestplate|1",
+    "amount": 17000000,
+    "currency": "Pine Tree",
+    "seenAt": 1792226614848
+  },
+  {
+    "key": "pine|chestplate|2",
+    "amount": 29000000,
+    "currency": "Pine Tree",
+    "seenAt": 1792226614848
+  },
+  {
+    "key": "pine|chestplate|3",
+    "amount": 43000000,
+    "currency": "Pine Tree",
+    "seenAt": 1792226614848
+  },
+  {
+    "key": "pine|helmet|1",
+    "amount": 11400000,
+    "currency": "Pine Tree",
+    "seenAt": 1792226614848
+  },
+  {
+    "key": "pine|helmet|2",
+    "amount": 19000000,
+    "currency": "Pine Tree",
+    "seenAt": 1792226614848
+  },
+  {
+    "key": "pine|helmet|3",
+    "amount": 26800000,
+    "currency": "Pine Tree",
+    "seenAt": 1792226614848
+  },
+  {
+    "key": "pine|leggings|1",
+    "amount": 17500000,
+    "currency": "Pine Tree",
+    "seenAt": 1792226614848
+  },
+  {
+    "key": "pine|leggings|2",
+    "amount": 29200000,
+    "currency": "Pine Tree",
+    "seenAt": 1792226614848
+  },
+  {
+    "key": "pine|leggings|3",
+    "amount": 41900000,
+    "currency": "Pine Tree",
+    "seenAt": 1792226614848
+  },
+  {
+    "key": "rose|boots|1",
+    "amount": 6910000,
+    "currency": "Rose",
+    "seenAt": 1792226614848
+  },
+  {
+    "key": "rose|boots|2",
+    "amount": 11400000,
+    "currency": "Rose",
+    "seenAt": 1792226614848
+  },
+  {
+    "key": "rose|boots|3",
+    "amount": 16500000,
+    "currency": "Rose",
+    "seenAt": 1792226614848
+  },
+  {
+    "key": "rose|chestplate|2",
+    "amount": 15900000,
+    "currency": "Rose",
+    "seenAt": 1792226614848
+  },
+  {
+    "key": "rose|chestplate|3",
+    "amount": 23100000,
+    "currency": "Rose",
+    "seenAt": 1792226614848
+  },
+  {
+    "key": "rose|helmet|1",
+    "amount": 6210000,
+    "currency": "Rose",
+    "seenAt": 1792226614848
+  },
+  {
+    "key": "rose|helmet|2",
+    "amount": 10300000,
+    "currency": "Rose",
+    "seenAt": 1792226614848
+  },
+  {
+    "key": "rose|helmet|3",
+    "amount": 14900000,
+    "currency": "Rose",
+    "seenAt": 1792226614848
+  },
+  {
+    "key": "rose|leggings|1",
+    "amount": 8280000,
+    "currency": "Rose",
+    "seenAt": 1792226614848
+  },
+  {
+    "key": "rose|leggings|2",
+    "amount": 13700000,
+    "currency": "Rose",
+    "seenAt": 1792226614848
+  },
+  {
+    "key": "rose|leggings|3",
+    "amount": 19800000,
+    "currency": "Rose",
+    "seenAt": 1792226614848
+  },
+  {
+    "key": "skybrick|boots|1",
+    "amount": 4550000,
+    "currency": "Skybrick",
+    "seenAt": 1792226614848
+  },
+  {
+    "key": "skybrick|boots|2",
+    "amount": 7510000,
+    "currency": "Skybrick",
+    "seenAt": 1792226614848
+  },
+  {
+    "key": "skybrick|boots|3",
+    "amount": 10900000,
+    "currency": "Skybrick",
+    "seenAt": 1792226614848
+  },
+  {
+    "key": "skybrick|chestplate|1",
+    "amount": 6370000,
+    "currency": "Skybrick",
+    "seenAt": 1792226614848
+  },
+  {
+    "key": "skybrick|chestplate|2",
+    "amount": 10500000,
+    "currency": "Skybrick",
+    "seenAt": 1792226614848
+  },
+  {
+    "key": "skybrick|chestplate|3",
+    "amount": 15200000,
+    "currency": "Skybrick",
+    "seenAt": 1792226614848
+  },
+  {
+    "key": "skybrick|helmet|1",
+    "amount": 4100000,
+    "currency": "Skybrick",
+    "seenAt": 1792226614848
+  },
+  {
+    "key": "skybrick|helmet|2",
+    "amount": 6760000,
+    "currency": "Skybrick",
+    "seenAt": 1792226614848
+  },
+  {
+    "key": "skybrick|helmet|3",
+    "amount": 9810000,
+    "currency": "Skybrick",
+    "seenAt": 1792226614848
+  },
+  {
+    "key": "skybrick|leggings|1",
+    "amount": 5460000,
+    "currency": "Skybrick",
+    "seenAt": 1792226614848
+  },
+  {
+    "key": "skybrick|leggings|2",
+    "amount": 9010000,
+    "currency": "Skybrick",
+    "seenAt": 1792226614848
+  },
+  {
+    "key": "skybrick|leggings|3",
+    "amount": 13100000,
+    "currency": "Skybrick",
+    "seenAt": 1792226614848
+  },
+  {
+    "key": "skycore|boots|1",
+    "amount": 4950000,
+    "currency": "Skycore",
+    "seenAt": 1792226614848
+  },
+  {
+    "key": "skycore|boots|2",
+    "amount": 7430000,
+    "currency": "Skycore",
+    "seenAt": 1792226614848
+  },
+  {
+    "key": "skycore|boots|3",
+    "amount": 9650000,
+    "currency": "Skycore",
+    "seenAt": 1792226614848
+  },
+  {
+    "key": "skycore|boots|4",
+    "amount": 10820000,
+    "currency": "Skycore",
+    "seenAt": 1792226614848
+  },
+  {
+    "key": "skycore|chestplate|2",
+    "amount": 10400000,
+    "currency": "Skycore",
+    "seenAt": 1792226614848
+  },
+  {
+    "key": "skycore|chestplate|3",
+    "amount": 13520000,
+    "currency": "Skycore",
+    "seenAt": 1792226614848
+  },
+  {
+    "key": "skycore|chestplate|4",
+    "amount": 15200000,
+    "currency": "Skycore",
+    "seenAt": 1792226614848
+  },
+  {
+    "key": "skycore|helmet|1",
+    "amount": 4460000,
+    "currency": "Skycore",
+    "seenAt": 1792226614848
+  },
+  {
+    "key": "skycore|helmet|2",
+    "amount": 6670000,
+    "currency": "Skycore",
+    "seenAt": 1792226614848
+  },
+  {
+    "key": "skycore|helmet|3",
+    "amount": 8690000,
+    "currency": "Skycore",
+    "seenAt": 1792226614848
+  },
+  {
+    "key": "skycore|helmet|4",
+    "amount": 9730000,
+    "currency": "Skycore",
+    "seenAt": 1792226614848
+  },
+  {
+    "key": "skycore|leggings|1",
+    "amount": 5930000,
+    "currency": "Skycore",
+    "seenAt": 1792226614848
+  },
+  {
+    "key": "skycore|leggings|2",
+    "amount": 8910000,
+    "currency": "Skycore",
+    "seenAt": 1792226614848
+  },
+  {
+    "key": "skycore|leggings|3",
+    "amount": 11580000,
+    "currency": "Skycore",
+    "seenAt": 1792226614848
+  },
+  {
+    "key": "skycore|leggings|4",
+    "amount": 12960000,
+    "currency": "Skycore",
+    "seenAt": 1792226614848
+  },
+  {
+    "key": "snow|boots|1",
+    "amount": 17000000,
+    "currency": "Snow",
+    "seenAt": 1792226614848
+  },
+  {
+    "key": "snow|boots|2",
+    "amount": 29000000,
+    "currency": "Snow",
+    "seenAt": 1792226614848
+  },
+  {
+    "key": "snow|boots|3",
+    "amount": 41000000,
+    "currency": "Snow",
+    "seenAt": 1792226614848
+  },
+  {
+    "key": "snow|chestplate|1",
+    "amount": 26000000,
+    "currency": "Snow",
+    "seenAt": 1792226614848
+  },
+  {
+    "key": "snow|chestplate|2",
+    "amount": 42000000,
+    "currency": "Snow",
+    "seenAt": 1792226614848
+  },
+  {
+    "key": "snow|chestplate|3",
+    "amount": 62000000,
+    "currency": "Snow",
+    "seenAt": 1792226614848
+  },
+  {
+    "key": "snow|helmet|1",
+    "amount": 16000000,
+    "currency": "Snow",
+    "seenAt": 1792226614848
+  },
+  {
+    "key": "snow|helmet|2",
+    "amount": 28000000,
+    "currency": "Snow",
+    "seenAt": 1792226614848
+  },
+  {
+    "key": "snow|helmet|3",
+    "amount": 39000000,
+    "currency": "Snow",
+    "seenAt": 1792226614848
+  },
+  {
+    "key": "snow|leggings|1",
+    "amount": 23000000,
+    "currency": "Snow",
+    "seenAt": 1792226614848
+  },
+  {
+    "key": "snow|leggings|2",
+    "amount": 37000000,
+    "currency": "Snow",
+    "seenAt": 1792226614848
+  },
+  {
+    "key": "snow|leggings|3",
+    "amount": 53000000,
+    "currency": "Snow",
+    "seenAt": 1792226614848
+  },
+  {
+    "key": "sponge|boots|1",
+    "amount": 26600000,
+    "currency": "Sponge",
+    "seenAt": 1792226614848
+  },
+  {
+    "key": "sponge|boots|2",
+    "amount": 43900000,
+    "currency": "Sponge",
+    "seenAt": 1792226614848
+  },
+  {
+    "key": "sponge|boots|3",
+    "amount": 63600000,
+    "currency": "Sponge",
+    "seenAt": 1792226614848
+  },
+  {
+    "key": "sponge|boots|4",
+    "amount": 68700000,
+    "currency": "Sponge",
+    "seenAt": 1792226614848
+  },
+  {
+    "key": "sponge|chestplate|1",
+    "amount": 37200000,
+    "currency": "Sponge",
+    "seenAt": 1792226614848
+  },
+  {
+    "key": "sponge|chestplate|2",
+    "amount": 61400000,
+    "currency": "Sponge",
+    "seenAt": 1792226614848
+  },
+  {
+    "key": "sponge|chestplate|3",
+    "amount": 89100000,
+    "currency": "Sponge",
+    "seenAt": 1792226614848
+  },
+  {
+    "key": "sponge|chestplate|4",
+    "amount": 96200000,
+    "currency": "Sponge",
+    "seenAt": 1792226614848
+  },
+  {
+    "key": "sponge|helmet|1",
+    "amount": 23900000,
+    "currency": "Sponge",
+    "seenAt": 1792226614848
+  },
+  {
+    "key": "sponge|helmet|2",
+    "amount": 39500000,
+    "currency": "Sponge",
+    "seenAt": 1792226614848
+  },
+  {
+    "key": "sponge|helmet|3",
+    "amount": 57300000,
+    "currency": "Sponge",
+    "seenAt": 1792226614848
+  },
+  {
+    "key": "sponge|helmet|4",
+    "amount": 61800000,
+    "currency": "Sponge",
+    "seenAt": 1792226614848
+  },
+  {
+    "key": "sponge|leggings|1",
+    "amount": 31900000,
+    "currency": "Sponge",
+    "seenAt": 1792226614848
+  },
+  {
+    "key": "sponge|leggings|2",
+    "amount": 52700000,
+    "currency": "Sponge",
+    "seenAt": 1792226614848
+  },
+  {
+    "key": "sponge|leggings|3",
+    "amount": 76300000,
+    "currency": "Sponge",
+    "seenAt": 1792226614848
+  },
+  {
+    "key": "sponge|leggings|4",
+    "amount": 82400000,
+    "currency": "Sponge",
+    "seenAt": 1792226614848
+  },
+  {
+    "key": "stormcore|boots|1",
+    "amount": 5480000,
+    "currency": "Stormcore",
+    "seenAt": 1792226614848
+  },
+  {
+    "key": "stormcore|boots|2",
+    "amount": 8230000,
+    "currency": "Stormcore",
+    "seenAt": 1792226614848
+  },
+  {
+    "key": "stormcore|boots|3",
+    "amount": 10690000,
+    "currency": "Stormcore",
+    "seenAt": 1792226614848
+  },
+  {
+    "key": "stormcore|boots|4",
+    "amount": 11980000,
+    "currency": "Stormcore",
+    "seenAt": 1792226614848
+  },
+  {
+    "key": "stormcore|chestplate|1",
+    "amount": 7690000,
+    "currency": "Stormcore",
+    "seenAt": 1792226614848
+  },
+  {
+    "key": "stormcore|chestplate|2",
+    "amount": 11540000,
+    "currency": "Stormcore",
+    "seenAt": 1792226614848
+  },
+  {
+    "key": "stormcore|chestplate|3",
+    "amount": 14920000,
+    "currency": "Stormcore",
+    "seenAt": 1792226614848
+  },
+  {
+    "key": "stormcore|chestplate|4",
+    "amount": 16830000,
+    "currency": "Stormcore",
+    "seenAt": 1792226614848
+  },
+  {
+    "key": "stormcore|helmet|1",
+    "amount": 4950000,
+    "currency": "Stormcore",
+    "seenAt": 1792226614848
+  },
+  {
+    "key": "stormcore|helmet|2",
+    "amount": 7400000,
+    "currency": "Stormcore",
+    "seenAt": 1792226614848
+  },
+  {
+    "key": "stormcore|helmet|3",
+    "amount": 9620000,
+    "currency": "Stormcore",
+    "seenAt": 1792226614848
+  },
+  {
+    "key": "stormcore|helmet|4",
+    "amount": 10790000,
+    "currency": "Stormcore",
+    "seenAt": 1792226614848
+  },
+  {
+    "key": "stormcore|leggings|1",
+    "amount": 6590000,
+    "currency": "Stormcore",
+    "seenAt": 1792226614848
+  },
+  {
+    "key": "stormcore|leggings|2",
+    "amount": 9890000,
+    "currency": "Stormcore",
+    "seenAt": 1792226614848
+  },
+  {
+    "key": "stormcore|leggings|3",
+    "amount": 12850000,
+    "currency": "Stormcore",
+    "seenAt": 1792226614848
+  },
+  {
+    "key": "stormcore|leggings|4",
+    "amount": 14390000,
+    "currency": "Stormcore",
+    "seenAt": 1792226614848
+  },
+  {
+    "key": "torchflower|boots|1",
+    "amount": 6710000,
+    "currency": "Torchflower",
+    "seenAt": 1792226614848
+  },
+  {
+    "key": "torchflower|boots|2",
+    "amount": 11100000,
+    "currency": "Torchflower",
+    "seenAt": 1792226614848
+  },
+  {
+    "key": "torchflower|boots|3",
+    "amount": 16100000,
+    "currency": "Torchflower",
+    "seenAt": 1792226614848
+  },
+  {
+    "key": "torchflower|boots|4",
+    "amount": 17400000,
+    "currency": "Torchflower",
+    "seenAt": 1792226614848
+  },
+  {
+    "key": "torchflower|chestplate|1",
+    "amount": 9410000,
+    "currency": "Torchflower",
+    "seenAt": 1792226614848
+  },
+  {
+    "key": "torchflower|chestplate|2",
+    "amount": 15500000,
+    "currency": "Torchflower",
+    "seenAt": 1792226614848
+  },
+  {
+    "key": "torchflower|chestplate|3",
+    "amount": 22500000,
+    "currency": "Torchflower",
+    "seenAt": 1792226614848
+  },
+  {
+    "key": "torchflower|chestplate|4",
+    "amount": 24300000,
+    "currency": "Torchflower",
+    "seenAt": 1792226614848
+  },
+  {
+    "key": "torchflower|helmet|1",
+    "amount": 6050000,
+    "currency": "Torchflower",
+    "seenAt": 1792226614848
+  },
+  {
+    "key": "torchflower|helmet|2",
+    "amount": 9980000,
+    "currency": "Torchflower",
+    "seenAt": 1792226614848
+  },
+  {
+    "key": "torchflower|helmet|3",
+    "amount": 14500000,
+    "currency": "Torchflower",
+    "seenAt": 1792226614848
+  },
+  {
+    "key": "torchflower|helmet|4",
+    "amount": 15600000,
+    "currency": "Torchflower",
+    "seenAt": 1792226614848
+  },
+  {
+    "key": "torchflower|leggings|1",
+    "amount": 8060000,
+    "currency": "Torchflower",
+    "seenAt": 1792226614848
+  },
+  {
+    "key": "torchflower|leggings|2",
+    "amount": 13300000,
+    "currency": "Torchflower",
+    "seenAt": 1792226614848
+  },
+  {
+    "key": "torchflower|leggings|3",
+    "amount": 19300000,
+    "currency": "Torchflower",
+    "seenAt": 1792226614848
+  },
+  {
+    "key": "torchflower|leggings|4",
+    "amount": 20800000,
+    "currency": "Torchflower",
+    "seenAt": 1792226614848
+  },
+  {
+    "key": "tube coral|boots|1",
+    "amount": 20100000,
+    "currency": "Tube Coral",
+    "seenAt": 1792226614848
+  },
+  {
+    "key": "tube coral|boots|2",
+    "amount": 33100000,
+    "currency": "Tube Coral",
+    "seenAt": 1792226614848
+  },
+  {
+    "key": "tube coral|boots|3",
+    "amount": 48000000,
+    "currency": "Tube Coral",
+    "seenAt": 1792226614848
+  },
+  {
+    "key": "tube coral|chestplate|1",
+    "amount": 28100000,
+    "currency": "Tube Coral",
+    "seenAt": 1792226614848
+  },
+  {
+    "key": "tube coral|chestplate|2",
+    "amount": 46300000,
+    "currency": "Tube Coral",
+    "seenAt": 1792226614848
+  },
+  {
+    "key": "tube coral|chestplate|3",
+    "amount": 67200000,
+    "currency": "Tube Coral",
+    "seenAt": 1792226614848
+  },
+  {
+    "key": "tube coral|helmet|1",
+    "amount": 18100000,
+    "currency": "Tube Coral",
+    "seenAt": 1792226614848
+  },
+  {
+    "key": "tube coral|helmet|2",
+    "amount": 29800000,
+    "currency": "Tube Coral",
+    "seenAt": 1792226614848
+  },
+  {
+    "key": "tube coral|helmet|3",
+    "amount": 43200000,
+    "currency": "Tube Coral",
+    "seenAt": 1792226614848
+  },
+  {
+    "key": "tube coral|leggings|1",
+    "amount": 24100000,
+    "currency": "Tube Coral",
+    "seenAt": 1792226614848
+  },
+  {
+    "key": "tube coral|leggings|2",
+    "amount": 39700000,
+    "currency": "Tube Coral",
+    "seenAt": 1792226614848
+  },
+  {
+    "key": "tube coral|leggings|3",
+    "amount": 57600000,
+    "currency": "Tube Coral",
+    "seenAt": 1792226614848
+  },
+  {
+    "key": "wither rose|boots|1",
+    "amount": 6080000,
+    "currency": "Wither Rose",
+    "seenAt": 1792226614848
+  },
+  {
+    "key": "wither rose|boots|2",
+    "amount": 10000000,
+    "currency": "Wither Rose",
+    "seenAt": 1792226614848
+  },
+  {
+    "key": "wither rose|boots|3",
+    "amount": 14500000,
+    "currency": "Wither Rose",
+    "seenAt": 1792226614848
+  },
+  {
+    "key": "wither rose|boots|4",
+    "amount": 15700000,
+    "currency": "Wither Rose",
+    "seenAt": 1792226614848
+  },
+  {
+    "key": "wither rose|chestplate|2",
+    "amount": 14000000,
+    "currency": "Wither Rose",
+    "seenAt": 1792226614848
+  },
+  {
+    "key": "wither rose|chestplate|3",
+    "amount": 20400000,
+    "currency": "Wither Rose",
+    "seenAt": 1792226614848
+  },
+  {
+    "key": "wither rose|chestplate|4",
+    "amount": 22000000,
+    "currency": "Wither Rose",
+    "seenAt": 1792226614848
+  },
+  {
+    "key": "wither rose|helmet|1",
+    "amount": 5470000,
+    "currency": "Wither Rose",
+    "seenAt": 1792226614848
+  },
+  {
+    "key": "wither rose|helmet|2",
+    "amount": 9020000,
+    "currency": "Wither Rose",
+    "seenAt": 1792226614848
+  },
+  {
+    "key": "wither rose|helmet|3",
+    "amount": 13100000,
+    "currency": "Wither Rose",
+    "seenAt": 1792226614848
+  },
+  {
+    "key": "wither rose|helmet|4",
+    "amount": 14100000,
+    "currency": "Wither Rose",
+    "seenAt": 1792226614848
+  },
+  {
+    "key": "wither rose|leggings|1",
+    "amount": 7290000,
+    "currency": "Wither Rose",
+    "seenAt": 1792226614848
+  },
+  {
+    "key": "wither rose|leggings|2",
+    "amount": 12000000,
+    "currency": "Wither Rose",
+    "seenAt": 1792226614848
+  },
+  {
+    "key": "wither rose|leggings|3",
+    "amount": 17500000,
+    "currency": "Wither Rose",
+    "seenAt": 1792226614848
+  },
+  {
+    "key": "wither rose|leggings|4",
+    "amount": 18800000,
+    "currency": "Wither Rose",
+    "seenAt": 1792226614848
+  }
+]

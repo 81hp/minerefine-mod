@@ -119,6 +119,12 @@ public final class ModConfig {
      * the bundled data.
      */
     public java.util.Map<String, String> learnedProgression = new java.util.LinkedHashMap<>();
+
+    /**
+     * How many tiers an item has, "pine|chestplate": 3 and when, from shop listings read in game. Written
+     * by the mod; wins over the bundled table, so a tier the server removes stops being waited for.
+     */
+    public java.util.Map<String, minerefinehud.shop.PriceLedger.Learned> learnedTierCounts = new java.util.LinkedHashMap<>();
     public String progressAnchor = DEFAULT_PROGRESS_PLACEMENT.anchor().name();
     public int progressX = DEFAULT_PROGRESS_PLACEMENT.offsetX();
     public int progressY = DEFAULT_PROGRESS_PLACEMENT.offsetY();
@@ -549,6 +555,9 @@ public final class ModConfig {
         }
         if (learnedProgression == null) {
             learnedProgression = new java.util.LinkedHashMap<>();
+        }
+        if (learnedTierCounts == null) {
+            learnedTierCounts = new java.util.LinkedHashMap<>();
         }
         if (bossWorlds == null) {
             bossWorlds = new java.util.LinkedHashMap<>();

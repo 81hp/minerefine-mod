@@ -1,6 +1,7 @@
 package minerefinehud.client;
 
 import minerefinehud.halloween.Abilities;
+import minerefinehud.halloween.Buildings;
 import minerefinehud.halloween.HalloweenHud;
 import minerefinehud.halloween.HalloweenText;
 import minerefinehud.halloween.PumpkinSet;
@@ -43,11 +44,16 @@ final class HalloweenClient {
     private final Runnable sound;
     /** Plays the ability-ready sound, which is not the ping, so the two are told apart. */
     private final Runnable abilitySound;
+    /** Plays the bell for a finished building upgrade. */
+    private final Runnable buildingSound;
 
     private final Rates rates = new Rates();
     private final Abilities abilities = new Abilities();
     private final RecurringEvent caravan = RecurringEvent.caravan();
     private final RecurringEvent reforger = RecurringEvent.reforger();
+    private final Buildings buildings = new Buildings();
+    /** Upgrades finished lately, for the alert. */
+    private final List<Buildings.Finished> finishedUpgrades = new ArrayList<>();
 
     /** Sidebar balances, and the action bar's crop with when it was read. */
     private final Map<String, Double> sidebarBalances = new LinkedHashMap<>();
@@ -105,11 +111,13 @@ final class HalloweenClient {
     private static final long CARAVAN_BOSSES_AFTER_MS = 30_000L;
     private static final Pattern HOE = Pattern.compile("\\bhoe\\b", Pattern.CASE_INSENSITIVE);
 
-    HalloweenClient(ModConfig config, Runnable save, Runnable sound, Runnable abilitySound) {
+    HalloweenClient(ModConfig config, Runnable save, Runnable sound, Runnable abilitySound,
+                    Runnable buildingSound) {
         this.config = config;
         this.save = save;
         this.sound = sound;
         this.abilitySound = abilitySound;
+        this.buildingSound = buildingSound;
         abilities.importClasses(config.hwAbilityClasses, config.hwAbilityClass);
         caravan.importFrom(config.hwCaravanState);
         reforger.importFrom(config.reforgerState);
@@ -198,6 +206,7 @@ final class HalloweenClient {
             readSidebar(client, now);
             rates.tick(now, inHalloween);
             maybeQueryReforger(client, now);
+            finishUpgrades(now);
         }
 
         if (now - lastCarriedCheck >= 2_000L) {
@@ -265,8 +274,42 @@ final class HalloweenClient {
             }
         }
         if (sidebar.halloween()) {
+            // A balance falling by a building's price, with its menu just open, is its upgrade.
+            boolean started = false;
+            for (Map.Entry<String, Double> b : sidebar.balances().entrySet()) {
+                Double before = sidebarBalances.get(b.getKey());
+                if (before != null && b.getValue() < before) {
+                    started |= buildings.spent(config.hwBuildingData, b.getKey(), before - b.getValue(), now)
+                            .isPresent();
+                }
+            }
+            if (started) {
+                statsCachedAt = 0L;
+                save.run();
+            }
             sidebarBalances.putAll(sidebar.balances());
             sidebar.balances().forEach(rates::observe);
+        }
+    }
+
+    /** Upgrades whose time is up: saved as the new level, with a bell and an alert. */
+    private void finishUpgrades(long now) {
+        List<Buildings.Finished> done = buildings.finish(config.hwBuildingData, now);
+        if (done.isEmpty()) {
+            finishedUpgrades.removeIf(f -> now - f.at() > ALERT_SHOW_MS);
+            return;
+        }
+        statsCachedAt = 0L;
+        save.run();   // the new level, even for one that finished while the game was closed
+        boolean ring = false;
+        for (Buildings.Finished f : done) {
+            if (f.ring()) {
+                finishedUpgrades.add(f);
+                ring = true;
+            }
+        }
+        if (ring && config.halloweenEnabled && config.hwBuildings && config.hwBuildingSound) {
+            buildingSound.run();
         }
     }
 
@@ -468,6 +511,14 @@ final class HalloweenClient {
                 add(out, ring, "reforger-here:" + arrived, "The Reforger has arrived!");
             }
         }
+        // Shown only: the bell is rung where the upgrade finishes.
+        if (!ring && config.halloweenEnabled && config.hwBuildings) {
+            for (Buildings.Finished f : finishedUpgrades) {
+                if (now - f.at() <= ALERT_SHOW_MS) {
+                    out.add(f.name() + " upgraded to Lv " + f.level() + "!");
+                }
+            }
+        }
         // Only in the dimension: elsewhere the caravan is out of reach, and an estimate ringing
         // every 45 minutes while mining would only be noise.
         if (config.halloweenEnabled && config.hwCaravanReminder && inHalloween) {
@@ -510,7 +561,16 @@ final class HalloweenClient {
     void scanScreen(String screenTitle, List<ShopItemParser.ItemView> items) {
         boolean changed = false;
         boolean refiner = screenTitle != null && screenTitle.toLowerCase(Locale.ROOT).contains("refin");
+        long now = System.currentTimeMillis();
         for (ShopItemParser.ItemView item : items) {
+            Optional<Buildings.Info> building = Buildings.read(item.title(), item.lore());
+            if (building.isPresent()) {
+                if (buildings.learn(config.hwBuildingData, building.get(), now)) {
+                    statsCachedAt = 0L;
+                    changed = true;
+                }
+                continue;
+            }
             if (abilities.learnFromMenu(item.title(), item.lore())) {
                 saveAbilities();
             }
@@ -550,7 +610,8 @@ final class HalloweenClient {
     /** Halloween shop items, which the mine shop parser must not report as unreadable gear. */
     static boolean isHalloweenItem(ShopItemParser.ItemView item) {
         return PumpkinSet.isEventItem(item.title(), item.lore())
-                || PumpkinSet.costs(item.lore()).containsKey(HalloweenText.CANDY);
+                || PumpkinSet.costs(item.lore()).containsKey(HalloweenText.CANDY)
+                || Buildings.read(item.title(), item.lore()).isPresent();
     }
 
     // ---------------------------------------------------------------- panels
@@ -568,8 +629,10 @@ final class HalloweenClient {
     }
 
     private List<HudModel.Line> buildStats(long now) {
-        return HalloweenHud.statsPanel(new HalloweenHud.Stats(balances(), rates, config.hwRateMinutes * 60_000L,
-                pestCandy, pestCharms, caravan.view(now), config.hwRefineCost, config.hwRefineLevel),
+        Map<String, Double> balances = balances();
+        return HalloweenHud.statsPanel(new HalloweenHud.Stats(balances, rates, config.hwRateMinutes * 60_000L,
+                pestCandy, pestCharms, caravan.view(now), config.hwRefineCost, config.hwRefineLevel,
+                Buildings.views(config.hwBuildingData, balances, now)),
                 config.hwStatsLines());
     }
 
@@ -620,6 +683,20 @@ final class HalloweenClient {
         out.add(" halloween ability class: " + (abilities.selectedName().isEmpty() ? "not known yet"
                 : abilities.selectedName()) + ", pumpkin owned: " + owned());
         out.add(" reforger: " + reforger.view(now) + ", caravan: " + caravan.view(now));
+        StringBuilder b = new StringBuilder(" buildings:");
+        if (config.hwBuildingData.isEmpty()) {
+            b.append(" none seen yet (open a building's menu)");
+        }
+        config.hwBuildingData.forEach((name, s) -> {
+            b.append(' ').append(name).append(" ").append(s.level).append('/').append(s.max)
+                    .append(" cost ").append(s.cost).append(" time ").append(s.upgradeMs / 1000L).append('s');
+            if (s.upgradeEnd > now) {
+                b.append(" upgrading to ").append(s.upgradeTo).append(", ")
+                        .append((s.upgradeEnd - now) / 1000L).append("s left");
+            }
+            b.append(';');
+        });
+        out.add(b.toString());
         return out;
     }
 

@@ -10,14 +10,38 @@ import java.util.OptionalInt;
  * picker on the internet hands out. Parsing lives here rather than in the settings screen so a
  * typo is caught by a test instead of by a black-on-black panel.
  *
- * @param frame panel borders, title bands and underlines
+ * @param frame       panel borders, title bands and underlines
+ * @param barFillEnd  the bar's colour at its right end, fading from {@code barFill}; the same
+ *                    colour for a plain bar
+ * @param frameEnd    the frame's colour at the bottom, fading from {@code frame}; the same
+ *                    colour for a plain frame
  */
 public record Theme(int header, int label, int value, int good, int warn, int dim,
-                    int barFill, int barDone, int barTrack, int frame) {
+                    int barFill, int barDone, int barTrack, int frame, int barFillEnd, int frameEnd) {
+
+    /** One colour for the whole bar and the whole frame, as every theme but the Halloween one. */
+    public Theme(int header, int label, int value, int good, int warn, int dim,
+                 int barFill, int barDone, int barTrack, int frame) {
+        this(header, label, value, good, warn, dim, barFill, barDone, barTrack, frame, barFill, frame);
+    }
 
     public static Theme defaults() {
         return new Theme(0xFFFFD24A, 0xFFBFBFBF, 0xFFFFFFFF, 0xFF5CE65C, 0xFFFF6B6B, 0xFF8A8A8A,
                 0xFFFFD24A, 0xFF5CE65C, 0xFF3A3A3A, 0xFFFFD24A);
+    }
+
+    /**
+     * The Halloween panels' own look: pumpkin orange fading into witch purple, on the game's
+     * near-black tooltip, with slime green for what is ready.
+     */
+    public static Theme spooky() {
+        return new Theme(0xFFFF9F2E, 0xFFCDB8EC, 0xFFF4EEFF, 0xFF8CF26B, 0xFFFF6464, 0xFF8E7BAE,
+                0xFFFF8A1F, 0xFF8CF26B, 0xFF2B1B3D, 0xFFFF8A1F, 0xFFA04BFF, 0xFF8A3FFC);
+    }
+
+    /** The bar fades from one colour to another along its length. */
+    public boolean barFades() {
+        return barFillEnd != barFill;
     }
 
     public int color(HudModel.Style style) {
@@ -151,6 +175,15 @@ public record Theme(int header, int label, int value, int good, int warn, int di
     public static int progressColor(double fraction) {
         double f = Math.max(0.0, Math.min(1.0, fraction));
         return hsl(Math.round(f * 115), 0.80, 0.55);
+    }
+
+    /** Part way from {@code from} to {@code to}, 0 being {@code from}; opaque. */
+    public static int mix(int from, int to, double t) {
+        double f = clamp01(t);
+        int r = (int) Math.round(((from >> 16) & 0xFF) * (1 - f) + ((to >> 16) & 0xFF) * f);
+        int g = (int) Math.round(((from >> 8) & 0xFF) * (1 - f) + ((to >> 8) & 0xFF) * f);
+        int b = (int) Math.round((from & 0xFF) * (1 - f) + (to & 0xFF) * f);
+        return rgb(r, g, b);
     }
 
     private static int rgb(int r, int g, int b) {

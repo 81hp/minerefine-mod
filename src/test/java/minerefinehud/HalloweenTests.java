@@ -4,6 +4,7 @@ import minerefinehud.boss.BossAlerts;
 import minerefinehud.boss.BossIndex;
 import minerefinehud.boss.BossTracker;
 import minerefinehud.halloween.Abilities;
+import minerefinehud.halloween.Buildings;
 import minerefinehud.halloween.HalloweenHud;
 import minerefinehud.halloween.HalloweenText;
 import minerefinehud.halloween.PumpkinSet;
@@ -36,6 +37,11 @@ public final class HalloweenTests {
         bossIndexFixesTimers();
         panelsRender();
         testerReports();
+        buildingsAreRead();
+        buildingUpgrades();
+        buildingUpgradeSeenInTheMenu();
+        buildingPanel();
+        spookyLookPaints();
 
         System.out.println();
         System.out.println("passed: " + passed + "   failed: " + failed);
@@ -336,16 +342,188 @@ public final class HalloweenTests {
         Rates rates = new Rates();
         var stats = HalloweenHud.statsPanel(new HalloweenHud.Stats(Map.of("Candy", 21.5, "Carrots", 45_395.0),
                 rates, 600_000L, 2.1, 1, new RecurringEvent.View(RecurringEvent.State.WAITING, 600_000L, false),
-                50.0, 1), HalloweenHud.StatsLines.all());
+                50.0, 1, List.of()), HalloweenHud.StatsLines.all());
         check("candy line", stats.stream().anyMatch(l -> l.text().equals("Candy 21.5  …/h")));
         check("pest line", stats.stream().anyMatch(l -> l.text().equals("Pests: +2.1 candy, 1 charm")));
-        check("caravan estimate", stats.stream().anyMatch(l -> l.text().equals("Caravan in ~10:00")));
+        check("caravan estimate", stats.stream().anyMatch(l -> l.text().equals("Caravan: in ~10:00")));
         check("refine line", stats.stream().anyMatch(l -> l.text().equals("Refine II: 21.5/50 candy")));
+        List<String> sections = stats.stream().filter(l -> l.kind() == HudModel.Kind.SECTION).map(HudModel.Line::text).toList();
+        eq("sections, none for buildings never seen", List.of("RATES", "EVENTS"), sections);
+        eq("title has the pumpkin", HalloweenHud.PUMPKIN_ICON, stats.get(0).icon());
 
         var abilities = HalloweenHud.abilityPanel(List.of(new Abilities.Timer("Will-o'-Wisps", Abilities.Key.DROP, 0L),
                 new Abilities.Timer("Harvest Moon", Abilities.Key.SHIFT_DROP, 12_300L)));
-        eq("ready", "Will-o'-Wisps  READY", abilities.get(0).text());
-        eq("cooling", "Harvest Moon  12.3s", abilities.get(1).text());
+        eq("ready", "Will-o'-Wisps: READY", abilities.get(0).text());
+        eq("ready chip", "READY", abilities.get(0).cells().get(0).chip());
+        eq("cooling", "Harvest Moon: 12.3s", abilities.get(1).text());
+    }
+
+    /** The Forge and Barn menus exactly as the screenshots of 2026-10-19 show them. */
+    static final List<String> FORGE = List.of("", " ▍ ʟᴇᴠᴇʟ 2 / 10", "", " ▍ Grants x1.2 ☽ Hex (event damage)",
+            " ▍ Grants +10 ❤ Event Health", "▼↓↓⇓—[ UPGRADE ]—⇓↓↓▼", " ▍ ʟᴇᴠᴇʟ 3 / 10", "",
+            " ▍ Grants x1.3 ☽ Hex (event damage)", " ▍ Grants +15 ❤ Event Health", "", "ᴄᴏѕᴛ",
+            "⇢ 1,500,000 Beetroots ✗", "⇢ Upgrade Time 1m", "", "ᴇᴀᴄʜ ᴜᴘɢʀᴀᴅᴇ ᴀʟѕᴏ ɢʀᴀɴᴛѕ +10 ᴇᴠᴇɴᴛ ѕᴘᴇᴇᴅ",
+            "(!) You need 1,440,287 more Beetroots.");
+    static final List<String> BARN = List.of("", " ▍ ʟᴇᴠᴇʟ 4 / 10", "", " ▍ Grants x1.8 more crops",
+            "▼↓↓⇓—[ UPGRADE ]—⇓↓↓▼", " ▍ ʟᴇᴠᴇʟ 5 / 10", "", " ▍ Grants x2 more crops", "", "ᴄᴏѕᴛ",
+            "⇢ [item/carrot@items] 1,500,000 Carrots ✗", "⇢ Upgrade Time 3m", "",
+            "ᴇᴀᴄʜ ᴜᴘɢʀᴀᴅᴇ ᴀʟѕᴏ ɢʀᴀɴᴛѕ +10 ᴇᴠᴇɴᴛ ѕᴘᴇᴇᴅ", "(!) You need 1,443,800 more Carrots.");
+
+    private static void buildingsAreRead() {
+        Buildings.Info forge = Buildings.read("§dForge", FORGE).orElseThrow();
+        eq("forge name", "Forge", forge.name());
+        eq("forge level", 2, forge.level());
+        eq("forge max", 10, forge.max());
+        eq("forge grants now", 2, forge.now().size());
+        eq("hex stat", "Hex", forge.now().get(0).stat);
+        eq("hex value", "x1.2", forge.now().get(0).value);
+        eq("health stat", "Event Health", forge.now().get(1).stat);
+        eq("next health", "+15", forge.next().get(1).value);
+        eq("forge cost", Map.of("Beetroots", 1_500_000.0), forge.cost());
+        eq("forge time", 60_000L, forge.upgradeMs());
+        eq("no timer shown", 0L, forge.remainingMs());
+
+        Buildings.Info barn = Buildings.read("Barn", BARN).orElseThrow();
+        eq("barn crops", "crops", barn.now().get(0).stat);
+        eq("barn next", "x2", barn.next().get(0).value);
+        eq("barn cost through the sprite", Map.of("Carrots", 1_500_000.0), barn.cost());
+        eq("barn time", 180_000L, barn.upgradeMs());
+
+        Buildings.Info maxed = Buildings.read("Barn", List.of(" ▍ ʟᴇᴠᴇʟ 10 / 10", " ▍ Grants x4 more crops")).orElseThrow();
+        check("maxed", maxed.maxed());
+        check("no cost when maxed", maxed.cost().isEmpty());
+
+        check("a pumpkin piece is not a building", Buildings.read("Pumpkin Helmet",
+                List.of(" Event Health: +3❤", "Cost:", "➼ 250 🍬 Candy ❌", "1/1 Lifetime Stock")).isEmpty());
+        check("gear with a level but no grants is not a building", Buildings.read("Debris Shovel",
+                List.of("Level 3 / 5", "Cost: 5b")).isEmpty());
+        check("the 'each upgrade also grants' line is not a grant", forge.next().size() == 2);
+        eq("upgrade times", 5_400_000L, Buildings.duration("1h 30m"));
+        eq("written together", 5_400_000L, Buildings.duration("1h30m"));
+        eq("not a word", 0L, Buildings.duration("3 minutes of 5 hex"));
+        eq("a bracketed name keeps the name", "Barn", Buildings.read("[Barn]", BARN).orElseThrow().name());
+        eq("small-caps name", "Barn", Buildings.read("ʙᴀʀɴ", BARN).orElseThrow().name());
+    }
+
+    private static void buildingUpgrades() {
+        Buildings b = new Buildings();
+        Map<String, Buildings.Saved> saved = new java.util.LinkedHashMap<>();
+        long t = 1_000_000L;
+        check("first sight is saved", b.learn(saved, Buildings.read("Barn", BARN).orElseThrow(), t));
+        check("the same menu again changes nothing", !b.learn(saved, Buildings.read("Barn", BARN).orElseThrow(), t + 500));
+        b.learn(saved, Buildings.read("Forge", FORGE).orElseThrow(), t);
+
+        check("spending something else is no upgrade",
+                b.spent(saved, "Carrots", 250_000.0, t + 1_000).isEmpty());
+        eq("the barn's price leaving carrots starts it", Optional.of("Barn"),
+                b.spent(saved, "Carrots", 1_500_000.0, t + 2_000));
+        eq("upgrading view", Buildings.State.UPGRADING,
+                Buildings.views(saved, Map.of(), t + 92_000).get(0).state());
+        eq("time left", 90_000L, Buildings.views(saved, Map.of(), t + 92_000).get(0).msLeft());
+        check("not twice", b.spent(saved, "Carrots", 1_500_000.0, t + 3_000).isEmpty());
+        check("not long after the menu closed", b.spent(saved, "Beetroots", 1_500_000.0,
+                t + Buildings.SPEND_WINDOW_MS + 1).isEmpty());
+
+        check("nothing done early", b.finish(saved, t + 100_000).isEmpty());
+        List<Buildings.Finished> done = b.finish(saved, t + 182_500);
+        eq("barn finished", 1, done.size());
+        eq("to level 5", 5, done.get(0).level());
+        check("rings", done.get(0).ring());
+        Buildings.View after = Buildings.views(saved, Map.of(), t + 183_000).get(0);
+        eq("next cost unknown until the menu opens", Buildings.State.OPEN_MENU, after.state());
+        eq("level 5 now", 5, after.level());
+        eq("its grants are now x2", "crops x2", after.perks());
+
+        // An upgrade that ended while the game was closed is applied without ringing.
+        b.learn(saved, Buildings.read("Forge", FORGE).orElseThrow(), t + 200_000);
+        b.spent(saved, "Beetroots", 1_499_000.0, t + 201_000);
+        List<Buildings.Finished> late = b.finish(saved, t + 3_600_000);
+        check("late one does not ring", late.size() == 1 && !late.get(0).ring());
+        eq("forge level 3", 3, saved.get("Forge").level);
+    }
+
+    /** The menu shows the next level before the balance falls: the level jump starts the timer. */
+    private static void buildingUpgradeSeenInTheMenu() {
+        Buildings b = new Buildings();
+        Map<String, Buildings.Saved> saved = new java.util.LinkedHashMap<>();
+        b.learn(saved, Buildings.read("Barn", BARN).orElseThrow(), 0L);
+        List<String> level5 = BARN.stream().map(l -> l.replace("ʟᴇᴠᴇʟ 5", "ʟᴇᴠᴇʟ 6").replace("ʟᴇᴠᴇʟ 4", "ʟᴇᴠᴇʟ 5")
+                .replace("1,500,000", "3,000,000").replace("Time 3m", "Time 5m")).toList();
+        check("the jump is a change", b.learn(saved, Buildings.read("Barn", level5).orElseThrow(), 500L));
+        Buildings.View v = Buildings.views(saved, Map.of(), 1_000L).get(0);
+        eq("upgrading after the jump", Buildings.State.UPGRADING, v.state());
+        eq("to level 5", 5, v.target());
+        eq("with the bought level's 3 minutes", 179_500L, v.msLeft());
+        check("the balance falling after is not a second upgrade",
+                b.spent(saved, "Carrots", 1_500_000.0, 1_500L).isEmpty());
+        List<Buildings.Finished> done = b.finish(saved, 181_000L);
+        eq("finished once", 1, done.size());
+        Buildings.View after = Buildings.views(saved, Map.of("Carrots", 0.0), 181_000L).get(0);
+        eq("already knows the next cost", Buildings.State.SAVING, after.state());
+        eq("next is level 6", 6, after.target());
+
+        // The menu still shows the old level after our timer ended, then catches up: one upgrade.
+        Buildings d = new Buildings();
+        Map<String, Buildings.Saved> stale = new java.util.LinkedHashMap<>();
+        d.learn(stale, Buildings.read("Barn", BARN).orElseThrow(), 0L);
+        d.spent(stale, "Carrots", 1_500_000.0, 1_000L);
+        List<Buildings.Finished> first = d.finish(stale, 181_000L);
+        eq("noticed time is now", 181_000L, first.get(0).at());
+        check("old menu ignored", !d.learn(stale, Buildings.read("Barn", BARN).orElseThrow(), 181_500L));
+        eq("level stays 5", 5, stale.get("Barn").level);
+        d.learn(stale, Buildings.read("Barn", level5).orElseThrow(), 182_000L);
+        check("no second upgrade", d.finish(stale, 400_000L).isEmpty());
+        eq("saving for 6", Buildings.State.SAVING, Buildings.views(stale, Map.of(), 400_000L).get(0).state());
+
+        // A level seen higher after a long time away is not a purchase now.
+        Buildings c = new Buildings();
+        Map<String, Buildings.Saved> later = new java.util.LinkedHashMap<>();
+        c.learn(later, Buildings.read("Barn", BARN).orElseThrow(), 0L);
+        c.learn(later, Buildings.read("Barn", level5).orElseThrow(), 3_600_000L);
+        eq("no timer for an old upgrade", Buildings.State.SAVING,
+                Buildings.views(later, Map.of(), 3_600_000L).get(0).state());
+    }
+
+    private static void buildingPanel() {
+        Buildings b = new Buildings();
+        Map<String, Buildings.Saved> saved = new java.util.LinkedHashMap<>();
+        b.learn(saved, Buildings.read("Barn", BARN).orElseThrow(), 0L);
+        b.learn(saved, Buildings.read("Forge", FORGE).orElseThrow(), 0L);
+        List<Buildings.View> views = Buildings.views(saved, Map.of("Carrots", 56_200.0, "Beetroots", 59_713.0), 0L);
+        List<HudModel.Line> lines = HalloweenHud.buildingLines(views);
+        eq("barn title", "Barn → Lv 5  56.2k/1.5m", lines.get(0).text());
+        eq("carrot icon", "item:carrot", lines.get(0).icon());
+        check("barn bar", lines.get(1).kind() == HudModel.Kind.BAR && Math.abs(lines.get(1).progress() - 56_200 / 1.5e6) < 1e-9);
+        eq("barn perk", "   crops x1.8 → x2", lines.get(2).text());
+        eq("forge hex", "   Hex x1.2 → x1.3", lines.get(5).text());
+        eq("forge health on its own line", "   Health +10 → +15", lines.get(6).text());
+
+        List<HudModel.Line> rich = HalloweenHud.buildingLines(Buildings.views(saved,
+                Map.of("Carrots", 2_000_000.0), 0L));
+        eq("affordable is green", HudModel.Style.GOOD, rich.get(0).style());
+    }
+
+    /** The Halloween look draws sections, item icons and a bar fading orange to purple. */
+    private static void spookyLookPaints() {
+        minerefinehud.hud.HudStyle style = minerefinehud.hud.HudStyle.defaults()
+                .withTitles(minerefinehud.hud.HudStyle.Titles.BAND)
+                .withNumbers(minerefinehud.hud.HudStyle.Numbers.COLUMNS)
+                .withBar(minerefinehud.hud.HudStyle.BarStyle.THICK)
+                .withPercent(minerefinehud.hud.HudStyle.Percent.INSIDE);
+        var painted = minerefinehud.hud.PanelPainter.paint(minerefinehud.hud.SamplePanels.halloween(), style,
+                minerefinehud.hud.HudStyle.Background.TOOLTIP, 85, minerefinehud.hud.Theme.spooky(), s -> s.length() * 6);
+        long icons = painted.ops().stream().filter(o -> o instanceof minerefinehud.hud.PanelPainter.Icon).count();
+        check("icons drawn with gear labels set to words", icons >= 6);
+        java.util.Set<Integer> barColours = new java.util.HashSet<>();
+        for (var op : painted.ops()) {
+            if (op instanceof minerefinehud.hud.PanelPainter.Fill f && f.y2() - f.y1() == 10) {
+                barColours.add(f.color());
+            }
+        }
+        check("bars fade through several colours", barColours.size() > 5);
+        check("section text drawn", painted.ops().stream().anyMatch(o ->
+                o instanceof minerefinehud.hud.PanelPainter.Text t && t.text().equals("BUILDINGS")));
+        eq("halfway colour", 0xFFD06B8F, minerefinehud.hud.Theme.mix(0xFFFF8A1F, 0xFFA04BFF, 0.5));
     }
 
     // ---------------------------------------------------------------- helpers
@@ -375,9 +553,10 @@ public final class HalloweenTests {
         }
         rates.observe("Fire Coral", 160.0);
         var stats = HalloweenHud.statsPanel(new HalloweenHud.Stats(Map.of("Fire Coral", 160.0, "Candy", 1.0),
-                rates, 600_000L, 0, 0, new RecurringEvent.View(RecurringEvent.State.UNKNOWN, 0L, false), 0, 0),
-                HalloweenHud.StatsLines.all());
-        check("fire coral has its own row", stats.stream().anyMatch(l -> l.text().startsWith(" Fire Coral 160")));
+                rates, 600_000L, 0, 0, new RecurringEvent.View(RecurringEvent.State.UNKNOWN, 0L, false), 0, 0,
+                List.of()), HalloweenHud.StatsLines.all());
+        check("fire coral has its own row", stats.stream().anyMatch(l -> l.text().startsWith("Fire Coral 160")
+                && l.icon().equals("item:fire_coral")));
         check("fire coral counts in the crop rate", stats.stream().anyMatch(l -> l.text().equals("Crops 1.8k/h")));
 
         // The Halloween Update's new crop.

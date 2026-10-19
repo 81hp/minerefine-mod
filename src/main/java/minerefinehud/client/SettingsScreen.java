@@ -348,7 +348,12 @@ public final class SettingsScreen extends Screen {
         // Two buttons to a column, so the small buttons line up with the full-width ones above.
         int quarter = (COLUMN_WIDTH - QUARTER_GAP) / 2;
 
-        toggle(0, 0, "Halloween panels", () -> config.halloweenEnabled, v -> config.halloweenEnabled = v);
+        toggleAt(quarterX(0, quarter), y(0), quarter, "Panels", () -> config.halloweenEnabled,
+                v -> config.halloweenEnabled = v);
+        Button spooky = toggleAt(quarterX(1, quarter), y(0), quarter, "Spooky", () -> config.hwSpooky,
+                v -> config.hwSpooky = v);
+        spooky.setTooltip(Tooltip.create(Component.literal("The Halloween panels in their own orange and "
+                + "purple look, with crop icons. Off, they follow the Style and Colours tabs.")));
         addRenderableWidget(Button.builder(Component.literal("Move Halloween panels..."), b -> {
                     onChange.run();
                     openHalloweenPositions.run();
@@ -370,8 +375,18 @@ public final class SettingsScreen extends Screen {
         addRenderableWidget(Button.builder(Component.literal("Reset rates"), b -> resetHalloweenRates.run())
                 .bounds(quarterX(3, quarter), y(3), quarter, 20).build());
 
-        toggle(0, 4, "Ability timers", () -> config.hwAbilities, v -> config.hwAbilities = v);
-        toggle(1, 4, "Ready sound", () -> config.hwAbilitySound, v -> config.hwAbilitySound = v);
+        toggleAt(quarterX(0, quarter), y(4), quarter, "Abilities", () -> config.hwAbilities,
+                v -> config.hwAbilities = v);
+        Button readySound = toggleAt(quarterX(1, quarter), y(4), quarter, "Sound", () -> config.hwAbilitySound,
+                v -> config.hwAbilitySound = v);
+        readySound.setTooltip(Tooltip.create(Component.literal("A chime when a farming ability is ready again.")));
+        Button buildingBars = toggleAt(quarterX(2, quarter), y(4), quarter, "Buildings", () -> config.hwBuildings,
+                v -> config.hwBuildings = v);
+        buildingBars.setTooltip(Tooltip.create(Component.literal("A bar for each building's next level, "
+                + "read when you open its menu, and a countdown while it upgrades.")));
+        Button bell = toggleAt(quarterX(3, quarter), y(4), quarter, "Bell", () -> config.hwBuildingSound,
+                v -> config.hwBuildingSound = v);
+        bell.setTooltip(Tooltip.create(Component.literal("A bell when a building upgrade finishes.")));
 
         // Pumpkin set bars; a piece already owned gets no bar.
         java.util.Set<String> owned = pumpkinOwned.get();
@@ -1949,6 +1964,19 @@ public final class SettingsScreen extends Screen {
      * Clicks one option of a look-tab control, found by its title, through the same mouse handling
      * a player's click takes, scrolling the list to it first. For the in-game test.
      */
+    /** The Panels tab's panel by name, as clicking it in the list does. For the game test. */
+    public boolean selectPanel(String name) {
+        List<PanelEntry> entries = panelEntries();
+        for (int i = 0; i < entries.size(); i++) {
+            if (entries.get(i).name().equals(name)) {
+                panelIndex = i;
+                rebuildWidgets();
+                return true;
+            }
+        }
+        return false;
+    }
+
     public boolean clickOption(String title, String option) {
         for (Control c : List.copyOf(controls)) {
             if (!(c instanceof Segments s) || !s.title.equals(title)) {

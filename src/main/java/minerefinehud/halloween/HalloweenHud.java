@@ -2,6 +2,7 @@ package minerefinehud.halloween;
 
 import minerefinehud.hud.Formatting;
 import minerefinehud.hud.HudModel;
+import minerefinehud.hud.HudModel.Cell;
 import minerefinehud.hud.HudModel.Line;
 import minerefinehud.hud.HudModel.Style;
 
@@ -14,19 +15,24 @@ import java.util.Set;
 
 /**
  * What the Halloween panels say, as plain lines, like {@link HudModel} for the mining panels.
- * No Minecraft types.
+ *
+ * The stats panel is in three parts under small headings: Rates, Buildings and Events. Rows name
+ * their crop with its item ("item:carrot"), drawn whatever the gear label setting. No Minecraft
+ * types.
  */
 public final class HalloweenHud {
 
     private HalloweenHud() {
     }
 
+    public static final String PUMPKIN_ICON = "item:jack_o_lantern";
+
     /** Which rows the stats panel shows. */
     public record StatsLines(boolean candyRate, boolean cropRates, boolean perCrop, boolean pests,
-                             boolean caravan, boolean refine) {
+                             boolean caravan, boolean refine, boolean buildings) {
 
         public static StatsLines all() {
-            return new StatsLines(true, true, true, true, true, true);
+            return new StatsLines(true, true, true, true, true, true, true);
         }
     }
 
@@ -38,7 +44,28 @@ public final class HalloweenHud {
                         int pestCharms,
                         RecurringEvent.View caravan,
                         double refineCost,
-                        int refineLevel) {}
+                        int refineLevel,
+                        List<Buildings.View> buildings) {}
+
+    /** The item drawn for a currency, or none. */
+    public static String icon(String currency) {
+        if (currency == null) {
+            return "";
+        }
+        return switch (currency) {
+            case HalloweenText.CANDY -> "item:candy";
+            case "Carrots" -> "item:carrot";
+            case "Beetroots" -> "item:beetroot";
+            case "Nether Wart" -> "item:nether_wart";
+            case "Fire Coral" -> "item:fire_coral";
+            case "Hallowed" -> "item:hallowed";
+            case "Potatoes" -> "item:potato";
+            case "Wheat" -> "item:wheat";
+            case "Pumpkins" -> "item:pumpkin";
+            case "Melons" -> "item:melon_slice";
+            default -> "";
+        };
+    }
 
     /** Candy keeps its decimal, "21.5"; crops are whole, "45,395" or "2.5m". */
     public static String amount(double v) {
@@ -63,7 +90,7 @@ public final class HalloweenHud {
     }
 
     /** 45,200 as "45.2k", 2,500,000 as "2.5m". */
-    static String compact(double v) {
+    public static String compact(double v) {
         if (v >= 1_000_000.0) {
             return Formatting.blocks(Math.round(v));
         }
@@ -74,40 +101,70 @@ public final class HalloweenHud {
         return amount(v);
     }
 
+    /**
+     * A balance and its rate: "Carrots 45,395  20.1k/h" written out, or label, amount and rate
+     * in columns.
+     */
+    public static Line figures(HudModel.Kind kind, String label, String icon, String amount, String rate) {
+        StringBuilder text = new StringBuilder(label);
+        if (!amount.isEmpty()) {
+            text.append(' ').append(amount);
+        }
+        if (!rate.isEmpty()) {
+            text.append(amount.isEmpty() ? " " : "  ").append(rate);
+        }
+        return new Line(text.toString(), Style.VALUE, 0.0, kind, label, Style.LABEL,
+                List.of(Cell.of(amount, Style.VALUE), Cell.of(rate, Style.HEADER)), icon);
+    }
+
     public static List<Line> statsPanel(Stats s, StatsLines show) {
         List<Line> lines = new ArrayList<>();
-        lines.add(Line.of("Halloween", Style.HEADER));
+        lines.add(Line.header("Halloween", PUMPKIN_ICON));
 
         Set<String> crops = new HashSet<>(HalloweenText.CROPS);
 
+        List<Line> rates = new ArrayList<>();
         if (show.candyRate()) {
             String candy = s.balances().containsKey(HalloweenText.CANDY)
                     ? amount(s.balances().get(HalloweenText.CANDY)) : "?";
-            lines.add(Line.of("Candy " + candy + "  " + rate(s.rates().perHour(HalloweenText.CANDY, s.windowMs()))
-                    + "/h", Style.VALUE));
+            rates.add(figures(HudModel.Kind.ROW, "Candy", icon(HalloweenText.CANDY), candy,
+                    rate(s.rates().perHour(HalloweenText.CANDY, s.windowMs())) + "/h"));
         }
         if (show.cropRates()) {
-            lines.add(Line.of("Crops " + rate(s.rates().perHour(crops, s.windowMs())) + "/h", Style.VALUE));
+            int each = 0;
             if (show.perCrop()) {
                 for (String crop : HalloweenText.CROPS) {
                     if (!s.balances().containsKey(crop)) {
                         continue;
                     }
                     double r = s.rates().perHour(crop, s.windowMs());
-                    lines.add(Line.of(" " + crop + " " + amount(s.balances().get(crop))
-                            + (Double.isNaN(r) || r <= 0 ? "" : "  " + rate(r) + "/h"), Style.LABEL));
+                    rates.add(figures(HudModel.Kind.ROW, crop, icon(crop), amount(s.balances().get(crop)),
+                            Double.isNaN(r) || r <= 0 ? "" : rate(r) + "/h"));
+                    each++;
                 }
             }
+            // Under the crops it adds up, set apart by a rule; on its own it is a plain row.
+            rates.add(figures(each > 0 ? HudModel.Kind.TOTAL : HudModel.Kind.ROW, "Crops", "item:hay_block", "",
+                    rate(s.rates().perHour(crops, s.windowMs())) + "/h"));
+        }
+        section(lines, "RATES", rates);
+
+        if (show.buildings()) {
+            section(lines, "BUILDINGS", buildingLines(s.buildings()));
+        }
+
+        List<Line> events = new ArrayList<>();
+        if (show.caravan()) {
+            events.add(caravanLine(s.caravan()));
         }
         if (show.pests() && (s.pestCandy() > 0 || s.pestCharms() > 0)) {
-            StringBuilder sb = new StringBuilder("Pests: +").append(amount(s.pestCandy())).append(" candy");
+            StringBuilder sb = new StringBuilder("+").append(amount(s.pestCandy())).append(" candy");
             if (s.pestCharms() > 0) {
                 sb.append(", ").append(s.pestCharms()).append(s.pestCharms() == 1 ? " charm" : " charms");
             }
-            lines.add(Line.of(sb.toString(), Style.LABEL));
-        }
-        if (show.caravan()) {
-            lines.add(caravanLine(s.caravan()));
+            // One figure to the right edge, so it does not widen the balance column.
+            events.add(Line.status("Pests", Style.LABEL, Cell.of(sb.toString(), Style.VALUE))
+                    .withIcon("item:spider_eye"));
         }
         if (show.refine() && s.refineCost() > 0) {
             double have = s.balances().getOrDefault(HalloweenText.CANDY, 0.0);
@@ -116,20 +173,69 @@ public final class HalloweenHud {
             Style style = have >= s.refineCost() ? Style.GOOD : Style.VALUE;
             String amounts = amount(have) + "/" + amount(s.refineCost()) + " candy";
             // A bar title, so the percentage can sit in it; written "Refine II: ..." as before.
-            lines.add(new Line("Refine" + level + ": " + amounts, style, Math.min(1.0, have / s.refineCost()),
-                    HudModel.Kind.PROGRESS, "Refine" + level, style, List.of(HudModel.Cell.of(amounts, style)), ""));
-            lines.add(Line.bar(have / s.refineCost()));
+            events.add(new Line("Refine" + level + ": " + amounts, style, Math.min(1.0, have / s.refineCost()),
+                    HudModel.Kind.PROGRESS, "Refine" + level, style, List.of(Cell.of(amounts, style)),
+                    "item:netherite_hoe"));
+            events.add(Line.bar(have / s.refineCost()));
+        }
+        section(lines, "EVENTS", events);
+        return lines;
+    }
+
+    /** A heading and its rows, or nothing when there are no rows. */
+    private static void section(List<Line> lines, String title, List<Line> rows) {
+        if (!rows.isEmpty()) {
+            lines.add(Line.section(title));
+            lines.addAll(rows);
+        }
+    }
+
+    /**
+     * One bar per building: "Barn → Lv 5  56.2k/1.5m", the bar, and what the level gives,
+     * "crops x1.8 → x2". An upgrade under way counts down instead.
+     */
+    public static List<Line> buildingLines(List<Buildings.View> views) {
+        List<Line> lines = new ArrayList<>();
+        for (Buildings.View v : views) {
+            String icon = icon(v.currency());
+            switch (v.state()) {
+                case SAVING -> {
+                    Style style = v.affordable() ? Style.GOOD : Style.VALUE;
+                    lines.add(Line.progressTitle(v.name() + " → Lv " + v.target(),
+                            compact(v.have()) + "/" + compact(v.need()), style, v.fraction(), icon));
+                    lines.add(Line.bar(v.fraction()));
+                    // One boost a line, so a building with several does not widen the panel.
+                    for (String perk : v.perks().split(" · ")) {
+                        if (!perk.isEmpty()) {
+                            lines.add(Line.of("   " + perk, Style.DIM));
+                        }
+                    }
+                }
+                case UPGRADING -> {
+                    lines.add(Line.progressTitle(v.name() + " → Lv " + v.target(),
+                            "upgrading " + Formatting.duration(v.msLeft()), Style.HEADER, v.fraction(), icon));
+                    lines.add(Line.bar(v.fraction()));
+                }
+                case OPEN_MENU -> lines.add(Line.status(v.name() + " Lv " + v.level(), Style.LABEL,
+                        Cell.of("open for next cost", Style.DIM)).withIcon(icon));
+                case MAXED -> lines.add(Line.status(v.name() + " Lv " + v.level(), Style.LABEL,
+                        new Cell("MAX", Style.GOOD, "MAX")).withIcon(icon));
+            }
         }
         return lines;
     }
 
-    static Line caravanLine(RecurringEvent.View v) {
-        return switch (v.state()) {
-            case ACTIVE -> Line.of("Caravan: running", Style.GOOD);
-            case UNKNOWN -> Line.of("Caravan: not seen yet", Style.DIM);
-            case WAITING -> Line.of("Caravan in " + (v.exact() ? "" : "~") + Formatting.duration(v.ms()),
-                    v.ms() <= 60_000L ? Style.WARN : Style.VALUE);
+    public static Line caravanLine(RecurringEvent.View v) {
+        Line line = switch (v.state()) {
+            case ACTIVE -> Line.status("Caravan", Style.LABEL, new Cell("running", Style.GOOD, "LIVE"));
+            case UNKNOWN -> Line.status("Caravan", Style.LABEL, Cell.of("not seen yet", Style.DIM));
+            case WAITING -> {
+                String in = "in " + (v.exact() ? "" : "~") + Formatting.duration(v.ms());
+                yield Line.status("Caravan", Style.LABEL,
+                        new Cell(in, v.ms() <= 60_000L ? Style.WARN : Style.VALUE, in));
+            }
         };
+        return line.withIcon("item:chest");
     }
 
     /** Pumpkin set bars, each "Pumpkin Helmet" then its currencies and a bar, or one line each. */
@@ -138,34 +244,36 @@ public final class HalloweenHud {
         for (PumpkinSet.View v : views) {
             String name = v.pieces() > 1 ? v.name() + " (" + v.pieces() + " pieces)" : v.name();
             if (v.affordable()) {
-                lines.add(Line.progressTitle(name, "affordable", Style.GOOD, 1.0, ""));
+                lines.add(Line.progressTitle(name, "affordable", Style.GOOD, 1.0, "item:carved_pumpkin"));
                 lines.add(Line.bar(1.0));
                 continue;
             }
             if (!detailed) {
+                // Plain text: a bar title would get the percentage added a second time.
                 lines.add(Line.of(name + "  " + Math.round(v.fraction() * 100) + "%", Style.VALUE));
                 lines.add(Line.bar(v.fraction()));
                 continue;
             }
-            lines.add(Line.of(name, Style.HEADER));
+            lines.add(Line.header(name, "item:carved_pumpkin"));
             for (PumpkinSet.Part p : v.parts()) {
-                lines.add(Line.of(" " + p.currency() + " " + compact(p.have()) + "/" + compact(p.cost()),
-                        p.done() ? Style.GOOD : Style.VALUE));
+                Style style = p.done() ? Style.GOOD : Style.VALUE;
+                lines.add(Line.row(p.currency(), icon(p.currency()), style,
+                        Cell.of(compact(p.have()) + "/" + compact(p.cost()), style)));
             }
             lines.add(Line.bar(v.fraction()));
         }
         return lines;
     }
 
-    /** "Will-o'-Wisps  READY", "Harvest Moon  12.3s". */
+    /** "Will-o'-Wisps: READY", "Harvest Moon: 12.3s"; chips in the Halloween look. */
     public static List<Line> abilityPanel(List<Abilities.Timer> timers) {
         List<Line> lines = new ArrayList<>();
         for (Abilities.Timer t : timers) {
             if (t.ready()) {
-                lines.add(Line.of(t.ability() + "  READY", Style.GOOD));
+                lines.add(Line.status(t.ability(), Style.LABEL, new Cell("READY", Style.GOOD, "READY")));
             } else {
-                lines.add(Line.of(t.ability() + "  "
-                        + String.format(Locale.ROOT, "%.1fs", t.msLeft() / 1000.0), Style.WARN));
+                String left = String.format(Locale.ROOT, "%.1fs", t.msLeft() / 1000.0);
+                lines.add(Line.status(t.ability(), Style.LABEL, new Cell(left, Style.HEADER, left)));
             }
         }
         return lines;

@@ -135,6 +135,14 @@ public class MinerefineClientGameTest implements FabricClientGameTest {
                 context.clickScreenButton("Panels");
                 context.waitTick();
                 context.takeScreenshot("minerefine-hud-settings-panels");
+                // The Halloween panel in its own look: sections, crop icons, fading bars.
+                for (String panel : List.of("Halloween", "Pumpkin set", "Abilities")) {
+                    check(context.computeOnClient(client -> Compat.screen(client) instanceof SettingsScreen s
+                            && s.selectPanel(panel)), "could not show the " + panel + " panel");
+                    context.waitTick();
+                    context.takeScreenshot("minerefine-hud-panel-" + panel.toLowerCase(java.util.Locale.ROOT)
+                            .replace(' ', '-'));
+                }
                 context.clickScreenButton("General");
                 context.waitTick();
 

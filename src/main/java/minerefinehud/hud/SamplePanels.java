@@ -1,6 +1,9 @@
 package minerefinehud.hud;
 
 import minerefinehud.boss.BossTracker;
+import minerefinehud.halloween.Buildings;
+import minerefinehud.halloween.HalloweenHud;
+import minerefinehud.halloween.RecurringEvent;
 import minerefinehud.hud.HudModel.Cell;
 import minerefinehud.hud.HudModel.Line;
 import minerefinehud.hud.HudModel.Style;
@@ -69,28 +72,38 @@ public final class SamplePanels {
 
     public static List<Line> halloween() {
         List<Line> lines = new ArrayList<>();
-        lines.add(Line.of("Halloween", Style.HEADER));
-        lines.add(Line.of("Candy 21.5  1.2k/h", Style.VALUE));
-        lines.add(Line.of("Crops 45.2k/h", Style.VALUE));
-        lines.add(Line.of(" Pumpkin 12,400  20.1k/h", Style.LABEL));
-        lines.add(Line.of("Caravan in 10:00", Style.VALUE));
+        lines.add(Line.header("Halloween", HalloweenHud.PUMPKIN_ICON));
+        lines.add(Line.section("RATES"));
+        lines.add(HalloweenHud.figures(HudModel.Kind.ROW, "Candy", HalloweenHud.icon("Candy"), "21.5", "1.2k/h"));
+        lines.add(HalloweenHud.figures(HudModel.Kind.ROW, "Carrots", HalloweenHud.icon("Carrots"), "56,200", "20.1k/h"));
+        lines.add(HalloweenHud.figures(HudModel.Kind.ROW, "Beetroots", HalloweenHud.icon("Beetroots"), "59,713", "12k/h"));
+        lines.add(HalloweenHud.figures(HudModel.Kind.TOTAL, "Crops", "item:hay_block", "", "32.1k/h"));
+        lines.add(Line.section("BUILDINGS"));
+        lines.addAll(HalloweenHud.buildingLines(List.of(
+                new Buildings.View("Barn", Buildings.State.SAVING, 4, 5, "Carrots", 56_200, 1_500_000,
+                        56_200 / 1_500_000.0, false, 0L, "crops x1.8 → x2"),
+                new Buildings.View("Forge", Buildings.State.UPGRADING, 2, 3, "Beetroots", 0, 0, 0.58, false,
+                        151_000L, ""))));
+        lines.add(Line.section("EVENTS"));
+        lines.add(HalloweenHud.caravanLine(new RecurringEvent.View(RecurringEvent.State.WAITING, 600_000L, true)));
         String amounts = "21.5/50 candy";
         lines.add(new Line("Refine II: " + amounts, Style.VALUE, 0.43, HudModel.Kind.PROGRESS, "Refine II",
-                Style.VALUE, List.of(Cell.of(amounts, Style.VALUE)), ""));
+                Style.VALUE, List.of(Cell.of(amounts, Style.VALUE)), "item:netherite_hoe"));
         lines.add(Line.bar(0.43));
         return lines;
     }
 
     public static List<Line> pumpkin() {
         return List.of(
-                Line.of("Pumpkin Helmet", Style.HEADER),
-                Line.of(" Candy 300/500", Style.VALUE),
-                Line.of(" Pumpkin 2.5m/2.5m", Style.GOOD),
+                Line.header("Pumpkin Helmet", "item:carved_pumpkin"),
+                Line.row("Candy", HalloweenHud.icon("Candy"), Style.VALUE, Cell.of("300/500", Style.VALUE)),
+                Line.row("Carrots", HalloweenHud.icon("Carrots"), Style.GOOD, Cell.of("2.5m/2.5m", Style.GOOD)),
                 Line.bar(0.8));
     }
 
     public static List<Line> abilities() {
-        return List.of(Line.of("Will-o'-Wisps  READY", Style.GOOD),
-                Line.of("Harvest Moon  12.3s", Style.WARN));
+        return List.of(
+                Line.status("Will-o'-Wisps", Style.LABEL, new Cell("READY", Style.GOOD, "READY")),
+                Line.status("Harvest Moon", Style.LABEL, new Cell("12.3s", Style.HEADER, "12.3s")));
     }
 }

@@ -33,7 +33,33 @@ public final class HudRenderer {
     public record Look(HudStyle style, HudStyle.Background background, int opacity, Theme theme) {
 
         public static Look of(ModConfig config, ModConfig.Look look) {
-            return new Look(config.style(), look.backgroundStyle(), look.opacity, config.theme());
+            return of(config, look, config.style(), config.theme());
+        }
+
+        /** With the style and theme already parsed, as the HUD does once a frame. */
+        public static Look of(ModConfig config, ModConfig.Look look, HudStyle style, Theme theme) {
+            if (config.hwSpooky && config.isHalloweenLook(look)) {
+                return spooky(look, style);
+            }
+            return new Look(style, look.backgroundStyle(), look.opacity, theme);
+        }
+
+        /**
+         * The Halloween panels' own look: the game's tooltip in orange fading to purple, a title
+         * band, numbers lined up, chips, thick fading bars. Only the size, the gear labels and the
+         * opacity stay the player's; a panel left without a background gets one.
+         */
+        static Look spooky(ModConfig.Look look, HudStyle style) {
+            HudStyle s = style.withTitles(HudStyle.Titles.BAND)
+                    .withNumbers(HudStyle.Numbers.COLUMNS)
+                    .withBossStatus(HudStyle.BossStatus.CHIPS)
+                    .withBar(HudStyle.BarStyle.THICK)
+                    .withPercent(HudStyle.Percent.INSIDE)
+                    .withBarColor(HudStyle.BarColor.ACCENT)
+                    .withSpacing(HudStyle.Spacing.NORMAL)
+                    .withShadow(true);
+            boolean chosen = look.panel != null && look.backgroundStyle() != HudStyle.Background.NONE;
+            return new Look(s, HudStyle.Background.TOOLTIP, chosen ? look.opacity : 85, Theme.spooky());
         }
     }
 
@@ -97,7 +123,24 @@ public final class HudRenderer {
             Map.entry("armor", Items.DIAMOND_CHESTPLATE),
             Map.entry("armor set", Items.DIAMOND_CHESTPLATE),
             Map.entry("charm", Items.AMETHYST_SHARD),
-            Map.entry("total", Items.GOLD_INGOT));
+            Map.entry("total", Items.GOLD_INGOT),
+            // Named outright by the Halloween panels.
+            Map.entry("item:candy", Items.COOKIE),
+            Map.entry("item:carrot", Items.CARROT),
+            Map.entry("item:beetroot", Items.BEETROOT),
+            Map.entry("item:nether_wart", Items.NETHER_WART),
+            Map.entry("item:fire_coral", Items.FIRE_CORAL),
+            Map.entry("item:hallowed", Items.WITHER_ROSE),
+            Map.entry("item:potato", Items.POTATO),
+            Map.entry("item:wheat", Items.WHEAT),
+            Map.entry("item:pumpkin", Items.PUMPKIN),
+            Map.entry("item:melon_slice", Items.MELON_SLICE),
+            Map.entry("item:hay_block", Items.HAY_BLOCK),
+            Map.entry("item:jack_o_lantern", Items.JACK_O_LANTERN),
+            Map.entry("item:carved_pumpkin", Items.CARVED_PUMPKIN),
+            Map.entry("item:chest", Items.CHEST),
+            Map.entry("item:spider_eye", Items.SPIDER_EYE),
+            Map.entry("item:netherite_hoe", Items.NETHERITE_HOE));
 
     private static final Map<String, ItemStack> STACKS = new HashMap<>();
 

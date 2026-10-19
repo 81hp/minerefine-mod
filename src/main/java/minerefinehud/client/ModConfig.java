@@ -382,6 +382,16 @@ public final class ModConfig {
     public boolean hwAbilities = true;
     public boolean hwAbilitySound = true;
 
+    /** The Halloween panels in their own orange and purple look, whatever the Style tab says. */
+    public boolean hwSpooky = true;
+
+    /** A bar per building in the stats panel, and the upgrade countdowns. */
+    public boolean hwBuildings = true;
+    /** A bell when a building upgrade finishes. */
+    public boolean hwBuildingSound = true;
+    /** Each building's level, grants, next cost and upgrade timer. Written by the mod. */
+    public java.util.Map<String, minerefinehud.halloween.Buildings.Saved> hwBuildingData = new java.util.LinkedHashMap<>();
+
     /** Pumpkin set bars: "Helmet", "Chestplate", "Leggings", "Boots", "Set". */
     public java.util.List<String> hwPumpkinBars = new java.util.ArrayList<>();
     /** Each currency on its own line rather than one percentage. */
@@ -456,7 +466,12 @@ public final class ModConfig {
 
     public minerefinehud.halloween.HalloweenHud.StatsLines hwStatsLines() {
         return new minerefinehud.halloween.HalloweenHud.StatsLines(hwCandyRate, hwCropRates, hwPerCrop,
-                hwPests, hwCaravan, hwRefine);
+                hwPests, hwCaravan, hwRefine, hwBuildings);
+    }
+
+    /** One of the Halloween panels' looks, which the Halloween look replaces. */
+    public boolean isHalloweenLook(Look look) {
+        return look != null && (look == hwStatsLook || look == hwPumpkinLook || look == hwAbilityLook);
     }
 
     // -------------------------------------------------------------- Reforger
@@ -593,6 +608,28 @@ public final class ModConfig {
         }
         if (hwCaravanState == null) {
             hwCaravanState = new minerefinehud.halloween.RecurringEvent.Saved();
+        }
+        if (hwBuildingData == null) {
+            hwBuildingData = new java.util.LinkedHashMap<>();
+        }
+        hwBuildingData.keySet().removeIf(k -> k == null || k.isBlank());
+        hwBuildingData.values().removeIf(java.util.Objects::isNull);
+        for (minerefinehud.halloween.Buildings.Saved b : hwBuildingData.values()) {
+            if (b.now == null) {
+                b.now = new java.util.ArrayList<>();
+            }
+            if (b.next == null) {
+                b.next = new java.util.ArrayList<>();
+            }
+            b.now.removeIf(g -> g == null || g.stat == null || g.value == null);
+            b.next.removeIf(g -> g == null || g.stat == null || g.value == null);
+            if (b.cost == null) {
+                b.cost = new java.util.LinkedHashMap<>();
+            }
+            b.cost.entrySet().removeIf(e -> e.getKey() == null || e.getValue() == null);
+            if (b.currency == null) {
+                b.currency = "";
+            }
         }
         if (reforgerState == null) {
             reforgerState = new minerefinehud.halloween.RecurringEvent.Saved();

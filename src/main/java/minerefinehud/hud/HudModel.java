@@ -44,7 +44,17 @@ public final class HudModel {
         STATUS,
         /** The title over a progress bar, "Debris Shovel IV  3.1b/4.39b". */
         PROGRESS,
-        BAR
+        BAR,
+        /** A small heading inside a panel, "RATES", with a rule running to the edge. */
+        SECTION
+    }
+
+    /**
+     * An icon key naming an item outright, "item:carrot", rather than a gear word. These are
+     * always drawn, whatever the gear label setting, and never stand in for the label.
+     */
+    public static boolean isItemIcon(String icon) {
+        return icon != null && icon.startsWith("item:");
     }
 
     /**
@@ -93,6 +103,20 @@ public final class HudModel {
 
         public static Line bar(double progress) {
             return new Line("", Style.BAR, clamp(progress));
+        }
+
+        /** A panel title with an item drawn before it. */
+        public static Line header(String text, String icon) {
+            return new Line(text, Style.HEADER, 0.0, Kind.HEADER, "", Style.HEADER, List.of(), icon);
+        }
+
+        /** A heading inside a panel. */
+        public static Line section(String text) {
+            return new Line(text, Style.DIM, 0.0, Kind.SECTION, "", Style.DIM, List.of(), "");
+        }
+
+        public Line withIcon(String newIcon) {
+            return new Line(text, style, progress, kind, label, labelStyle, cells, newIcon);
         }
 
         /** "Label: figures", the label drawn in the label colour when the numbers are lined up. */

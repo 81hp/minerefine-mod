@@ -55,6 +55,10 @@ public final class PanelPainter {
     private static final int CHIP_PAD = 2;
     private static final int CHIP_INK = 0xFF101010;
     private static final String WIDEST_PERCENT = "100%";
+    /** The shortest rule after a section heading, so it still reads as one. */
+    private static final int SECTION_RULE_MIN = 16;
+    /** Columns of a fading bar are drawn this many pixels wide. */
+    private static final int FADE_STEP = 2;
 
     private PanelPainter() {
     }
@@ -117,6 +121,8 @@ public final class PanelPainter {
         /** Widths of the label column and each figure column, when lined up. */
         private int labelWidth;
         private final List<Integer> cellWidths = new ArrayList<>();
+        /** The lined-up table's whole width, which a lone figure is right-aligned to. */
+        private int tableWidth;
 
         private final List<Op> ops = new ArrayList<>();
 
@@ -147,13 +153,28 @@ public final class PanelPainter {
         }
 
         private boolean iconShown(Line l) {
-            return style.gearLabels() != HudStyle.GearLabels.WORDS && !l.icon().isEmpty()
+            if (l.icon().isEmpty()) {
+                return false;
+            }
+            // An item named outright is part of what the line says; a gear word's icon is a setting.
+            if (HudModel.isItemIcon(l.icon())) {
+                return switch (l.kind()) {
+                    case ROW, TOTAL, PROGRESS, STATUS, HEADER -> true;
+                    default -> false;
+                };
+            }
+            return style.gearLabels() != HudStyle.GearLabels.WORDS
                     && (l.kind() == Kind.ROW || l.kind() == Kind.TOTAL || l.kind() == Kind.PROGRESS);
         }
 
         /** The icon takes the gear name's place, in the cost rows only; a bar keeps its name. */
         private boolean labelReplaced(Line l) {
-            return style.gearLabels() == HudStyle.GearLabels.ICONS && iconShown(l) && l.kind() != Kind.PROGRESS;
+            return style.gearLabels() == HudStyle.GearLabels.ICONS && iconShown(l) && l.kind() != Kind.PROGRESS
+                    && !HudModel.isItemIcon(l.icon());
+        }
+
+        private int iconWidth(Line l) {
+            return iconShown(l) ? ICON + ICON_GAP : 0;
         }
 
         private boolean chip(Cell c) {
@@ -179,10 +200,10 @@ public final class PanelPainter {
             int x = 0;
             if (iconShown(l)) {
                 x += ICON;
-                if (!labelReplaced(l)) {
-                    x += ICON_GAP + w(l.label());
+                if (labelReplaced(l)) {
+                    return x;
                 }
-                return x;
+                x += ICON_GAP;
             }
             if (l.kind() == Kind.STATUS && style.bossStatus() == HudStyle.BossStatus.DOTS) {
                 x += DOT + ICON_GAP;
@@ -193,16 +214,18 @@ public final class PanelPainter {
         /** Width of a row written out on one line. */
         private int inlineWidth(Line l) {
             return switch (l.kind()) {
-                case ROW, TOTAL -> (iconShown(l) ? ICON + ICON_GAP : 0) + w(labelReplaced(l) ? l.tail() : l.text());
+                case ROW, TOTAL -> iconWidth(l) + w(labelReplaced(l) ? l.tail() : l.text());
                 case STATUS -> {
                     if (style.bossStatus() == HudStyle.BossStatus.TEXT) {
-                        yield w(l.text());
+                        yield iconWidth(l) + w(l.text());
                     }
                     int dot = style.bossStatus() == HudStyle.BossStatus.DOTS ? DOT + ICON_GAP : 0;
-                    yield dot + w(l.label() + ":") + w(" ") + cellWidth(l, 0);
+                    yield iconWidth(l) + dot + w(l.label() + ":") + w(" ") + cellWidth(l, 0);
                 }
-                case PROGRESS -> (iconShown(l) ? ICON + ICON_GAP : 0) + w(l.text()) + w(percentSuffix(l));
+                case PROGRESS -> iconWidth(l) + w(l.text()) + w(percentSuffix(l));
                 case BAR -> barRowWidth();
+                case HEADER -> iconWidth(l) + w(l.text());
+                case SECTION -> w(l.text()) + SECTION_RULE_MIN;
                 default -> w(l.text());
             };
         }
@@ -213,8 +236,13 @@ public final class PanelPainter {
 
         private int contentWidth() {
             int width = 0;
+            int spanWidth = 0;
             for (Line l : lines) {
                 if (tabular(l)) {
+                    if (spans(l)) {
+                        spanWidth = Math.max(spanWidth, leftWidth(l) + COLUMN_GAP + cellWidth(l, 0));
+                        continue;
+                    }
                     labelWidth = Math.max(labelWidth, leftWidth(l));
                     for (int i = 0; i < l.cells().size(); i++) {
                         while (cellWidths.size() <= i) {
@@ -226,14 +254,34 @@ public final class PanelPainter {
                     width = Math.max(width, inlineWidth(l));
                 }
             }
-            if (columns && (labelWidth > 0 || !cellWidths.isEmpty())) {
+            if (columns && (labelWidth > 0 || !cellWidths.isEmpty() || spanWidth > 0)) {
                 int table = labelWidth;
                 for (int cw : cellWidths) {
                     table += COLUMN_GAP + cw;
                 }
-                width = Math.max(width, table);
+                // A long bar title or status widens the label column, so every figure column still
+                // ends at the same right edge as the lone figures.
+                if (spanWidth > table && (labelWidth > 0 || !cellWidths.isEmpty())) {
+                    labelWidth += spanWidth - table;
+                    table = spanWidth;
+                }
+                tableWidth = Math.max(table, spanWidth);
+                width = Math.max(width, tableWidth);
             }
             return width;
+        }
+
+        /**
+         * A bar title or a status with its one figure: the figure goes to the table's right edge
+         * rather than into the first figure column, and its label does not widen the label column.
+         */
+        private boolean spans(Line l) {
+            return (l.kind() == Kind.PROGRESS || l.kind() == Kind.STATUS) && l.cells().size() == 1;
+        }
+
+        /** Right edge of a lined-up line's figure, from the content's left edge. */
+        private int figureRight(Line l) {
+            return spans(l) ? tableWidth : cellRight(0);
         }
 
         /** Right edge of figure column i, measured from the content's left edge. */
@@ -274,8 +322,8 @@ public final class PanelPainter {
                 if (i > 0) {
                     y += 1 + style.spacing().gap;
                     Kind before = lines.get(i - 1).kind();
-                    if (l.kind() == Kind.PROGRESS && before != Kind.HEADER) {
-                        y += GROUP_GAP;   // a little air between one bar and the next
+                    if ((l.kind() == Kind.PROGRESS || l.kind() == Kind.SECTION) && before != Kind.HEADER) {
+                        y += GROUP_GAP;   // a little air between one bar or section and the next
                     }
                     if (l.kind() == Kind.TOTAL && columns) {
                         y += RULE_GAP;
@@ -295,7 +343,9 @@ public final class PanelPainter {
 
         private void background(int width, int height) {
             int frameTop = Theme.alpha(theme.frame(), 85);
-            int frameBottom = Theme.alpha(theme.frame(), 40);
+            // A frame fading into a second colour stays bright enough at the bottom to see it.
+            int frameBottom = theme.frameEnd() != theme.frame()
+                    ? Theme.alpha(theme.frameEnd(), 80) : Theme.alpha(theme.frame(), 40);
             switch (background) {
                 case NONE -> {
                 }
@@ -331,23 +381,38 @@ public final class PanelPainter {
                 case STATUS -> statusRow(l, x, y);
                 case PROGRESS -> progressRow(l, x, y);
                 case BAR -> bar(l.progress(), x, y, width - pad * 2);
+                case SECTION -> section(l, x, y, width);
             }
+        }
+
+        private void section(Line l, int x, int y, int width) {
+            text(l.text(), x, y, theme.color(l.style()));
+            int from = x + w(l.text()) + 3;
+            fill(from, y + 4, width - pad, y + 5, Theme.alpha(theme.frame(), 45));
         }
 
         private void header(Line l, int y, int width) {
             int color = theme.color(l.style());
             switch (style.titles()) {
-                case PLAIN -> text(l.text(), pad, y, color);
+                case PLAIN -> titleText(l, pad, y, color);
                 case UNDERLINE -> {
-                    text(l.text(), pad, y, color);
+                    titleText(l, pad, y, color);
                     fill(pad, y + TEXT_H + 1, width - pad, y + TEXT_H + 2, Theme.alpha(theme.frame(), 70));
                 }
                 case BAND -> {
                     int inset = frameInset(background);
                     fill(inset, y, width - inset, y + TEXT_H + 4, Theme.alpha(theme.frame(), 30));
-                    text(l.text(), Math.max(pad, 3), y + 2, color);
+                    titleText(l, Math.max(pad, 3), y + 2, color);
                 }
             }
+        }
+
+        private void titleText(Line l, int x, int y, int color) {
+            if (iconShown(l)) {
+                ops.add(new Icon(l.icon(), x, y));
+                x += ICON + ICON_GAP;
+            }
+            text(l.text(), x, y, color);
         }
 
         private void costRow(Line l, int x, int y, int width) {
@@ -376,16 +441,20 @@ public final class PanelPainter {
         private void statusRow(Line l, int x, int y) {
             Cell state = l.cells().get(0);
             int stateColor = theme.color(state.style());
+            int at = x;
+            if (iconShown(l)) {
+                ops.add(new Icon(l.icon(), at, y));
+                at += ICON + ICON_GAP;
+            }
             if (style.bossStatus() == HudStyle.BossStatus.TEXT) {
                 if (!columns) {
-                    text(l.text(), x, y, theme.color(l.style()));
+                    text(l.text(), at, y, theme.color(l.style()));
                     return;
                 }
-                text(l.label(), x, y, stateColor);
-                text(state.text(), x + cellRight(0) - w(state.text()), y, stateColor);
+                text(l.label(), at, y, stateColor);
+                text(state.text(), x + figureRight(l) - w(state.text()), y, stateColor);
                 return;
             }
-            int at = x;
             if (style.bossStatus() == HudStyle.BossStatus.DOTS) {
                 fill(at + 1, y + 3, at + 1 + DOT, y + 3 + DOT, 0x73000000);
                 fill(at, y + 2, at + DOT, y + 2 + DOT, stateColor);
@@ -394,7 +463,7 @@ public final class PanelPainter {
             int nameColor = theme.color(l.labelStyle());
             String name = columns ? l.label() : l.label() + ":";
             text(name, at, y, nameColor);
-            int stateX = columns ? x + cellRight(0) - cellWidth(l, 0) : at + w(name) + w(" ");
+            int stateX = columns ? x + figureRight(l) - cellWidth(l, 0) : at + w(name) + w(" ");
             if (chip(state)) {
                 fill(stateX, y - 1, stateX + w(state.chip()) + CHIP_PAD * 2, y + TEXT_H, stateColor);
                 ops.add(new Text(state.chip(), stateX + CHIP_PAD, y, CHIP_INK, false));
@@ -418,7 +487,7 @@ public final class PanelPainter {
             }
             text(l.label(), at, y, color);
             String amounts = l.cells().get(0).text();
-            int right = x + cellRight(0);
+            int right = x + figureRight(l);
             int start = right - w(amounts) - w(suffix);
             text(amounts, start, y, color);
             text(suffix, start + w(amounts), y, fillColor(l.progress()));
@@ -428,7 +497,35 @@ public final class PanelPainter {
             if (fraction >= 1.0) {
                 return theme.barDone();
             }
+            if (fades(fraction)) {
+                return Theme.mix(theme.barFill(), theme.barFillEnd(), fraction);
+            }
             return style.barColor() == HudStyle.BarColor.PROGRESS ? Theme.progressColor(fraction) : theme.barFill();
+        }
+
+        /** The bar fades along its length: a fading theme, one colour chosen, not finished. */
+        private boolean fades(double fraction) {
+            return fraction < 1.0 && theme.barFades() && style.barColor() == HudStyle.BarColor.ACCENT;
+        }
+
+        /** Colour of a fading bar at this pixel column of a bar barW wide. */
+        private int fadeAt(double column, int barW) {
+            return Theme.mix(theme.barFill(), theme.barFillEnd(), barW <= 1 ? 0.0 : column / (barW - 1));
+        }
+
+        /**
+         * The filled part of a bar, from x up to x + filled. A fading bar takes each column's
+         * colour from where it sits along the whole bar, so a bar fills from orange towards purple.
+         */
+        private void barFill(int x, int y1, int y2, int barW, int filled, double fraction) {
+            if (!fades(fraction)) {
+                fill(x, y1, x + filled, y2, fillColor(fraction));
+                return;
+            }
+            for (int i = 0; i < filled; i += FADE_STEP) {
+                int end = Math.min(filled, i + FADE_STEP);
+                fill(x + i, y1, x + end, y2, fadeAt(i + (end - i) / 2.0, barW));
+            }
         }
 
         private void bar(double fraction, int x, int y, int span) {
@@ -447,13 +544,13 @@ public final class PanelPainter {
             switch (style.bar()) {
                 case THIN -> {
                     fill(x, by, x + barW, by + barH, theme.barTrack());
-                    fill(x, by, x + filled, by + barH, fill);
+                    barFill(x, by, by + barH, barW, filled, fraction);
                 }
                 case THICK -> {
                     fill(x, by, x + barW, by + barH, theme.barTrack());
                     fill(x, by + barH - 1, x + barW, by + barH, 0x59000000);
                     if (filled > 0) {
-                        fill(x, by, x + filled, by + barH, fill);
+                        barFill(x, by, by + barH, barW, filled, fraction);
                         fill(x, by, x + filled, by + 1, 0x47FFFFFF);
                         fill(x, by + barH - 1, x + filled, by + barH, 0x40000000);
                     }
@@ -470,7 +567,8 @@ public final class PanelPainter {
                         }
                         fill(sx, by, ex, by + barH, theme.barTrack());
                         double part = Math.max(0.0, Math.min(1.0, fraction * 10 - i));
-                        fill(sx, by, sx + (int) Math.round((ex - sx) * part), by + barH, fill);
+                        int segment = fades(fraction) ? fadeAt(sx - x + (ex - sx) / 2.0, barW) : fill;
+                        fill(sx, by, sx + (int) Math.round((ex - sx) * part), by + barH, segment);
                     }
                 }
                 case NONE -> {

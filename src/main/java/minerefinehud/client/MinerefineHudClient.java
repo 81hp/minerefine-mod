@@ -198,6 +198,10 @@ public final class MinerefineHudClient implements ClientModInitializer {
             if (config.bossReminderVolume > 0) {
                 playSound(Minecraft.getInstance(), SoundEvents.NOTE_BLOCK_CHIME.value());
             }
+        }, () -> {
+            if (config.bossReminderVolume > 0) {
+                playSound(Minecraft.getInstance(), SoundEvents.NOTE_BLOCK_BELL.value());
+            }
         });
         halloween.register();
         bossIndex = new BossIndexPoller(config, () -> config.save(configFile), halloween::onMineRefine,
@@ -364,8 +368,7 @@ public final class MinerefineHudClient implements ClientModInitializer {
             }
             List<HudModel.Line> ability = halloween.abilityPanel(now);
             if (ability.isEmpty()) {
-                ability = List.of(HudModel.Line.of("Will-o'-Wisps  READY", HudModel.Style.GOOD),
-                        HudModel.Line.of("Harvest Moon  12.3s", HudModel.Style.WARN));
+                ability = minerefinehud.hud.SamplePanels.abilities();
             }
             movables.add(new Movable(new HudPositionScreen.Panel("Halloween", stats,
                     config.hwStatsPlacement(), ModConfig.DEFAULT_HW_STATS_PLACEMENT, config.hwStatsLook.scale, 1.0, HudRenderer.Look.of(config, config.hwStatsLook)),
@@ -726,8 +729,7 @@ public final class MinerefineHudClient implements ClientModInitializer {
         if (lines.isEmpty()) {
             return;
         }
-        var painted = HudRenderer.paint(client.font, lines,
-                new HudRenderer.Look(style, look.backgroundStyle(), look.opacity, theme));
+        var painted = HudRenderer.paint(client.font, lines, HudRenderer.Look.of(config, look, style, theme));
         double scale = config.effectiveScale(look);
         HudLayout.Rect rect = HudRenderer.rect(painted, placement, scale, context.guiWidth(), context.guiHeight());
         HudRenderer.render(context, painted, rect, scale);

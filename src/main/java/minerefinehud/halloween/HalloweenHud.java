@@ -11,6 +11,7 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Optional;
 import java.util.Set;
 
 /**
@@ -29,10 +30,10 @@ public final class HalloweenHud {
 
     /** Which rows the stats panel shows. */
     public record StatsLines(boolean candyRate, boolean cropRates, boolean perCrop, boolean pests,
-                             boolean caravan, boolean refine, boolean buildings) {
+                             boolean caravan, boolean refine, boolean buildings, boolean resurrection) {
 
         public static StatsLines all() {
-            return new StatsLines(true, true, true, true, true, true, true);
+            return new StatsLines(true, true, true, true, true, true, true, true);
         }
     }
 
@@ -45,7 +46,8 @@ public final class HalloweenHud {
                         RecurringEvent.View caravan,
                         double refineCost,
                         int refineLevel,
-                        List<Buildings.View> buildings) {}
+                        List<Buildings.View> buildings,
+                        Optional<Resurrection.View> resurrection) {}
 
     /** The item drawn for a currency, or none. */
     public static String icon(String currency) {
@@ -152,6 +154,9 @@ public final class HalloweenHud {
         if (show.buildings()) {
             section(lines, "BUILDINGS", buildingLines(s.buildings()));
         }
+        if (show.resurrection()) {
+            section(lines, "RESURRECTION", s.resurrection().map(HalloweenHud::resurrectionLines).orElse(List.of()));
+        }
 
         List<Line> events = new ArrayList<>();
         if (show.caravan()) {
@@ -221,6 +226,42 @@ public final class HalloweenHud {
                 case MAXED -> lines.add(Line.status(v.name() + " Lv " + v.level(), Style.LABEL,
                         new Cell("MAX", Style.GOOD, "MAX")).withIcon(icon));
             }
+        }
+        return lines;
+    }
+
+    public static final String RESURRECTION_ICON = "item:totem_of_undying";
+
+    /**
+     * "Resurrection 6  303.81m/350m", the bar, then the hoe it asks for with a tick or cross, the
+     * time left at the current rate, and what it gives.
+     */
+    public static List<Line> resurrectionLines(Resurrection.View v) {
+        List<Line> lines = new ArrayList<>();
+        String name = "Resurrection " + v.target();
+        if (v.state() == Resurrection.State.OPEN_MENU) {
+            lines.add(Line.status(name, Style.LABEL, Cell.of("open menu for cost", Style.DIM))
+                    .withIcon(RESURRECTION_ICON));
+            return lines;
+        }
+        boolean ready = v.state() == Resurrection.State.READY;
+        boolean enough = v.have() >= v.need();
+        Style style = ready || enough ? Style.GOOD : Style.VALUE;
+        lines.add(Line.progressTitle(name, ready ? "READY" : compact(v.have()) + "/" + compact(v.need()),
+                style, v.fraction(), RESURRECTION_ICON));
+        lines.add(Line.bar(v.fraction()));
+        if (!v.hoe().isEmpty()) {
+            String mark = v.hoeMet() == null ? "" : v.hoeMet() ? " ✔" : " ✘";
+            lines.add(Line.of("   " + v.hoe() + mark, Boolean.TRUE.equals(v.hoeMet()) ? Style.GOOD : Style.DIM));
+        }
+        if (!enough && v.msLeft() > 0L) {
+            lines.add(Line.of("   ~" + Formatting.duration(v.msLeft()) + " of farming left", Style.DIM));
+        }
+        if (!v.multiplier().isEmpty()) {
+            lines.add(Line.of("   crops " + v.multiplier(), Style.DIM));
+        }
+        if (!v.unlocks().isEmpty()) {
+            lines.add(Line.of("   unlocks " + v.unlocks(), Style.DIM));
         }
         return lines;
     }

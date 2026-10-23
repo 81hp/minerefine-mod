@@ -389,6 +389,10 @@ public final class ModConfig {
     public boolean hwBuildings = true;
     /** A bell when a building upgrade finishes. */
     public boolean hwBuildingSound = true;
+    /** A bar toward the next resurrection: crops held against its cost, and its hoe. */
+    public boolean hwResurrect = true;
+    /** The resurrection level, the hoe held and the costs read from the menu. Written by the mod. */
+    public minerefinehud.halloween.Resurrection.Saved hwResurrectionData = new minerefinehud.halloween.Resurrection.Saved();
     /** Each building's level, grants, next cost and upgrade timer. Written by the mod. */
     public java.util.Map<String, minerefinehud.halloween.Buildings.Saved> hwBuildingData = new java.util.LinkedHashMap<>();
 
@@ -466,7 +470,7 @@ public final class ModConfig {
 
     public minerefinehud.halloween.HalloweenHud.StatsLines hwStatsLines() {
         return new minerefinehud.halloween.HalloweenHud.StatsLines(hwCandyRate, hwCropRates, hwPerCrop,
-                hwPests, hwCaravan, hwRefine, hwBuildings);
+                hwPests, hwCaravan, hwRefine, hwBuildings, hwResurrect);
     }
 
     /** One of the Halloween panels' looks, which the Halloween look replaces. */
@@ -636,6 +640,25 @@ public final class ModConfig {
         // "COMPLETE!" in chat has no time but nothing else either.
         hwBuildingData.values().removeIf(b -> b.upgradeMs <= 0L && b.upgradeEnd <= 0L
                 && (!b.cost.isEmpty() || !b.now.isEmpty()));
+        if (hwResurrectionData == null) {
+            hwResurrectionData = new minerefinehud.halloween.Resurrection.Saved();
+        }
+        if (hwResurrectionData.cards == null) {
+            hwResurrectionData.cards = new java.util.ArrayList<>();
+        }
+        hwResurrectionData.cards.removeIf(c -> c == null || c.target < 1 || !(c.crops > 0));
+        for (minerefinehud.halloween.Resurrection.Card c : hwResurrectionData.cards) {
+            if (c.hoe == null) {
+                c.hoe = "";
+            }
+            if (c.multiplier == null) {
+                c.multiplier = "";
+            }
+            if (c.unlocks == null) {
+                c.unlocks = "";
+            }
+        }
+        hwResurrectionData.level = Math.max(-1, hwResurrectionData.level);
         if (reforgerState == null) {
             reforgerState = new minerefinehud.halloween.RecurringEvent.Saved();
         }

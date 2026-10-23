@@ -7,6 +7,7 @@ import minerefinehud.halloween.HalloweenText;
 import minerefinehud.halloween.PumpkinSet;
 import minerefinehud.halloween.Rates;
 import minerefinehud.halloween.RecurringEvent;
+import minerefinehud.halloween.Resurrection;
 import minerefinehud.hud.HudModel;
 import minerefinehud.progress.ActionBarReader;
 import minerefinehud.shop.ShopItemParser;
@@ -25,6 +26,7 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Optional;
+import java.util.OptionalInt;
 import java.util.Set;
 import java.util.regex.Pattern;
 
@@ -54,6 +56,9 @@ final class HalloweenClient {
     private final Buildings buildings = new Buildings();
     /** Upgrades finished lately, for the alert. */
     private final List<Buildings.Finished> finishedUpgrades = new ArrayList<>();
+    /** The sidebar's "Resurrection 5" and "Next: ... Hoe II" rows, taken only when they change. */
+    private final Resurrection.Steady sidebarLevel = new Resurrection.Steady();
+    private final Resurrection.Steady sidebarHoe = new Resurrection.Steady();
     /** The last menu item with a level that was not read as a building, for /mrhud debug. */
     private String unreadBuilding = "";
 
@@ -173,6 +178,8 @@ final class HalloweenClient {
         seenMineRefine = false;
         mineRefineSince = 0L;
         rates.forgetBaselines();
+        sidebarLevel.forget();
+        sidebarHoe.forget();
         sidebarBalances.clear();
         actionBarCrops.clear();
         actionBarAt.clear();
@@ -291,6 +298,28 @@ final class HalloweenClient {
             }
             sidebarBalances.putAll(sidebar.balances());
             sidebar.balances().forEach(rates::observe);
+            readResurrection(lines, now);
+        }
+    }
+
+    /**
+     * The level and hoe as the Halloween sidebar states them. The level first, so a resurrection
+     * putting the hoe back to Carrot Hoe I comes before the sidebar's own word on the hoe.
+     */
+    private void readResurrection(List<String> lines, long now) {
+        Resurrection.Saved r = config.hwResurrectionData;
+        boolean changed = false;
+        OptionalInt level = sidebarLevel.read(Resurrection.sidebarLevel(lines));
+        if (level.isPresent()) {
+            changed |= Resurrection.setLevel(r, level.getAsInt(), now);
+        }
+        OptionalInt hoe = sidebarHoe.read(Resurrection.sidebarHoe(lines));
+        if (hoe.isPresent()) {
+            changed |= Resurrection.setHoe(r, hoe.getAsInt(), now);
+        }
+        if (changed) {
+            statsCachedAt = 0L;
+            save.run();
         }
     }
 
@@ -400,6 +429,25 @@ final class HalloweenClient {
         int charms = HalloweenText.pestCharms(text);
         if (charms > 0) {
             pestCharms += charms;
+            return;
+        }
+
+        // Only the player's own "RESURRECTED! You are now Resurrection 6!", never the "... rose to
+        // Resurrection 6!" said about everyone. The number is taken as is, never counted up.
+        OptionalInt resurrected = Resurrection.chatLevel(text);
+        if (resurrected.isPresent()) {
+            if (Resurrection.setLevel(config.hwResurrectionData, resurrected.getAsInt(), now)) {
+                statsCachedAt = 0L;
+                save.run();
+            }
+            return;
+        }
+        OptionalInt hoe = Resurrection.chatHoe(text);
+        if (hoe.isPresent()) {
+            if (Resurrection.setHoe(config.hwResurrectionData, hoe.getAsInt(), now)) {
+                statsCachedAt = 0L;
+                save.run();
+            }
             return;
         }
 
@@ -574,6 +622,15 @@ final class HalloweenClient {
         boolean refiner = screenTitle != null && screenTitle.toLowerCase(Locale.ROOT).contains("refin");
         long now = System.currentTimeMillis();
         for (ShopItemParser.ItemView item : items) {
+            Optional<Resurrection.Card> card = Resurrection.card(item.title(), item.lore());
+            if (card.isPresent()) {
+                card.get().sidebarCrops = crops(balances());
+                if (Resurrection.learn(config.hwResurrectionData, card.get(), now)) {
+                    statsCachedAt = 0L;
+                    changed = true;
+                }
+                continue;
+            }
             Optional<Buildings.Info> building = Buildings.read(item.title(), item.lore());
             if (building.isPresent()) {
                 // The /upgrades menu's stats (Luck, More Damage) look the same but upgrade at once.
@@ -629,7 +686,8 @@ final class HalloweenClient {
     static boolean isHalloweenItem(ShopItemParser.ItemView item) {
         return PumpkinSet.isEventItem(item.title(), item.lore())
                 || PumpkinSet.costs(item.lore()).containsKey(HalloweenText.CANDY)
-                || Buildings.read(item.title(), item.lore()).isPresent();
+                || Buildings.read(item.title(), item.lore()).isPresent()
+                || Resurrection.card(item.title(), item.lore()).isPresent();
     }
 
     // ---------------------------------------------------------------- panels
@@ -648,10 +706,22 @@ final class HalloweenClient {
 
     private List<HudModel.Line> buildStats(long now) {
         Map<String, Double> balances = balances();
-        return HalloweenHud.statsPanel(new HalloweenHud.Stats(balances, rates, config.hwRateMinutes * 60_000L,
+        long window = config.hwRateMinutes * 60_000L;
+        Optional<Resurrection.View> resurrection = Resurrection.view(config.hwResurrectionData, crops(balances),
+                rates.perHour(new HashSet<>(HalloweenText.CROPS), window));
+        return HalloweenHud.statsPanel(new HalloweenHud.Stats(balances, rates, window,
                 pestCandy, pestCharms, caravan.view(now), config.hwRefineCost, config.hwRefineLevel,
-                Buildings.views(config.hwBuildingData, balances, now)),
+                Buildings.views(config.hwBuildingData, balances, now), resurrection),
                 config.hwStatsLines());
+    }
+
+    /** The crops held, added up: what a resurrection's "Total Crops" counts. */
+    private static double crops(Map<String, Double> balances) {
+        double sum = 0.0;
+        for (String crop : HalloweenText.CROPS) {
+            sum += balances.getOrDefault(crop, 0.0);
+        }
+        return sum;
     }
 
     List<HudModel.Line> pumpkinPanel() {
@@ -715,6 +785,18 @@ final class HalloweenClient {
             b.append(';');
         });
         out.add(b.toString());
+        Resurrection.Saved r = config.hwResurrectionData;
+        StringBuilder res = new StringBuilder(" resurrection: ")
+                .append(r.level < 0 ? "not known yet" : String.valueOf(r.level))
+                .append(", hoe ").append(r.hoeAt <= 0L ? "not known" : r.hoeRank < 0 ? "none" : hoeName(r.hoeRank))
+                .append(", crops now ").append(HalloweenHud.amount(crops(balances())));
+        for (Resurrection.Card c : r.cards) {
+            res.append("; card ").append(c.target).append(": ").append(HalloweenHud.amount(c.crops))
+                    .append(" crops (menu said ").append(c.have < 0 ? "?" : HalloweenHud.amount(c.have))
+                    .append(", sidebar ").append(c.sidebarCrops < 0 ? "?" : HalloweenHud.amount(c.sidebarCrops))
+                    .append("), ").append(c.hoe.isEmpty() ? "no hoe" : c.hoe + " " + c.hoeMet);
+        }
+        out.add(res.toString());
         if (!unreadBuilding.isEmpty()) {
             out.add(" unread item with a level: " + unreadBuilding);
         }
@@ -722,6 +804,14 @@ final class HalloweenClient {
     }
 
     // --------------------------------------------------------------- helpers
+
+    private static String hoeName(int rank) {
+        if (rank < 0 || rank >= Resurrection.HOE_CROPS.size() * Resurrection.HOE_TIERS) {
+            return "rank " + rank;
+        }
+        return Resurrection.HOE_CROPS.get(rank / Resurrection.HOE_TIERS) + " Hoe "
+                + minerefinehud.shop.RomanNumerals.toRoman(rank % Resurrection.HOE_TIERS + 1);
+    }
 
     private void saveAbilities() {
         config.hwAbilityClasses = new LinkedHashMap<>(abilities.exportClasses());

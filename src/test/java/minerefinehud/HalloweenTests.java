@@ -10,11 +10,13 @@ import minerefinehud.halloween.HalloweenText;
 import minerefinehud.halloween.PumpkinSet;
 import minerefinehud.halloween.Rates;
 import minerefinehud.halloween.RecurringEvent;
+import minerefinehud.halloween.Resurrection;
 import minerefinehud.hud.HudModel;
 
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.OptionalInt;
 import java.util.Set;
 
 /** The Halloween event, the Reforger and the boss index, from text seen in game. */
@@ -43,6 +45,9 @@ public final class HalloweenTests {
         buildingPanel();
         upgradesMenuAndChat();
         spookyLookPaints();
+        resurrectionIsRead();
+        resurrectionNeverGhosts();
+        resurrectionPanel();
 
         System.out.println();
         System.out.println("passed: " + passed + "   failed: " + failed);
@@ -343,7 +348,7 @@ public final class HalloweenTests {
         Rates rates = new Rates();
         var stats = HalloweenHud.statsPanel(new HalloweenHud.Stats(Map.of("Candy", 21.5, "Carrots", 45_395.0),
                 rates, 600_000L, 2.1, 1, new RecurringEvent.View(RecurringEvent.State.WAITING, 600_000L, false),
-                50.0, 1, List.of()), HalloweenHud.StatsLines.all());
+                50.0, 1, List.of(), Optional.empty()), HalloweenHud.StatsLines.all());
         check("candy line", stats.stream().anyMatch(l -> l.text().equals("Candy 21.5  …/h")));
         check("pest line", stats.stream().anyMatch(l -> l.text().equals("Pests: +2.1 candy, 1 charm")));
         check("caravan estimate", stats.stream().anyMatch(l -> l.text().equals("Caravan: in ~10:00")));
@@ -633,7 +638,7 @@ public final class HalloweenTests {
         rates.observe("Fire Coral", 160.0);
         var stats = HalloweenHud.statsPanel(new HalloweenHud.Stats(Map.of("Fire Coral", 160.0, "Candy", 1.0),
                 rates, 600_000L, 0, 0, new RecurringEvent.View(RecurringEvent.State.UNKNOWN, 0L, false), 0, 0,
-                List.of()), HalloweenHud.StatsLines.all());
+                List.of(), Optional.empty()), HalloweenHud.StatsLines.all());
         check("fire coral has its own row", stats.stream().anyMatch(l -> l.text().startsWith("Fire Coral 160")
                 && l.icon().equals("item:fire_coral")));
         check("fire coral counts in the crop rate", stats.stream().anyMatch(l -> l.text().equals("Crops 1.8k/h")));
@@ -748,6 +753,215 @@ public final class HalloweenTests {
         BossTracker reloaded = new BossTracker();
         reloaded.importAll(b.export());
         check("index-up survives a save", reloaded.view("Hera", t).orElseThrow().upFromIndex());
+    }
+
+    /** The Resurrection 6 card as the user's screenshot shows it (2026-10-23). */
+    private static final List<String> CARD_6_LORE = List.of(
+            "Crop Multiplier: x8 → x10",
+            "Unlocks the Scarecrow Upgrade",
+            "",
+            "Cost:",
+            "⊢ Fire Coral Hoe VII ✔",
+            "⊢ 350,000,000 Total Crops ✘ (303,808,740)",
+            "⊢ Your crops & hoe reset, but your candy & refines are kept.",
+            "",
+            "ʜᴏᴇ ᴘʀɪᴄᴇѕ ɪɴᴄʀᴇᴀѕᴇ ʙʏ x1.5 ᴇᴀᴄʜ ʀᴇѕᴜʀʀᴇᴄᴛɪᴏɴ");
+
+    private static void resurrectionIsRead() {
+        // The player's own lines, from the game logs of resurrections 1 to 5.
+        eq("own resurrection 1", OptionalInt.of(1), Resurrection.chatLevel("RESURRECTED! You are now Resurrection 1!"));
+        eq("own resurrection 5", OptionalInt.of(5),
+                Resurrection.chatLevel("§6§lRESURRECTED! §fYou are now Resurrection 5!"));
+        eq("our own news to everyone is not read", OptionalInt.empty(),
+                Resurrection.chatLevel(" 81hp_ rose to Resurrection 5! "));
+        eq("someone else's news", OptionalInt.empty(), Resurrection.chatLevel(" jee213 rose to Resurrection 2! "));
+        eq("a player pasting it", OptionalInt.empty(),
+                Resurrection.chatLevel("[★252] VIP catboyeepy: RESURRECTED! You are now Resurrection 7!"));
+        eq("the multiplier line is not a level", OptionalInt.empty(),
+                Resurrection.chatLevel("Crop Multiplier: x6.5 → x8"));
+
+        eq("hoe upgrade", Resurrection.rank("Fire Coral", "VII"),
+                Resurrection.chatHoe("UPGRADE! Fire Coral Hoe VII: Fire Coral: +7"));
+        eq("new crop hoe", Resurrection.rank("Beetroot", "I"),
+                Resurrection.chatHoe("NEW CROP! Beetroot Hoe I: You can now harvest Beetroot!"));
+        eq("carrot I is the first", OptionalInt.of(0), Resurrection.rank("Carrot", "I"));
+        eq("beetroot I follows carrot VII", OptionalInt.of(7), Resurrection.rank("Beetroot", "I"));
+        eq("fire coral VII", OptionalInt.of(27), Resurrection.rank("Fire Coral", "VII"));
+        eq("no tier VIII", OptionalInt.empty(), Resurrection.rank("Carrot", "VIII"));
+        eq("a refine is not a hoe", OptionalInt.empty(), Resurrection.chatHoe("Your hoe has been refined to [X]."));
+        eq("a player's hoe talk", OptionalInt.empty(),
+                Resurrection.chatHoe("[★1] MEMBER x: UPGRADE! Fire Coral Hoe VII: Fire Coral: +7"));
+
+        List<String> sidebar = List.of("ᴍɪɴᴇʀᴇғɪɴᴇ", "Resurrection 5", "│ Carrots 45,395", "🎃 HALLOWEEN",
+                "Next: Nether Wart Hoe II", "13,535/17,500 Nether Wart");
+        eq("sidebar level", OptionalInt.of(5), Resurrection.sidebarLevel(sidebar));
+        eq("sidebar level in small caps", OptionalInt.of(5), Resurrection.sidebarLevel(List.of("│ ʀᴇѕᴜʀʀᴇᴄᴛɪᴏɴ 5")));
+        eq("sidebar hoe is the one before next", Resurrection.rank("Nether Wart", "I"),
+                Resurrection.sidebarHoe(sidebar));
+        eq("next carrot I: no hoe yet", OptionalInt.of(-1), Resurrection.sidebarHoe(List.of("Next: Carrot Hoe I")));
+        eq("no row, no level", OptionalInt.empty(), Resurrection.sidebarLevel(List.of("Carrots 45,395")));
+        eq("a row about something else", OptionalInt.empty(),
+                Resurrection.sidebarLevel(List.of("Next Resurrection 87%")));
+        eq("two rows that disagree", OptionalInt.empty(),
+                Resurrection.sidebarLevel(List.of("Resurrection 5", "Resurrection 6")));
+        check("the level row is no crop balance", !HalloweenText.sidebar(sidebar).balances().containsKey("Resurrection"));
+
+        Optional<Resurrection.Card> card = Resurrection.card("Resurrection 6", CARD_6_LORE);
+        check("card read", card.isPresent());
+        Resurrection.Card c = card.orElseThrow();
+        eq("card target", 6, c.target);
+        eq("card crops", 350_000_000.0, c.crops);
+        eq("card crops held", 303_808_740.0, c.have);
+        eq("card hoe", "Fire Coral Hoe VII", c.hoe);
+        eq("card hoe rank", 27, c.hoeRank);
+        eq("card hoe ticked", Boolean.TRUE, c.hoeMet);
+        eq("card multiplier", "x8 → x10", c.multiplier);
+        eq("card unlocks", "Scarecrow", c.unlocks);
+        check("small caps title", Resurrection.card("ʀᴇѕᴜʀʀᴇᴄᴛɪᴏɴ 6", CARD_6_LORE).isPresent());
+        eq("cross on the hoe", Boolean.FALSE, Resurrection.card("Resurrection 6",
+                List.of("⊢ Fire Coral Hoe VII ✘", "⊢ 350,000,000 Total Crops ✘ (1)")).orElseThrow().hoeMet);
+        check("no cost, no card", Resurrection.card("Resurrection 6", List.of("Crop Multiplier: x8 → x10")).isEmpty());
+        check("other items are not cards", Resurrection.card("Fire Coral Hoe VII", CARD_6_LORE).isEmpty());
+        Resurrection.Card unknownHoe = Resurrection.card("Resurrection 7",
+                List.of("⊢ Spooky Hoe III ✘", "⊢ 1,000,000,000 Total Crops ✘")).orElseThrow();
+        eq("a hoe not in the list is still asked for", "Spooky Hoe III", unknownHoe.hoe);
+        eq("its rank is not known", -1, unknownHoe.hoeRank);
+    }
+
+    /** Nothing but the server saying so moves the level, and saying it twice counts once. */
+    private static void resurrectionNeverGhosts() {
+        Resurrection.Saved s = new Resurrection.Saved();
+        Resurrection.Steady level = new Resurrection.Steady();
+        Resurrection.Steady hoe = new Resurrection.Steady();
+        List<String> at5 = List.of("Resurrection 5", "Next: Hallowed Hoe I", "🎃 HALLOWEEN");
+
+        // Joining: the first steady reading is taken, but not a single one.
+        check("one read is not enough", level.read(Resurrection.sidebarLevel(at5)).isEmpty());
+        OptionalInt first = level.read(Resurrection.sidebarLevel(at5));
+        eq("two reads agree", OptionalInt.of(5), first);
+        Resurrection.setLevel(s, first.getAsInt(), 1_000L);
+        hoe.read(Resurrection.sidebarHoe(at5));
+        Resurrection.setHoe(s, hoe.read(Resurrection.sidebarHoe(at5)).getAsInt(), 1_000L);
+        eq("level from the sidebar", 5, s.level);
+        eq("hoe from the sidebar", 27, s.hoeRank);
+        check("a steady row says nothing new", level.read(Resurrection.sidebarLevel(at5)).isEmpty());
+
+        // The menu: a card for the next one is kept, one for a past resurrection is not.
+        check("card kept", Resurrection.learn(s, Resurrection.card("Resurrection 6", CARD_6_LORE).orElseThrow(), 2_000L));
+        check("same card again is nothing new", !Resurrection.learn(s,
+                Resurrection.card("Resurrection 6", CARD_6_LORE).orElseThrow(), 2_500L));
+        check("past card ignored", !Resurrection.learn(s,
+                Resurrection.card("Resurrection 5", CARD_6_LORE).orElseThrow(), 2_500L));
+        eq("opening the menu changes no level", 5, s.level);
+
+        // Spending crops on hoes, or crops dropping for any reason, is not a resurrection.
+        eq("still aiming for 6 with crops", 6, Resurrection.view(s, 303_808_740.0, Double.NaN).orElseThrow().target());
+        eq("still aiming for 6 after spending", 6, Resurrection.view(s, 5_000.0, Double.NaN).orElseThrow().target());
+        eq("still at 5", 5, s.level);
+
+        // Other players resurrecting: never ours.
+        for (String other : List.of(" jee213 rose to Resurrection 6! ", " 81hp_ rose to Resurrection 6! ")) {
+            Resurrection.chatLevel(other).ifPresent(n -> Resurrection.setLevel(s, n, 3_000L));
+        }
+        eq("others' news leaves us at 5", 5, s.level);
+
+        // The real one: the chat line, then the sidebar catching up a moment later.
+        check("resurrected", Resurrection.setLevel(s, Resurrection.chatLevel(
+                "RESURRECTED! You are now Resurrection 6!").getAsInt(), 4_000L));
+        eq("now 6", 6, s.level);
+        eq("hoe back to carrot I", 0, s.hoeRank);
+        check("the passed card is gone", s.cards.isEmpty());
+        check("told again, nothing more", !Resurrection.setLevel(s, 6, 4_100L));
+        eq("still 6", 6, s.level);
+
+        // The sidebar a beat behind still says 5 (and the old hoe): it has not changed, so it is
+        // not taken, and the level never drops back.
+        for (int i = 0; i < 4; i++) {
+            level.read(Resurrection.sidebarLevel(at5)).ifPresent(n -> Resurrection.setLevel(s, n, 4_200L));
+            hoe.read(Resurrection.sidebarHoe(at5)).ifPresent(n -> Resurrection.setHoe(s, n, 4_200L));
+        }
+        eq("a lagging sidebar does not undo it", 6, s.level);
+        eq("nor give the old hoe back", 0, s.hoeRank);
+
+        List<String> at6 = List.of("Resurrection 6", "Next: Carrot Hoe II", "🎃 HALLOWEEN");
+        for (int i = 0; i < 4; i++) {
+            level.read(Resurrection.sidebarLevel(at6)).ifPresent(n -> Resurrection.setLevel(s, n, 4_500L));
+            hoe.read(Resurrection.sidebarHoe(at6)).ifPresent(n -> Resurrection.setHoe(s, n, 4_500L));
+        }
+        eq("sidebar catching up is the same resurrection", 6, s.level);
+        eq("carrot I held", 0, s.hoeRank);
+
+        // A sidebar that flickers to a wrong number for one read is never taken.
+        level.read(Resurrection.sidebarLevel(List.of("Resurrection 7"))).ifPresent(n -> Resurrection.setLevel(s, n, 5_000L));
+        level.read(Resurrection.sidebarLevel(at6)).ifPresent(n -> Resurrection.setLevel(s, n, 5_500L));
+        eq("one odd read is ignored", 6, s.level);
+
+        // No card for 7 yet: the bar asks for the menu rather than guess.
+        eq("next cost unknown", Resurrection.State.OPEN_MENU,
+                Resurrection.view(s, 0, Double.NaN).orElseThrow().state());
+
+        // After the last one there is no bar.
+        Resurrection.setLevel(s, 7, 6_000L);
+        check("hidden at 7", Resurrection.view(s, 0, Double.NaN).isEmpty());
+
+        // Nothing known: no bar, and nothing guessed.
+        check("nothing known, nothing shown", Resurrection.view(new Resurrection.Saved(), 1e9, Double.NaN).isEmpty());
+        Resurrection.Saved fresh = new Resurrection.Saved();
+        check("first level read is not a resurrection", Resurrection.setLevel(fresh, 5, 1L));
+        check("so the hoe is not reset", fresh.hoeAt == 0L);
+    }
+
+    private static void resurrectionPanel() {
+        Resurrection.Saved s = new Resurrection.Saved();
+        Resurrection.setLevel(s, 5, 1_000L);
+        Resurrection.learn(s, Resurrection.card("Resurrection 6", CARD_6_LORE).orElseThrow(), 2_000L);
+
+        // 46,191,260 crops short at 23,095,630 an hour.
+        Resurrection.View v = Resurrection.view(s, 303_808_740.0, 23_095_630.0).orElseThrow();
+        eq("saving", Resurrection.State.SAVING, v.state());
+        eq("hoe ticked from the menu", Boolean.TRUE, v.hoeMet());
+        eq("two hours of farming", 7_200_000L, v.msLeft());
+        List<HudModel.Line> lines = HalloweenHud.resurrectionLines(v);
+        eq("title", "Resurrection 6  303.81m/350m", lines.get(0).text());
+        eq("hoe line", "   Fire Coral Hoe VII ✔", lines.get(2).text());
+        check("time left line", lines.stream().anyMatch(l -> l.text().equals("   ~2:00:00 of farming left")));
+        check("multiplier line", lines.stream().anyMatch(l -> l.text().equals("   crops x8 → x10")));
+        check("unlock line", lines.stream().anyMatch(l -> l.text().equals("   unlocks Scarecrow")));
+
+        eq("enough crops and the hoe: ready", Resurrection.State.READY,
+                Resurrection.view(s, 350_000_000.0, Double.NaN).orElseThrow().state());
+
+        // The menu crossed the hoe; buying it afterwards ticks it without reopening the menu.
+        Resurrection.Card crossed = Resurrection.card("Resurrection 6",
+                List.of("⊢ Fire Coral Hoe VII ✘", "⊢ 350,000,000 Total Crops ✘ (1)")).orElseThrow();
+        Resurrection.setHoe(s, Resurrection.rank("Fire Coral", "VI").getAsInt(), 2_500L);
+        Resurrection.learn(s, crossed, 3_000L);
+        eq("crossed in the menu", Boolean.FALSE, Resurrection.view(s, 4e8, Double.NaN).orElseThrow().hoeMet());
+        eq("crops alone are not ready", Resurrection.State.SAVING,
+                Resurrection.view(s, 4e8, Double.NaN).orElseThrow().state());
+        Resurrection.setHoe(s, Resurrection.chatHoe("UPGRADE! Fire Coral Hoe VII: Fire Coral: +7").getAsInt(), 4_000L);
+        eq("bought after", Boolean.TRUE, Resurrection.view(s, 4e8, Double.NaN).orElseThrow().hoeMet());
+        eq("now ready", Resurrection.State.READY, Resurrection.view(s, 4e8, Double.NaN).orElseThrow().state());
+
+        // A hoe the mod does not know: only the menu's tick can make it ready.
+        Resurrection.Saved u = new Resurrection.Saved();
+        Resurrection.setLevel(u, 6, 1L);
+        Resurrection.learn(u, Resurrection.card("Resurrection 7",
+                List.of("⊢ Spooky Hoe III ✘", "⊢ 1,000,000,000 Total Crops ✘")).orElseThrow(), 2L);
+        Resurrection.setHoe(u, 34, 3L);
+        eq("unknown hoe stays crossed", Resurrection.State.SAVING,
+                Resurrection.view(u, 2e9, Double.NaN).orElseThrow().state());
+
+        var stats = HalloweenHud.statsPanel(new HalloweenHud.Stats(Map.of("Carrots", 1.0), new Rates(), 600_000L, 0, 0,
+                new RecurringEvent.View(RecurringEvent.State.UNKNOWN, 0L, false), 0, 0, List.of(),
+                Resurrection.view(s, 303_808_740.0, Double.NaN)), HalloweenHud.StatsLines.all());
+        check("panel has the section", stats.stream().anyMatch(l -> l.text().equals("RESURRECTION")));
+        check("panel has the bar", stats.stream().anyMatch(l -> l.text().startsWith("Resurrection 6")));
+        var off = HalloweenHud.statsPanel(new HalloweenHud.Stats(Map.of("Carrots", 1.0), new Rates(), 600_000L, 0, 0,
+                new RecurringEvent.View(RecurringEvent.State.UNKNOWN, 0L, false), 0, 0, List.of(),
+                Resurrection.view(s, 303_808_740.0, Double.NaN)),
+                new HalloweenHud.StatsLines(true, true, true, true, true, true, true, false));
+        check("switched off, no section", off.stream().noneMatch(l -> l.text().startsWith("Resurrection")));
     }
 
     private static void check(String name, boolean ok) {

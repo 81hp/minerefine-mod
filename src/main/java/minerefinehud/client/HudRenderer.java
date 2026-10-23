@@ -140,7 +140,8 @@ public final class HudRenderer {
             Map.entry("item:carved_pumpkin", Items.CARVED_PUMPKIN),
             Map.entry("item:chest", Items.CHEST),
             Map.entry("item:spider_eye", Items.SPIDER_EYE),
-            Map.entry("item:netherite_hoe", Items.NETHERITE_HOE));
+            Map.entry("item:netherite_hoe", Items.NETHERITE_HOE),
+            Map.entry("item:totem_of_undying", Items.TOTEM_OF_UNDYING));
 
     private static final Map<String, ItemStack> STACKS = new HashMap<>();
 

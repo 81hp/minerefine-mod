@@ -364,7 +364,13 @@ public final class SettingsScreen extends Screen {
         cycle(1, 1, "Rates over", () -> config.hwRateMinutes, v -> config.hwRateMinutes = v,
                 new int[] { 5, 10, 15, 30, 60 }, v -> v + " min");
         toggle(0, 2, "Crops per hour", () -> config.hwCropRates, v -> config.hwCropRates = v);
-        toggle(1, 2, "Each crop", () -> config.hwPerCrop, v -> config.hwPerCrop = v);
+        toggleAt(quarterX(2, quarter), y(2), quarter, "Each crop", () -> config.hwPerCrop,
+                v -> config.hwPerCrop = v);
+        Button resurrect = toggleAt(quarterX(3, quarter), y(2), quarter, "Resurrect", () -> config.hwResurrect,
+                v -> config.hwResurrect = v);
+        resurrect.setTooltip(Tooltip.create(Component.literal("A bar toward your next resurrection: the crops "
+                + "you hold against its cost, and the hoe it needs. Open the Resurrection menu once to read "
+                + "the cost. Hidden after the last one.")));
 
         toggleAt(quarterX(0, quarter), y(3), quarter, "Pests", () -> config.hwPests, v -> config.hwPests = v);
         toggleAt(quarterX(1, quarter), y(3), quarter, "Caravan", () -> config.hwCaravan, v -> config.hwCaravan = v);

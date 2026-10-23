@@ -4,6 +4,7 @@ import minerefinehud.boss.BossTracker;
 import minerefinehud.halloween.Buildings;
 import minerefinehud.halloween.HalloweenHud;
 import minerefinehud.halloween.RecurringEvent;
+import minerefinehud.halloween.Resurrection;
 import minerefinehud.hud.HudModel.Cell;
 import minerefinehud.hud.HudModel.Line;
 import minerefinehud.hud.HudModel.Style;
@@ -84,6 +85,9 @@ public final class SamplePanels {
                         56_200 / 1_500_000.0, false, 0L, "crops x1.8 → x2"),
                 new Buildings.View("Forge", Buildings.State.UPGRADING, 2, 3, "Beetroots", 0, 0, 0.58, false,
                         151_000L, ""))));
+        lines.add(Line.section("RESURRECTION"));
+        lines.addAll(HalloweenHud.resurrectionLines(new Resurrection.View(Resurrection.State.SAVING, 6,
+                303_808_740, 350_000_000, "Fire Coral Hoe VII", Boolean.TRUE, "", "", -1L)));
         lines.add(Line.section("EVENTS"));
         lines.add(HalloweenHud.caravanLine(new RecurringEvent.View(RecurringEvent.State.WAITING, 600_000L, true)));
         String amounts = "21.5/50 candy";

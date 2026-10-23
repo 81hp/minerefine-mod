@@ -631,6 +631,11 @@ public final class ModConfig {
                 b.currency = "";
             }
         }
+        // 1.5.0 also saved the /upgrades menu's stats (Luck, More Damage): no upgrade time, so
+        // not a building. A real one read from its menu has a time; one only known from a
+        // "COMPLETE!" in chat has no time but nothing else either.
+        hwBuildingData.values().removeIf(b -> b.upgradeMs <= 0L && b.upgradeEnd <= 0L
+                && (!b.cost.isEmpty() || !b.now.isEmpty()));
         if (reforgerState == null) {
             reforgerState = new minerefinehud.halloween.RecurringEvent.Saved();
         }

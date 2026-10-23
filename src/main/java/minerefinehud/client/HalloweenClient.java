@@ -54,6 +54,8 @@ final class HalloweenClient {
     private final Buildings buildings = new Buildings();
     /** Upgrades finished lately, for the alert. */
     private final List<Buildings.Finished> finishedUpgrades = new ArrayList<>();
+    /** The last menu item with a level that was not read as a building, for /mrhud debug. */
+    private String unreadBuilding = "";
 
     /** Sidebar balances, and the action bar's crop with when it was read. */
     private final Map<String, Double> sidebarBalances = new LinkedHashMap<>();
@@ -401,6 +403,15 @@ final class HalloweenClient {
             return;
         }
 
+        Optional<Buildings.Chat> upgrade = Buildings.chat(text);
+        if (upgrade.isPresent()) {
+            if (buildings.chat(config.hwBuildingData, upgrade.get(), now)) {
+                statsCachedAt = 0L;
+                save.run();
+            }
+            return;
+        }
+
         Optional<HalloweenText.Recharge> recharge = HalloweenText.recharge(text);
         if (recharge.isPresent()) {
             HalloweenText.Recharge r = recharge.get();
@@ -565,11 +576,18 @@ final class HalloweenClient {
         for (ShopItemParser.ItemView item : items) {
             Optional<Buildings.Info> building = Buildings.read(item.title(), item.lore());
             if (building.isPresent()) {
-                if (buildings.learn(config.hwBuildingData, building.get(), now)) {
+                // The /upgrades menu's stats (Luck, More Damage) look the same but upgrade at once.
+                Buildings.Info info = building.get();
+                if ((info.timed() || Buildings.known(config.hwBuildingData, info.name()))
+                        && buildings.learn(config.hwBuildingData, info, now)) {
                     statsCachedAt = 0L;
                     changed = true;
                 }
                 continue;
+            }
+            if (inHalloween && Buildings.hasLevelLine(item.lore())) {
+                unreadBuilding = HalloweenText.strip(item.title()) + " | "
+                        + String.join(" / ", item.lore().stream().map(HalloweenText::strip).toList());
             }
             if (abilities.learnFromMenu(item.title(), item.lore())) {
                 saveAbilities();
@@ -697,6 +715,9 @@ final class HalloweenClient {
             b.append(';');
         });
         out.add(b.toString());
+        if (!unreadBuilding.isEmpty()) {
+            out.add(" unread item with a level: " + unreadBuilding);
+        }
         return out;
     }
 

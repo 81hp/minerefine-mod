@@ -383,7 +383,7 @@ public final class SettingsScreen extends Screen {
         Button buildingBars = toggleAt(quarterX(2, quarter), y(4), quarter, "Buildings", () -> config.hwBuildings,
                 v -> config.hwBuildings = v);
         buildingBars.setTooltip(Tooltip.create(Component.literal("A bar for each building's next level, "
-                + "read when you open its menu, and a countdown while it upgrades.")));
+                + "read when you open its menu, and a countdown while it upgrades. Maxed buildings are hidden.")));
         Button bell = toggleAt(quarterX(3, quarter), y(4), quarter, "Bell", () -> config.hwBuildingSound,
                 v -> config.hwBuildingSound = v);
         bell.setTooltip(Tooltip.create(Component.literal("A bell when a building upgrade finishes.")));

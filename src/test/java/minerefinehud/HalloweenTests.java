@@ -41,6 +41,7 @@ public final class HalloweenTests {
         buildingUpgrades();
         buildingUpgradeSeenInTheMenu();
         buildingPanel();
+        upgradesMenuAndChat();
         spookyLookPaints();
 
         System.out.println();
@@ -429,7 +430,8 @@ public final class HalloweenTests {
         eq("barn finished", 1, done.size());
         eq("to level 5", 5, done.get(0).level());
         check("rings", done.get(0).ring());
-        Buildings.View after = Buildings.views(saved, Map.of(), t + 183_000).get(0);
+        Buildings.View after = Buildings.views(saved, Map.of(), t + 183_000).stream()
+                .filter(v -> v.name().equals("Barn")).findFirst().orElseThrow();
         eq("next cost unknown until the menu opens", Buildings.State.OPEN_MENU, after.state());
         eq("level 5 now", 5, after.level());
         eq("its grants are now x2", "crops x2", after.perks());
@@ -482,6 +484,83 @@ public final class HalloweenTests {
         c.learn(later, Buildings.read("Barn", level5).orElseThrow(), 3_600_000L);
         eq("no timer for an old upgrade", Buildings.State.SAVING,
                 Buildings.views(later, Map.of(), 3_600_000L).get(0).state());
+    }
+
+    /**
+     * The user's report of 2026-10-23: /upgrades stats shown as buildings, maxed ones shown,
+     * Windmill/Minion/Cauldron never shown. Chat lines are copied from their game logs.
+     */
+    private static void upgradesMenuAndChat() {
+        // /upgrades: the same layout but paid in Tokens and instant (their saved More Damage had no time).
+        List<String> moreDamage = List.of(" ▍ ʟᴇᴠᴇʟ 100 / 250", " ▍ Grants +100 Damage when hitting",
+                "▼↓↓⇓—[ UPGRADE ]—⇓↓↓▼", " ▍ ʟᴇᴠᴇʟ 101 / 250", " ▍ Grants +102 Damage when hitting", "", "ᴄᴏѕᴛ",
+                "⇢ 34 Tokens ✗");
+        check("an /upgrades stat is not timed", !Buildings.read("More Damage", moreDamage).orElseThrow().timed());
+        check("a building is timed", Buildings.read("Barn", BARN).orElseThrow().timed());
+
+        // Boosts not worded "Grants".
+        List<String> windmill = BARN.stream().map(l -> l.replace("Grants x1.8 more crops", "Sweep +1.8 adjacent crops")
+                .replace("Grants x2 more crops", "Sweep +2.1 adjacent crops")).toList();
+        Buildings.Info w = Buildings.read("Windmill", windmill).orElseThrow();
+        eq("windmill stat", "Sweep adjacent crops", w.now().get(0).stat);
+        eq("windmill next", "+2.1", w.next().get(0).value);
+        eq("windmill perk", "Sweep adjacent crops +1.8 → +2.1", Buildings.views(Map.of("Windmill", saved(w)),
+                Map.of(), 0L).get(0).perks());
+        List<String> minion = BARN.stream().map(l -> l.replace("Grants x1.8 more crops", "Auto Harvest every 2.6s")
+                .replace("Grants x2 more crops", "Auto Harvest every 2.3s")).toList();
+        Buildings.Info m = Buildings.read("Minion", minion).orElseThrow();
+        eq("minion value", "2.3s", m.next().get(0).value);
+        check("a line without the bar is no boost", Buildings.read("Debris Shovel",
+                List.of("Level 3 / 5", "Speed +5 blocks")).isEmpty());
+
+        eq("upgrading message", Optional.of(new Buildings.Chat("Cauldron", 5, 180_000L, false)),
+                Buildings.chat("Upgrading Cauldron to Lv 5. Done in 3m."));
+        eq("hour", 3_600_000L, Buildings.chat("Upgrading Barn to Lv 9. Done in 1h.").orElseThrow().ms());
+        eq("complete message", Optional.of(new Buildings.Chat("Minion", 9, 0L, true)),
+                Buildings.chat("COMPLETE! Minion is now Lv 9! Auto Harvest every 2.3s."));
+        check("a player pasting it is nothing", Buildings.chat(
+                "[★972] ✠:ʀᴜɴɪᴄ:✠ 81hp_: COMPLETE! Windmill is now Lv 7! Sweep +2.1 adjacent crops.").isEmpty());
+        check("nor a player's upgrading line", Buildings.chat(
+                "[★3467] JR MOD Melonius: Upgrading Cauldron to Lv 15. Done in 1h.").isEmpty());
+
+        // Saved as in their config: Barn and Forge maxed, Candy Jar saving.
+        Buildings b = new Buildings();
+        Map<String, Buildings.Saved> saved = new java.util.LinkedHashMap<>();
+        b.learn(saved, Buildings.read("Barn", List.of(" ▍ ʟᴇᴠᴇʟ 10 / 10", " ▍ Grants x3 more crops")).orElseThrow(), 0L);
+        b.learn(saved, Buildings.read("Forge", FORGE).orElseThrow(), 0L);
+        long t = 1_000_000L;
+        check("never-read Cauldron added from chat", b.chat(saved, Buildings.chat("Upgrading Cauldron to Lv 5. Done in 3m.").orElseThrow(), t));
+        List<Buildings.View> views = Buildings.views(saved, Map.of(), t + 1_000L);
+        eq("maxed barn hidden, upgrading first", List.of("Cauldron", "Forge"), views.stream().map(Buildings.View::name).toList());
+        eq("cauldron upgrading", Buildings.State.UPGRADING, views.get(0).state());
+        eq("to 5", 5, views.get(0).target());
+        eq("its 3 minutes", 179_000L, views.get(0).msLeft());
+        // The server finishes a little before our count: ends now and rings once.
+        check("complete changes it", b.chat(saved, Buildings.chat("COMPLETE! Cauldron is now Lv 5!").orElseThrow(), t + 179_000L));
+        List<Buildings.Finished> done = b.finish(saved, t + 179_100L);
+        check("rings once", done.size() == 1 && done.get(0).ring() && done.get(0).level() == 5);
+        check("the timer then finishing changes nothing", b.finish(saved, t + 181_000L).isEmpty());
+        check("a second complete is nothing", !b.chat(saved, Buildings.chat("COMPLETE! Cauldron is now Lv 5!").orElseThrow(), t + 182_000L));
+        eq("open for the next cost", Buildings.State.OPEN_MENU, Buildings.views(saved, Map.of(), t + 182_000L).stream()
+                .filter(v -> v.name().equals("Cauldron")).findFirst().orElseThrow().state());
+
+        // A menu naming it in another case is the same building.
+        b.chat(saved, Buildings.chat("Upgrading Candy Jar to Lv 3. Done in 1m.").orElseThrow(), t);
+        b.learn(saved, Buildings.read("CANDY JAR", BARN).orElseThrow(), t + 1_000L);
+        eq("one candy jar", 1L, saved.keySet().stream().filter(k -> k.equalsIgnoreCase("candy jar")).count());
+
+        // Our timer finished first: the server's message after it is nothing new.
+        Buildings c = new Buildings();
+        Map<String, Buildings.Saved> own = new java.util.LinkedHashMap<>();
+        c.chat(own, Buildings.chat("Upgrading Forge to Lv 3. Done in 1m.").orElseThrow(), 0L);
+        eq("finished by the timer", 1, c.finish(own, 60_000L).size());
+        check("complete after it changes nothing", !c.chat(own, Buildings.chat("COMPLETE! Forge is now Lv 3! Hex x1.3.").orElseThrow(), 60_500L));
+    }
+
+    private static Buildings.Saved saved(Buildings.Info info) {
+        Map<String, Buildings.Saved> saved = new java.util.LinkedHashMap<>();
+        new Buildings().learn(saved, info, 0L);
+        return saved.get(info.name());
     }
 
     private static void buildingPanel() {

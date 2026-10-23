@@ -31,9 +31,14 @@ import java.util.regex.Pattern;
  *   EACH UPGRADE ALSO GRANTS +10 EVENT SPEED
  *   (!) You need 1,443,800 more Carrots.
  *
+ * Not every building's boost starts "Grants": the Windmill's is "Sweep +2.1 adjacent crops", the
+ * Minion's "Auto Harvest every 2.3s". The /upgrades menu (Luck, More Damage...) looks the same but
+ * its upgrades are instant, so only an item with an "Upgrade Time" is a building.
+ *
  * Only the next level is ever shown, so after an upgrade the next cost is unknown until the
- * menu is opened again. An upgrade is noticed by its cost leaving the sidebar balance while the
- * building's menu is open or was just closed; its timer then runs from "Upgrade Time".
+ * menu is opened again. An upgrade is known from the chat, "Upgrading Barn to Lv 5. Done in 3m."
+ * then "COMPLETE! Barn is now Lv 5! Crop Multiplier x2.", or else by its cost leaving the sidebar
+ * balance while the building's menu is open or was just closed.
  *
  * No Minecraft types; times are epoch milliseconds from the caller.
  */
@@ -87,7 +92,15 @@ public final class Buildings {
         public boolean maxed() {
             return max > 0 && level >= max;
         }
+
+        /** It takes time to upgrade, as buildings do; the /upgrades menu's stats are instant. */
+        public boolean timed() {
+            return upgradeMs > 0L || remainingMs > 0L;
+        }
     }
+
+    /** "Upgrading Barn to Lv 5. Done in 3m." ({@code done} false) or "COMPLETE! Barn is now Lv 5!". */
+    public record Chat(String name, int level, long ms, boolean done) {}
 
     public enum State {
         /** Saving up for the next level. */
@@ -130,6 +143,15 @@ public final class Buildings {
             Pattern.CASE_INSENSITIVE);
     private static final Pattern IN_PROGRESS = Pattern.compile(
             "upgrading|remaining|time left|finishes|ready in", Pattern.CASE_INSENSITIVE);
+    /** The number in a boost that is not a "Grants" line: "+2.1", "2.3s", "x1.8", "25%". */
+    private static final Pattern PERK_VALUE = Pattern.compile(
+            "(?<![\\p{L}\\p{N}.,])([x×+\\-]?[0-9][0-9.,]*(?:%|[smh]\\b)?)");
+    /** Anchored, so a player pasting the message in chat is not an upgrade. */
+    private static final Pattern CHAT_UPGRADING = Pattern.compile(
+            "^upgrading\\s+(?<name>.+?)\\s+to\\s+lv\\.?\\s*(?<level>[0-9]+)\\b.*?\\bdone in\\s+(?<time>.+)$",
+            Pattern.CASE_INSENSITIVE);
+    private static final Pattern CHAT_COMPLETE = Pattern.compile(
+            "^complete!?\\s+(?<name>.+?)\\s+is now\\s+lv\\.?\\s*(?<level>[0-9]+)\\b", Pattern.CASE_INSENSITIVE);
 
     /** When each building's menu was last seen; not saved. */
     private final Map<String, Long> seenAt = new HashMap<>();
@@ -219,6 +241,14 @@ public final class Buildings {
                 anyGrant = true;
                 continue;
             }
+            // A boost worded otherwise, in the level's "▍" lines: "Auto Harvest every 2.3s".
+            Optional<Grant> perk = (level >= 0 || nextLevel >= 0) && line.trim().startsWith("▍")
+                    ? perk(line) : Optional.empty();
+            if (perk.isPresent()) {
+                (pastUpgrade ? next : now).add(perk.get());
+                anyGrant = true;
+                continue;
+            }
             if (IN_PROGRESS.matcher(line).find()) {
                 long left = duration(line);
                 if (left > 0L) {
@@ -243,6 +273,65 @@ public final class Buildings {
             start = c == ' ';
         }
         return out.toString();
+    }
+
+    /** "▍ Sweep +2.1 adjacent crops" is +2.1 of "Sweep adjacent crops"; empty without a number or a word. */
+    static Optional<Grant> perk(String line) {
+        String s = line.replaceAll("\\[[^\\]]*/[^\\]]*\\]", " ").replace('▍', ' ').trim();
+        Matcher v = PERK_VALUE.matcher(s);
+        if (!v.find()) {
+            return Optional.empty();
+        }
+        String stat = stat(s.substring(0, v.start()) + " " + s.substring(v.end()));
+        if (!stat.matches(".*\\p{L}.*")) {
+            return Optional.empty();
+        }
+        return Optional.of(new Grant(stat, v.group(1).replace("×", "x")));
+    }
+
+    /** The upgrade messages in chat; empty for anything else. */
+    public static Optional<Chat> chat(String text) {
+        String line = HalloweenText.plainLetters(HalloweenText.strip(text));
+        Matcher up = CHAT_UPGRADING.matcher(line);
+        if (up.find()) {
+            return Optional.of(new Chat(up.group("name").trim(), Integer.parseInt(up.group("level")),
+                    duration(up.group("time")), false));
+        }
+        Matcher done = CHAT_COMPLETE.matcher(line);
+        if (done.find()) {
+            return Optional.of(new Chat(done.group("name").trim(), Integer.parseInt(done.group("level")), 0L, true));
+        }
+        return Optional.empty();
+    }
+
+    /** A lore with a "LEVEL n / m" line, for the debug output when it is not read as a building. */
+    public static boolean hasLevelLine(List<String> lore) {
+        if (lore == null) {
+            return false;
+        }
+        for (String raw : lore) {
+            if (LEVEL.matcher(HalloweenText.plainLetters(HalloweenText.strip(raw))).find()) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    /** The saved name for a building whatever its case: the chat says "Candy Jar", the menu may not. */
+    public static String key(Map<String, Saved> saved, String name) {
+        if (saved.containsKey(name)) {
+            return name;
+        }
+        for (String k : saved.keySet()) {
+            if (k.equalsIgnoreCase(name)) {
+                return k;
+            }
+        }
+        return name;
+    }
+
+    public static boolean known(Map<String, Saved> saved, String name) {
+        return saved.containsKey(key(saved, name));
     }
 
     /** "☽ Hex (event damage)" is "Hex", "more crops" is "crops". */
@@ -278,12 +367,13 @@ public final class Buildings {
      * already running is kept: the menu may show the new level while it runs.
      */
     public boolean learn(Map<String, Saved> saved, Info info, long now) {
-        Long lastSeen = seenAt.put(info.name(), now);
-        Saved s = saved.get(info.name());
+        String name = key(saved, info.name());
+        Long lastSeen = seenAt.put(name, now);
+        Saved s = saved.get(name);
         boolean added = s == null;
         if (added) {
             s = new Saved();
-            saved.put(info.name(), s);
+            saved.put(name, s);
         }
         // Our timer has just made it the new level and the menu has not caught up: keep ours, or
         // the old level would come back and its catching up would look like a second purchase.
@@ -367,6 +457,51 @@ public final class Buildings {
     }
 
     /**
+     * An upgrade message from the chat. "Upgrading" starts the timer with the time it gives, the
+     * exact one; "COMPLETE!" ends it now, so {@link #finish(Map, long)} rings for it. A building
+     * never read from its menu is added, so every upgrade shows. Returns true when what is saved changed.
+     */
+    public boolean chat(Map<String, Saved> saved, Chat chat, long now) {
+        String name = key(saved, chat.name());
+        Saved s = saved.get(name);
+        if (s == null) {
+            s = new Saved();
+            s.level = chat.done() ? chat.level() : chat.level() - 1;
+            saved.put(name, s);
+            if (chat.done()) {
+                return true;   // no timer of ours to ring for
+            }
+        }
+        if (!chat.done()) {
+            if (s.level != chat.level() - 1) {
+                // Upgraded where we did not see it: what it grants and costs now is not known.
+                s.level = chat.level() - 1;
+                s.now = new ArrayList<>();
+                s.next = new ArrayList<>();
+                s.cost = new LinkedHashMap<>();
+            }
+            s.upgradeTo = chat.level();
+            s.upgradeStart = now;
+            s.upgradeEnd = now + Math.max(0L, chat.ms());
+            if (chat.ms() > 0L) {
+                s.upgradeMs = chat.ms();
+            }
+            return true;
+        }
+        if (s.level >= chat.level() && s.upgradeEnd <= 0L) {
+            return false;   // our own timer already finished it
+        }
+        if (s.upgradeEnd <= 0L) {
+            s.upgradeStart = now;
+            s.upgradeEnd = now;
+        } else {
+            s.upgradeEnd = Math.min(now, s.upgradeEnd);
+        }
+        s.upgradeTo = Math.max(s.upgradeTo, chat.level());
+        return true;
+    }
+
+    /**
      * Upgrades whose time is up, made the new level: its grants become what the building has now,
      * and the next ones are unknown until the menu is opened. Returns every one finished now;
      * those that ended while the game was closed do not ring.
@@ -402,10 +537,24 @@ public final class Buildings {
 
     // --------------------------------------------------------------- views
 
-    /** Every building in the order first seen, with the balances to measure the cost against. */
+    /**
+     * The buildings not maxed, with the balances to measure the cost against: those upgrading
+     * first, then those being saved for, then those whose next cost is not known, each in the
+     * order first seen.
+     */
     public static List<View> views(Map<String, Saved> saved, Map<String, Double> balances, long now) {
         List<View> out = new ArrayList<>();
-        saved.forEach((name, s) -> out.add(view(name, s, balances, now)));
+        saved.forEach((name, s) -> {
+            View v = view(name, s, balances, now);
+            if (v.state() != State.MAXED) {
+                out.add(v);
+            }
+        });
+        out.sort(java.util.Comparator.comparingInt(v -> switch (v.state()) {
+            case UPGRADING -> 0;
+            case SAVING -> 1;
+            default -> 2;
+        }));
         return out;
     }
 

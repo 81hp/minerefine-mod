@@ -455,6 +455,7 @@ public final class MinerefineHudClient implements ClientModInitializer {
             lastUnknownBlockAt = 0L;
             resourcePickups.reset();
             fragmentCounts.reset();
+            AutoCommands.onJoin();
             halloween.onJoin();
             bossIndex.onJoin();
             // Cheap, and lets a replaced progression.json in the config folder apply on rejoin.
@@ -774,6 +775,8 @@ public final class MinerefineHudClient implements ClientModInitializer {
      * sounds with the inventory or a shop open, when the HUD is not drawn.
      */
     private void registerBossReminder() {
+        // Before the senders below, so they see this tick's sidebar and world.
+        ClientTickEvents.END_CLIENT_TICK.register(client -> AutoCommands.tick(client, System.currentTimeMillis()));
         ClientTickEvents.END_CLIENT_TICK.register(client -> {
             if (client != null && client.player != null) {
                 bossIndex.tick(client, System.currentTimeMillis());
@@ -1332,6 +1335,7 @@ public final class MinerefineHudClient implements ClientModInitializer {
                 bossIndex.intervalMs()) : "off") + ", menus read " + BossIndexPoller.readCount()
                 + ", title " + (config.bossIndexTitle.isBlank() ? "not learned yet" : "'" + config.bossIndexTitle + "'")
                 + ", watching " + (config.watchedBosses.isEmpty() ? "this dimension" : config.watchedBosses));
+        out.add(" own commands: " + AutoCommands.describe(System.currentTimeMillis()));
         out.add(" progress: " + (progressViews.isEmpty() ? "no bars"
                 : String.join(", ", progressViews.stream().map(v -> (v.quantity() > 1 ? v.quantity() + "x " : "")
                         + v.slot().label() + " -> " + v.mine() + " " + v.gear() + " " + v.targetLevel()

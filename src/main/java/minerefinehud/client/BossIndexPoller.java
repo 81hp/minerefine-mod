@@ -24,8 +24,8 @@ import java.util.function.BooleanSupplier;
  * had pressed Escape. The server has it open for a fraction of a second.
  *
  * Only a menu that comes back within a few seconds of the command, with the index's title,
- * is taken, so a shop the player opens is never swallowed. Nothing is sent while a screen is
- * open (a shop, chat, the inventory) or off MineRefine.
+ * is taken, so a shop the player opens is never swallowed. Nothing is sent off MineRefine, nor
+ * whenever {@link AutoCommands} holds it: a screen open, another command just sent, an Expedition.
  */
 public final class BossIndexPoller {
 
@@ -131,13 +131,14 @@ public final class BossIndexPoller {
             mineRefineSince = now;
         }
         if (!config.bossIndexAuto || sentAt > 0L || now - mineRefineSince < 10_000L
-                || now - lastPollAt < intervalMs() || Compat.screen(client) != null) {
+                || now - lastPollAt < intervalMs()) {
             return;
         }
-        lastPollAt = now;
         sendingOurs = true;
         try {
-            if (Compat.sendCommand(client, "bossindex")) {
+            // Held (a screen open, a command just sent, an Expedition): tried again next tick.
+            if (AutoCommands.send(client, "bossindex", now)) {
+                lastPollAt = now;
                 sentAt = now;
                 acceptUntil = now + LATE_REPLY_MS;
             }

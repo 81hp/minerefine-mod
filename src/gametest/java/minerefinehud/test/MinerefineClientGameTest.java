@@ -219,6 +219,13 @@ public class MinerefineClientGameTest implements FabricClientGameTest {
                 check(context.computeOnClient(client -> Compat.screen(client) == null), "the boss index menu was shown");
                 context.waitFor(client -> BossIndexPoller.readCount() > menusRead, 100);
                 check(context.computeOnClient(client -> Compat.screen(client) == null), "the boss index menu was shown");
+
+                // Any command, however sent, holds the mod's own ones back (the server kicks for
+                // two in one tick): proves the mixin on the outgoing packets is applied.
+                context.waitFor(client -> !minerefinehud.client.AutoCommands.heldByRecentCommand(), 200);
+                context.runOnClient(client -> client.getConnection().sendCommand("help"));
+                check(context.computeOnClient(client -> minerefinehud.client.AutoCommands.heldByRecentCommand()),
+                        "a command sent did not hold the mod's own commands back");
             } catch (AssertionError e) {
                 // Never got into the world. 1.21.11 on GitHub's machines sat on "Connecting" for good
                 // until the server stopped pausing (October 2026, see serverProperties). The threads

@@ -321,7 +321,8 @@ public final class SettingsScreen extends Screen {
                 v -> config.bossIndexAuto = v);
         auto.setTooltip(Tooltip.create(Component.literal("Runs /bossindex by itself every so often and reads "
                 + "it without opening it on your screen, so every boss timer stays right in every dimension. "
-                + "It is a real command sent as you; it waits while you have a menu or chat open.")));
+                + "It is a real command sent as you; it waits while you have a menu or chat open, "
+                + "right after any other command, and on an Expedition.")));
         labels.add(new Label("Every", x(1), y(6) + 6));
         int labelWidth = this.font.width("Every") + 6;
         EditBox every = field(x(1) + labelWidth, y(6), COLUMN_WIDTH - labelWidth,

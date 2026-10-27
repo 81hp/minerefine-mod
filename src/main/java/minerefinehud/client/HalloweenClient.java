@@ -535,14 +535,15 @@ final class HalloweenClient {
             wantQuery = true;
         }
         if (!wantQuery || now < queryNotBefore || now - mineRefineSince < 5_000L
-                || now - lastQueryAt < 60_000L || Compat.screen(client) != null) {
+                || now - lastQueryAt < 60_000L) {
             return;
         }
-        wantQuery = false;
-        lastQueryAt = now;
         sendingOurs = true;
         try {
-            if (Compat.sendCommand(client, "nextreforger")) {
+            // Held (a screen open, a command just sent, an Expedition): tried again shortly.
+            if (AutoCommands.send(client, "nextreforger", now)) {
+                wantQuery = false;
+                lastQueryAt = now;
                 hideReplies = 1;
                 hideUntil = now + 10_000L;
             }

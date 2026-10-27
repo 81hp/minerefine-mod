@@ -52,12 +52,40 @@ public final class CoreTests {
         bossRowsCanBeHidden();
         resourcesNameTheirWorld();
         sharedIconDecidedByWhereYouStand();
+        expeditionSidebarIsRecognised();
+        ownCommandsKeepClear();
 
         System.out.println();
         System.out.println("passed: " + passed + "   failed: " + failed);
         if (failed > 0) {
             System.exit(1);
         }
+    }
+
+    private static void expeditionSidebarIsRecognised() {
+        List<String> expedition = List.of("ᴍɪɴᴇʀᴇꜰɪɴᴇ", "§c▪ Expedition Level §f141", "§c▪ Time Elapsed: §f0s",
+                "┌ STATISTICS", "| LEVEL [XVI ★508]", "| BLOCKS MINED", "minerefine.minehut.gg");
+        assertTrue("the expedition sidebar is an expedition", minerefinehud.server.Expedition.named(expedition));
+        assertTrue("its level row alone", minerefinehud.server.Expedition.isExpeditionRow("▪ Expedition Level 141"));
+        assertTrue("its timer row alone, in small capitals",
+                minerefinehud.server.Expedition.isExpeditionRow("▪ ᴛɪᴍᴇ ᴇʟᴀᴘꜱᴇᴅ: 1ᴍ 5ꜱ"));
+        List<String> normal = List.of("ᴍɪɴᴇʀᴇꜰɪɴᴇ", "┌ STATISTICS", "| LEVEL [XVI ★508]", "| BLOCKS MINED",
+                "| 24,210,000 (Rank #29)", "| COINS: 162.5B", "minerefine.minehut.gg");
+        assertTrue("the usual sidebar is no expedition", !minerefinehud.server.Expedition.named(normal));
+        assertTrue("no sidebar is no expedition", !minerefinehud.server.Expedition.named(null));
+    }
+
+    private static void ownCommandsKeepClear() {
+        minerefinehud.server.CommandSpacing spacing = new minerefinehud.server.CommandSpacing();
+        long quiet = minerefinehud.server.CommandSpacing.QUIET_MS;
+        assertTrue("free before anything was sent", spacing.quiet(1_000L));
+        spacing.sent(10_000L);
+        assertTrue("held in the same tick", !spacing.quiet(10_000L));
+        assertTrue("held just before the gap ends", !spacing.quiet(10_000L + quiet - 1L));
+        assertTrue("free once the gap is over", spacing.quiet(10_000L + quiet));
+        assertTrue("a clock set far back does not hold for ever", spacing.quiet(10_000L - quiet));
+        spacing.reset();
+        assertTrue("a new connection starts free", spacing.quiet(10_001L));
     }
 
     // ------------------------------------------------------------- parser

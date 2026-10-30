@@ -165,9 +165,16 @@ public final class MinerefineHudClient implements ClientModInitializer {
         config = ModConfig.load(configFile);
         config.save(configFile);
         miningBlocks.importShared(MiningBlocks.KNOWN_SHARED);
-        miningBlocks.importShared(config.sharedIcons);
+        java.util.Set<String> wrongGuesses = miningBlocks.importShared(config.sharedIcons);
         miningBlocks.importLearned(config.minedBlocks);
         mineSpots.importAll(config.mineSpots);
+        if (!wrongGuesses.isEmpty()) {
+            // Where a wrong guess was "mined" is where the other mine is: keep that, and it keeps
+            // winning there.
+            wrongGuesses.forEach(mineSpots::forget);
+            config.mineSpots = new java.util.LinkedHashMap<>(mineSpots.export());
+            saveLearnedBlocks();
+        }
         // Read time 0: older than anything seen this session, so any real reading replaces it.
         config.savedBalances.forEach((currency, amount) -> {
             if (amount != null) {
@@ -948,7 +955,9 @@ public final class MinerefineHudClient implements ClientModInitializer {
             // A balance already known, from mining or saved from the last session, usually can.
             Map<String, Long> known = new java.util.HashMap<>();
             balances.all().forEach((c, seen) -> known.put(c, seen.amount()));
-            if (miningBlocks.inferFromBalances(r.sprite(), r.amount(), known)) {
+            Optional<MineSpots.Spot> here = playerSpot();
+            if (miningBlocks.inferFromBalances(r.sprite(), r.amount(), known,
+                    m -> here.map(h -> mineSpots.elsewhere(m, h)).orElse(false))) {
                 saveLearnedBlocks();
                 blockMine = miningBlocks.lookup(r.sprite(), catalog);
             }
@@ -970,8 +979,9 @@ public final class MinerefineHudClient implements ClientModInitializer {
                 : shared ? sharedDecided
                 : ActionBarReader.currencyFor(mined, pickupNow ? lastPickup : Optional.empty());
 
-        // Every block a mine is recognised by for certain says where that mine is.
-        Optional<String> certain = shared ? currency : mined;
+        // Every block a mine is recognised by for certain says where that mine is. A guess from a
+        // close balance is not certain: placed here, it would beat the real mine here from then on.
+        Optional<String> certain = (shared ? currency : mined).filter(m -> !MiningBlocks.isGuess(m));
         if (certain.isPresent() && playerSpot().map(here -> mineSpots.record(certain.get(), here)).orElse(false)) {
             config.mineSpots = new java.util.LinkedHashMap<>(mineSpots.export());
             config.save(configFile);
@@ -1278,7 +1288,8 @@ public final class MinerefineHudClient implements ClientModInitializer {
                 .orElse("none read yet, mine a few blocks"));
         out.add(" mining: " + lastActionBarReading.map(r -> r.sprite() + " -> "
                 + miningBlocks.lookup(r.sprite(), catalogSource.catalog())
-                        .map(m -> m.mine() + (m.how() == MiningBlocks.How.LEARNED ? " (learned)" : " (by name)"))
+                        .map(m -> m.mine() + (m.how() != MiningBlocks.How.LEARNED ? " (by name)"
+                                : MiningBlocks.isGuess(m.mine()) ? " (guessed from a balance)" : " (learned)"))
                         .orElse(miningBlocks.isShared(r.sprite())
                                 ? "shared by " + miningBlocks.shared().get(r.sprite()) + ", now "
                                         + lastActionBarCurrency.orElse("undecided, mine another block here first")

@@ -135,16 +135,25 @@ public final class MiningBlocks {
      *
      *   - a currency whose mine already has a block is skipped: its block would have been
      *     recognised, so it is not the one being mined;
-     *   - the total may be at most 10% above the balance (a long session), or 1% below it
-     *     (the action bar rounds to three figures);
+     *   - the total may be at most 3% above the balance, or 1% below it (the action bar
+     *     rounds to three figures);
      *   - two candidates means nothing is learned.
      *
      * A later shop visit overrides whatever this learned, so a rare wrong guess does not stick.
      *
-     * @param known balance per currency, as last seen
+     * It is still a guess, and with a hundred or so balances saved one of them often sits near a
+     * new mine's total by chance: Shale's first blocks landed just above the Wood balance, and
+     * from then on Shale's icon said Wood. So the window above the balance is narrow (the guess
+     * is tried from the very first block, when the two are a few blocks apart), a mine known to
+     * be mined somewhere else is skipped, and the guess is filed in lower case, the way balances
+     * are keyed, which is what marks it as a guess (see {@link #isGuess}).
+     *
+     * @param known     balance per currency, as last seen
+     * @param elsewhere mines known to be mined far from where the player is now
      * @return true if a mapping was learned
      */
-    public boolean inferFromBalances(String sprite, long total, Map<String, Long> known) {
+    public boolean inferFromBalances(String sprite, long total, Map<String, Long> known,
+                                     java.util.function.Predicate<String> elsewhere) {
         if (sprite == null || sprite.isBlank() || learned.containsKey(sprite) || shared.containsKey(sprite)
                 || total <= 0L) {
             return false;
@@ -156,17 +165,33 @@ public final class MiningBlocks {
         String match = null;
         for (Map.Entry<String, Long> e : known.entrySet()) {
             long balance = e.getValue() == null ? 0L : e.getValue();
-            if (balance <= 0L || taken.contains(e.getKey().toLowerCase(Locale.ROOT).trim())) {
+            String currency = e.getKey().toLowerCase(Locale.ROOT).trim();
+            if (balance <= 0L || taken.contains(currency) || currency.endsWith(" fragment")
+                    || elsewhere.test(currency)) {
                 continue;
             }
-            if (total >= balance - balance / 100L && total <= balance + balance / 10L) {
+            if (total >= balance - balance / 100L && total <= balance + balance * 3L / 100L) {
                 if (match != null) {
                     return false;
                 }
-                match = e.getKey();
+                match = currency;
             }
         }
         return match != null && learn(sprite, match);
+    }
+
+    public boolean inferFromBalances(String sprite, long total, Map<String, Long> known) {
+        return inferFromBalances(sprite, total, known, mine -> false);
+    }
+
+    /**
+     * Whether a mine name was filed by {@link #inferFromBalances}: those are spelt in lower case,
+     * as balances are keyed, while shops and pickups spell a mine the way the server does. Saved
+     * data from before this was a rule says the same, as only that guess ever filed lower case.
+     */
+    public static boolean isGuess(String mine) {
+        return mine != null && mine.chars().anyMatch(Character::isLetter)
+                && mine.equals(mine.toLowerCase(Locale.ROOT));
     }
 
     /**
@@ -227,7 +252,9 @@ public final class MiningBlocks {
         c = new Conflict(c.mine(), c.firstAt(), c.count() + 1);
         if (c.count() >= SHARED_AFTER_PICKUPS && nowMs - c.firstAt() >= SHARED_AFTER_MS) {
             conflicts.remove(sprite);
-            return markShared(sprite, List.of(known.get().mine(), pickupMine));
+            boolean changed = markShared(sprite, List.of(known.get().mine(), pickupMine));
+            dropGuesses(sprite);   // disagreeing this long with a guess: the guess was wrong
+            return changed;
         }
         conflicts.put(sprite, c);
         return false;
@@ -287,10 +314,45 @@ public final class MiningBlocks {
         return out;
     }
 
-    public void importShared(Map<String, List<String>> saved) {
+    /**
+     * Restores saved shared icons, dropping every guess that a shop or a pickup has since
+     * contradicted (see {@link #dropGuesses}). Saved data from before 1.5.4 is full of these:
+     * Shale's icon was shared by "wood" and Shale, and the guess won every block.
+     *
+     * @return the mines dropped as wrong guesses, so the caller can forget where they were
+     *         "seen": those spots were recorded while mining the other mine
+     */
+    public Set<String> importShared(Map<String, List<String>> saved) {
+        Set<String> dropped = new LinkedHashSet<>();
         if (saved != null) {
-            saved.forEach(this::markShared);
+            saved.forEach((sprite, mines) -> {
+                markShared(sprite, mines);
+                dropped.addAll(dropGuesses(sprite));
+            });
         }
+        return dropped;
+    }
+
+    /**
+     * Removes the guesses from a shared icon that also has a proven mine, and files the icon under
+     * that mine alone when it is the only one left. A guess is the weakest evidence there is, a
+     * balance that happened to be close; kept as an equal candidate it was decided by where its
+     * own guess had placed it, which was right here, so it won every time.
+     *
+     * @return the guesses dropped
+     */
+    private Set<String> dropGuesses(String sprite) {
+        Set<String> mines = shared.get(sprite);
+        if (mines == null || mines.stream().allMatch(MiningBlocks::isGuess)) {
+            return Set.of();
+        }
+        Set<String> dropped = new LinkedHashSet<>();
+        mines.removeIf(m -> isGuess(m) && dropped.add(m));
+        if (mines.size() == 1) {
+            shared.remove(sprite);
+            learned.put(sprite, mines.iterator().next());
+        }
+        return dropped;
     }
 
     /**
@@ -374,8 +436,9 @@ public final class MiningBlocks {
     public void importLearned(Map<String, String> saved) {
         if (saved != null) {
             saved.forEach((sprite, mine) -> {
+                // Never over what is already filed: a shared icon repaired on import came first.
                 if (sprite != null && mine != null && !mine.isBlank() && !shared.containsKey(sprite)) {
-                    learned.put(sprite, mine);
+                    learned.putIfAbsent(sprite, mine);
                 }
             });
         }
@@ -393,15 +456,17 @@ public final class MiningBlocks {
      *
      * An icon already learned as another mine is not taken over but marked shared by both: the
      * Woodland Copper shop and then the Rust shop each proved deepslate copper ore theirs. A wrong
-     * earlier guess ends up shared too, which costs nothing, as each block is still decided by
-     * its balance.
+     * earlier claim ends up shared too, which costs little, as each block is still decided by
+     * its balance. A guess from {@link #inferFromBalances} is not shared but replaced: kept, it
+     * placed itself where the proven mine is and won every block there.
      */
     private boolean claim(String sprite, String mine) {
         if (shared.containsKey(sprite)) {
-            return addCandidate(sprite, mine);
+            boolean added = addCandidate(sprite, mine);
+            return !dropGuesses(sprite).isEmpty() || added;
         }
         String was = learned.get(sprite);
-        if (was != null && !was.equalsIgnoreCase(mine.trim())) {
+        if (was != null && !was.equalsIgnoreCase(mine.trim()) && !isGuess(was)) {
             return markShared(sprite, List.of(was, mine));
         }
         String m = mine.toLowerCase(Locale.ROOT).trim();

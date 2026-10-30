@@ -62,7 +62,9 @@ public final class MineSpots {
     /**
      * The candidate whose area the player is in: nearest by its own spot or its world's, within
      * {@link #MAX_DISTANCE}, and clearly nearer than the next one (half the distance or less).
-     * Empty when nothing is known nearby or two are about as close.
+     * Empty when nothing is known nearby or two are about as close, and also when a candidate
+     * cannot be placed at all: a new mine may be right here. Shale, in an area the price data
+     * does not know yet, lost every block to a mine placed next to it.
      */
     public Optional<String> nearest(Collection<String> candidates, Spot here, MineCatalog catalog) {
         if (here == null || candidates == null) {
@@ -73,6 +75,9 @@ public final class MineSpots {
         double secondD = Double.POSITIVE_INFINITY;
         for (String candidate : candidates) {
             double d = distance(candidate, here, catalog);
+            if (Double.isNaN(d)) {
+                return Optional.empty();
+            }
             if (d < bestD) {
                 secondD = bestD;
                 bestD = d;
@@ -87,7 +92,11 @@ public final class MineSpots {
         return Optional.of(best);
     }
 
-    /** Distance to the candidate's own spot, else to the nearest spot of a mine in its world. */
+    /**
+     * Distance to the candidate's own spot, else to the nearest spot of a mine in its world.
+     * NaN for a mine with no spot that the price data does not know either, a new area's: it
+     * could be anywhere, right here included.
+     */
     private double distance(String candidate, Spot here, MineCatalog catalog) {
         Spot own = spots.get(key(candidate));
         if (own != null) {
@@ -95,7 +104,7 @@ public final class MineSpots {
         }
         String world = worldOf(candidate, catalog);
         if (world.isEmpty()) {
-            return Double.POSITIVE_INFINITY;
+            return Double.NaN;
         }
         double best = Double.POSITIVE_INFINITY;
         for (Map.Entry<String, Spot> e : spots.entrySet()) {
@@ -104,6 +113,17 @@ public final class MineSpots {
             }
         }
         return best;
+    }
+
+    /** Whether this mine's own spot is known and the player is far from it, or in another dimension. */
+    public boolean elsewhere(String mine, Spot here) {
+        Spot own = mine == null || here == null ? null : spots.get(key(mine));
+        return own != null && own.distanceTo(here) > MAX_DISTANCE;
+    }
+
+    /** Forgets where a mine is. Returns true if a spot was known. */
+    public boolean forget(String mine) {
+        return mine != null && spots.remove(key(mine)) != null;
     }
 
     private static String worldOf(String mine, MineCatalog catalog) {

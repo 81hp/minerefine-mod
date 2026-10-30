@@ -52,6 +52,7 @@ public final class CoreTests {
         bossRowsCanBeHidden();
         resourcesNameTheirWorld();
         sharedIconDecidedByWhereYouStand();
+        shaleIsNotWood();
         expeditionSidebarIsRecognised();
         ownCommandsKeepClear();
 
@@ -664,7 +665,7 @@ public final class CoreTests {
         balances.put("Rubble", 919_000_000L);
         assertTrue("an unknown block just above one known balance is learned",
                 blocks.inferFromBalances("block/bone_block", 5_710_000_000L, balances));
-        assertEquals("as that mine", "Marrow",
+        assertEquals("as that mine, spelt as a guess", "marrow",
                 blocks.lookup("block/bone_block", ruins).orElseThrow().mine());
         Map<String, Long> close = new LinkedHashMap<>();
         close.put("Marrow", 5_700_000_000L);
@@ -999,5 +1000,81 @@ public final class CoreTests {
         restored.importAll(spots.export());
         assertEquals("survives a restart", Optional.of("Woodland Copper"),
                 restored.nearest(both, new minerefinehud.mine.MineSpots.Spot("minecraft:overworld", 1080, 950), catalog));
+    }
+
+    /**
+     * As seen in game, October 2026, from the player's saved data: the new area's first mine,
+     * Shale, showed correctly from its shop, then "wood" from the first block mined. Shale's icon
+     * had been guessed as Wood (its first total sat just above the Wood balance), the Shale shop
+     * then made the icon shared by both, and the guess had placed Wood right at Shale, so where
+     * the player stood picked Wood every block.
+     */
+    private static void shaleIsNotWood() {
+        MineCatalog catalog = new MineCatalog(List.of(mine("Wood", "Starter", "axe")));
+        String icon = "block/cut_red_sandstone";
+        var atShale = new minerefinehud.mine.MineSpots.Spot("minecraft:minerefine", 55010, 55020);
+
+        // The saved data as it was: the old code turns it into Wood here.
+        minerefinehud.mine.MineSpots spots = new minerefinehud.mine.MineSpots();
+        spots.importAll(Map.of("wood", new minerefinehud.mine.MineSpots.Spot("minecraft:minerefine",
+                55001.6, 55029.7)));
+        assertTrue("a mine never placed may be right here: no answer from spots",
+                spots.nearest(List.of("wood", "Shale"), atShale, catalog).isEmpty());
+
+        MiningBlocks saved = new MiningBlocks();
+        var dropped = saved.importShared(Map.of(icon, List.of("wood", "Shale"),
+                "block/deepslate_copper_ore", List.of("Woodland Copper", "Rust")));
+        assertEquals("the guess is dropped on load", java.util.Set.of("wood"), dropped);
+        saved.importLearned(Map.of(icon, "wood"));
+        assertEquals("and the icon is Shale's again", Optional.of("Shale"),
+                saved.lookup(icon, catalog).map(MiningBlocks.Match::mine));
+        assertTrue("two proven mines stay shared", saved.isShared("block/deepslate_copper_ore"));
+        assertTrue("its spot is forgotten", spots.forget("wood") && spots.size() == 0);
+        MiningBlocks onlyGuesses = new MiningBlocks();
+        assertTrue("guesses with nothing proven stay as they were",
+                onlyGuesses.importShared(Map.of(icon, List.of("wood", "stone"))).isEmpty()
+                        && onlyGuesses.isShared(icon));
+
+        // How it started, played again: Shale's first block, the Wood balance close by.
+        MiningBlocks played = new MiningBlocks();
+        Map<String, Long> wallet = Map.of("wood", 59_000_000L, "tuff", 259_260_416L);
+        assertTrue("over 3% above a balance is not that mine's first block",
+                !played.inferFromBalances(icon, 60_900_000L, wallet));
+        assertTrue("a mine placed far from here is not guessed",
+                !played.inferFromBalances(icon, 59_100_000L, wallet, m -> m.equals("wood")));
+        assertTrue("otherwise it still is", played.inferFromBalances(icon, 59_100_000L, wallet));
+        assertTrue("filed as a guess", MiningBlocks.isGuess(played.learned().get(icon))
+                && !MiningBlocks.isGuess("Shale") && !MiningBlocks.isGuess("123"));
+        assertTrue("fragments are no mine's balance", !new MiningBlocks().inferFromBalances(icon, 12L,
+                Map.of("warden fragment", 12L)));
+        played.onShopBalance("Shale", 59_150_000L, 0L);
+        played.onMining(icon, 59_200_000L, 1_000L);
+        assertTrue("the Shale shop replaces the guess instead of sharing with it",
+                !played.isShared(icon) && "Shale".equals(played.learned().get(icon)));
+        MiningBlocks proven = new MiningBlocks();
+        proven.onShopBalance("Shale", 59_150_000L, 0L);
+        proven.onMining(icon, 59_200_000L, 1_000L);
+        proven.onShopBalance("Rust", 700_000_000L, 300_000L);
+        proven.onMining(icon, 701_000_000L, 310_000L);
+        assertTrue("two shops still share an icon", proven.isShared(icon));
+        MiningBlocks sharedGuess = new MiningBlocks();
+        sharedGuess.markShared(icon, List.of("wood", "stone"));
+        sharedGuess.onShopBalance("Shale", 59_150_000L, 0L);
+        sharedGuess.onMining(icon, 59_200_000L, 1_000L);
+        assertEquals("a shop proving one mine of a guessed shared icon takes it", "Shale",
+                sharedGuess.learned().get(icon));
+        MiningBlocks pickedUp = new MiningBlocks();
+        pickedUp.inferFromBalances(icon, 59_100_000L, wallet);
+        for (long t : new long[] {0L, 10_000L, 21_000L}) {
+            pickedUp.onPickup(icon, "Shale", catalog, t);
+        }
+        assertEquals("Shale picked up under a guessed icon for twenty seconds takes it", "Shale",
+                pickedUp.learned().get(icon));
+
+        minerefinehud.mine.MineSpots placed = new minerefinehud.mine.MineSpots();
+        placed.record("Wood", new minerefinehud.mine.MineSpots.Spot("minecraft:minerefine", 0, 0));
+        assertTrue("far from Wood's spot is elsewhere", placed.elsewhere("wood", atShale)
+                && !placed.elsewhere("wood", new minerefinehud.mine.MineSpots.Spot("minecraft:minerefine", 10, 10))
+                && !placed.elsewhere("Shale", atShale));
     }
 }

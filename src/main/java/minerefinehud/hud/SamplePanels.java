@@ -110,4 +110,34 @@ public final class SamplePanels {
                 Line.status("Will-o'-Wisps", Style.LABEL, new Cell("READY", Style.GOOD, "READY")),
                 Line.status("Harvest Moon", Style.LABEL, new Cell("12.3s", Style.HEADER, "12.3s")));
     }
+
+    /** Shale at 1.25b an hour, with a bar due in two hours. */
+    public static List<Line> mining() {
+        return ExtrasHud.miningPanel(new ExtrasHud.Mining("Shale", OptionalLong.of(36_420_000_000L), 1_250_000_000.0,
+                4_510_000_000.0, 3L * 3_600_000L + 25L * 60_000L,
+                List.of(new ExtrasHud.Eta("Total left", (2L * 60L + 13L) * 60_000L),
+                        new ExtrasHud.Eta("Pickaxe IV", 41L * 60_000L))));
+    }
+
+    /** The stats from the /stats screenshot, Fortune just gone up. */
+    public static List<Line> stats() {
+        minerefinehud.stats.PlayerStats.Saved before = minerefinehud.stats.PlayerStats.update(null, List.of(
+                new minerefinehud.stats.PlayerStats.Stat("Fortune", "951,200", "Mining")), 0L);
+        return ExtrasHud.statsPanel(minerefinehud.stats.PlayerStats.update(before, List.of(
+                new minerefinehud.stats.PlayerStats.Stat("Fortune", "967,900", "Mining"),
+                new minerefinehud.stats.PlayerStats.Stat("Luck", "321.9", "Mining"),
+                new minerefinehud.stats.PlayerStats.Stat("Turret Luck", "640.6", "Mining"),
+                new minerefinehud.stats.PlayerStats.Stat("Speed", "x2.4", "Mining")), 1L), java.util.Set.of());
+    }
+
+    /** A Nebula a minute ago among the usual charms and turrets. */
+    public static List<Line> drops() {
+        minerefinehud.drops.RareDrops.Counter c =
+                new minerefinehud.drops.RareDrops.Counter(new minerefinehud.drops.RareDrops.Saved());
+        c.add(new minerefinehud.drops.RareDrops.Drop("RARE", "Sculk Charm", 41), 1_000L);
+        c.add(new minerefinehud.drops.RareDrops.Drop("RARE", "Netherrack Turret", 3), 2_000L);
+        c.add(new minerefinehud.drops.RareDrops.Drop("EXOTIC", "LEGENDARY Key", 1), 3_000L);
+        c.add(new minerefinehud.drops.RareDrops.Drop("SPECIAL", "Nebula", 1), 600_000L);
+        return ExtrasHud.dropsPanel(c.rows(java.util.Set.of(), 8), c.recent(java.util.Set.of(), 3), 660_000L);
+    }
 }

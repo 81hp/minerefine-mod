@@ -334,7 +334,8 @@ public final class StyleTests {
     private static void everythingStaysInsideThePanel() {
         List<List<HudModel.Line>> panels = List.of(SamplePanels.mine(CREDITS), SamplePanels.mine(OPTIONS),
                 SamplePanels.bosses(OPTIONS), SamplePanels.progress(new HudModel.ProgressLines(true, true, true)),
-                SamplePanels.alert(), SamplePanels.halloween(), SamplePanels.pumpkin(), SamplePanels.abilities());
+                SamplePanels.alert(), SamplePanels.halloween(), SamplePanels.pumpkin(), SamplePanels.abilities(),
+                SamplePanels.mining(), SamplePanels.stats(), SamplePanels.drops());
         int checked = 0;
         String problem = null;
         for (HudStyle.Titles t : HudStyle.Titles.values())

@@ -139,6 +139,7 @@ public final class HudRenderer {
             Map.entry("item:jack_o_lantern", Items.JACK_O_LANTERN),
             Map.entry("item:carved_pumpkin", Items.CARVED_PUMPKIN),
             Map.entry("item:chest", Items.CHEST),
+            Map.entry("item:nether_star", Items.NETHER_STAR),
             Map.entry("item:spider_eye", Items.SPIDER_EYE),
             Map.entry("item:netherite_hoe", Items.NETHERITE_HOE),
             Map.entry("item:totem_of_undying", Items.TOTEM_OF_UNDYING));

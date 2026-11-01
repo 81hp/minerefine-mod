@@ -851,7 +851,11 @@ public final class ProgressPlanner {
             // A copy from this mine is the one being upgraded here, even with a better one
             // from a later mine worn; only without one does the later copy make it pointless.
             boolean ownedHere = ofGear.stream().anyMatch(g -> sameMine(catalog, g.mine(), name));
-            if (!ownedHere && currentMine.isEmpty() && ownsLater(owned, catalog, links, gear, name)) {
+            // A better copy from a later mine means this one is never bought: a maxed Siftite
+            // pickaxe while mining Shale. In a mine it still counts while an older copy is on its
+            // way here (maxed Sapphire chestplates taken on to City Wall's, a Crystalite set worn).
+            if (!ownedHere && ownsLater(owned, catalog, links, gear, name)
+                    && (currentMine.isEmpty() || !ownsEarlier(owned, catalog, links, gear, name))) {
                 continue;
             }
             int level = ownedLevel(catalog, ofGear, name, max);
@@ -897,6 +901,24 @@ public final class ProgressPlanner {
             if (gear.equals(g.gear().toLowerCase(Locale.ROOT)) && !sameMine(catalog, g.mine(), mine)
                     && orderOf(catalog, links, gear, g.mine()) > here) {
                 return true;
+            }
+        }
+        return false;
+    }
+
+    /**
+     * True when the player holds this kind of item from a mine before this one in progression, or
+     * from one the data cannot place (better to count a piece than to drop one wrongly).
+     */
+    private static boolean ownsEarlier(List<ShopItemParser.GearRef> owned, MineCatalog catalog,
+                                       ProgressionLinks links, String gear, String mine) {
+        double here = orderOf(catalog, links, gear, mine);
+        for (ShopItemParser.GearRef g : owned) {
+            if (gear.equals(g.gear().toLowerCase(Locale.ROOT)) && !sameMine(catalog, g.mine(), mine)) {
+                double order = orderOf(catalog, links, gear, g.mine());
+                if (order < 0 || order < here) {
+                    return true;
+                }
             }
         }
         return false;

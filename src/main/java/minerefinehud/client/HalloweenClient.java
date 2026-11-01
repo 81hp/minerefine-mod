@@ -198,6 +198,11 @@ final class HalloweenClient {
         return onMineRefine;
     }
 
+    /** MineRefine's sidebar was seen since joining: this is that server, whatever the sidebar shows now. */
+    boolean seenMineRefine() {
+        return seenMineRefine;
+    }
+
     boolean inHalloween() {
         return inHalloween;
     }

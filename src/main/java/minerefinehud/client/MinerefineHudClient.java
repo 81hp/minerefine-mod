@@ -143,6 +143,7 @@ public final class MinerefineHudClient implements ClientModInitializer {
     /** The Halloween event and the Reforger. */
     private HalloweenClient halloween;
     private BossIndexPoller bossIndex;
+    private ExtrasClient extras;
 
     /** Mine named by the shop most recently opened. A fallback when nothing else names one. */
     private Optional<String> lastShopMine = Optional.empty();
@@ -221,6 +222,9 @@ public final class MinerefineHudClient implements ClientModInitializer {
         bossIndex = new BossIndexPoller(config, () -> config.save(configFile), halloween::onMineRefine,
                 this::readBossIndex);
         bossIndex.register();
+        extras = new ExtrasClient(config, () -> config.save(configFile), halloween::onMineRefine,
+                halloween::seenMineRefine);
+        extras.register();
 
         registerKeyBindings();
         ActionBarHook.listen(this::onActionBar);
@@ -304,7 +308,7 @@ public final class MinerefineHudClient implements ClientModInitializer {
         }
         Compat.setScreen(client, new SettingsScreen(null, config, this::settingsChanged,
                 () -> openPositionScreen(client), () -> openPositionScreen(client, true),
-                () -> halloween.resetRates(), () -> halloween.owned(), this::previews, this::bossNames));
+                () -> halloween.resetRates(), () -> halloween.owned(), this::previews, this::bossNames, extras));
     }
 
     /** Settings apply live: the HUD reads the config every frame. This saves and re-plans now. */
@@ -338,7 +342,10 @@ public final class MinerefineHudClient implements ClientModInitializer {
                 minerefinehud.hud.SamplePanels.alert(),
                 minerefinehud.hud.SamplePanels.halloween(),
                 minerefinehud.hud.SamplePanels.pumpkin(),
-                minerefinehud.hud.SamplePanels.abilities());
+                minerefinehud.hud.SamplePanels.abilities(),
+                minerefinehud.hud.SamplePanels.mining(),
+                minerefinehud.hud.SamplePanels.stats(),
+                minerefinehud.hud.SamplePanels.drops());
     }
 
     /**
@@ -400,6 +407,21 @@ public final class MinerefineHudClient implements ClientModInitializer {
             movables.add(new Movable(new HudPositionScreen.Panel("Progress", progressPreview,
                     config.progressPlacement(), ModConfig.DEFAULT_PROGRESS_PLACEMENT, config.progressLook.scale, 1.0, HudRenderer.Look.of(config, config.progressLook)),
                     config::setProgressPlacement, config.progressLook));
+            if (config.showMiningRate) {
+                movables.add(new Movable(new HudPositionScreen.Panel("Mining", extras.miningPanel(progressViews, miningBalance()),
+                        config.miningPlacement(), ModConfig.DEFAULT_MINING_PLACEMENT, config.miningLook.scale, 1.0, HudRenderer.Look.of(config, config.miningLook)),
+                        config::setMiningPlacement, config.miningLook));
+            }
+        }
+        if (config.showStats) {
+            movables.add(new Movable(new HudPositionScreen.Panel("Stats", extras.statsPanel(),
+                    config.statsPlacement(), ModConfig.DEFAULT_STATS_PLACEMENT, config.statsLook.scale, 1.0, HudRenderer.Look.of(config, config.statsLook)),
+                    config::setStatsPlacement, config.statsLook));
+        }
+        if (config.showDrops) {
+            movables.add(new Movable(new HudPositionScreen.Panel("Rare drops", extras.dropsPanel(now),
+                    config.dropsPlacement(), ModConfig.DEFAULT_DROPS_PLACEMENT, config.dropsLook.scale, 1.0, HudRenderer.Look.of(config, config.dropsLook)),
+                    config::setDropsPlacement, config.dropsLook));
         }
         movables.add(new Movable(new HudPositionScreen.Panel("Bosses", bossPreview,
                 config.bossPlacement(), ModConfig.DEFAULT_BOSS_PLACEMENT, config.bossLook.scale, 1.0, HudRenderer.Look.of(config, config.bossLook)),
@@ -472,6 +494,7 @@ public final class MinerefineHudClient implements ClientModInitializer {
             AutoCommands.onJoin();
             halloween.onJoin();
             bossIndex.onJoin();
+            extras.onJoin();
             // Cheap, and lets a replaced progression.json in the config folder apply on rejoin.
             catalogSource.load();
         });
@@ -528,6 +551,8 @@ public final class MinerefineHudClient implements ClientModInitializer {
                 // on the automatic check knows this menu by its title.
                 bossIndex.learnTitle(title);
             }
+            // The player's own /stats: read it, and the hidden check knows its title from then on.
+            extras.onVisibleMenu(title, items, now);
             List<ShopItemParser.Entry> entries = ShopItemParser.parseAll(items);
             recordUnrecognised(client, ShopItemParser.unrecognised(items).stream()
                     .filter(item -> !HalloweenClient.isHalloweenItem(item)).toList());
@@ -731,7 +756,11 @@ public final class MinerefineHudClient implements ClientModInitializer {
                     config.minePlacement(), config.mineLook, style, theme);
             drawPanel(context, client, HudModel.progressPanel(progressViews, options.progressLines()),
                     config.progressPlacement(), config.progressLook, style, theme);
+            drawPanel(context, client, extras.miningPanel(progressViews, miningBalance()),
+                    config.miningPlacement(), config.miningLook, style, theme);
         }
+        drawPanel(context, client, extras.statsPanel(), config.statsPlacement(), config.statsLook, style, theme);
+        drawPanel(context, client, extras.dropsPanel(now), config.dropsPlacement(), config.dropsLook, style, theme);
         drawPanel(context, client, HudModel.bossPanel(bosses, options, halloween.reforgerRows(now)),
                 config.bossPlacement(), config.bossLook, style, theme);
 
@@ -740,6 +769,16 @@ public final class MinerefineHudClient implements ClientModInitializer {
                 : List.of();
         drawPanel(context, client, HudModel.alertPanel(due, halloween.alerts(now, false)),
                 config.alertPlacement(), config.alertLook, style, theme);
+    }
+
+    /** The balance of the mine the mining panel measures, as the action bar last showed it. */
+    private java.util.OptionalLong miningBalance() {
+        String mine = extras.miningMine();
+        if (mine.isEmpty()) {
+            return java.util.OptionalLong.empty();
+        }
+        return balances.get(mine).map(r -> java.util.OptionalLong.of(r.amount()))
+                .orElse(java.util.OptionalLong.empty());
     }
 
     private void drawPanel(net.minecraft.client.gui.GuiGraphicsExtractor context, Minecraft client,
@@ -1045,6 +1084,7 @@ public final class MinerefineHudClient implements ClientModInitializer {
         currency.ifPresent(c -> {
             balances.update(c, r.amount(), now);
             lastProgressCheck = 0L;
+            extras.onBalance(c, r.amount(), now);
         });
     }
 
@@ -1403,6 +1443,9 @@ public final class MinerefineHudClient implements ClientModInitializer {
                 + ", title " + (config.bossIndexTitle.isBlank() ? "not learned yet" : "'" + config.bossIndexTitle + "'")
                 + ", watching " + (config.watchedBosses.isEmpty() ? "this dimension" : config.watchedBosses));
         out.add(" own commands: " + AutoCommands.describe(System.currentTimeMillis()));
+        for (String line : extras.debugLines(System.currentTimeMillis())) {
+            out.add(" " + line);
+        }
         out.add(" progress: " + (progressViews.isEmpty() ? "no bars"
                 : String.join(", ", progressViews.stream().map(v -> (v.quantity() > 1 ? v.quantity() + "x " : "")
                         + v.slot().label() + " -> " + v.mine() + " " + v.gear() + " " + v.targetLevel()

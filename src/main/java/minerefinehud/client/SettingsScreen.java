@@ -45,7 +45,7 @@ public final class SettingsScreen extends Screen {
 
     private enum Tab {
         GENERAL("General"), STYLE("Style"), COLOURS("Colours"), PANELS("Panels"), MINE("Mine"),
-        BOSSES("Bosses"), PROGRESS("Progress"), HALLOWEEN("Halloween");
+        BOSSES("Bosses"), PROGRESS("Progress"), HALLOWEEN("Halloween"), EXTRAS("Extras");
 
         final String label;
 
@@ -57,7 +57,8 @@ public final class SettingsScreen extends Screen {
     /** Example panels to preview the looks on, from {@code SamplePanels}. */
     public record Previews(List<HudModel.Line> mine, List<HudModel.Line> bosses, List<HudModel.Line> progress,
                            List<HudModel.Line> alert, List<HudModel.Line> halloween,
-                           List<HudModel.Line> pumpkin, List<HudModel.Line> abilities) {}
+                           List<HudModel.Line> pumpkin, List<HudModel.Line> abilities,
+                           List<HudModel.Line> mining, List<HudModel.Line> stats, List<HudModel.Line> drops) {}
 
     private static final int COLUMN_WIDTH = 150;
     private static final int ROW_HEIGHT = 22;
@@ -92,6 +93,10 @@ public final class SettingsScreen extends Screen {
     private final Supplier<Previews> previews;
     /** Every boss that can be picked to watch. */
     private final Supplier<List<String>> bossNames;
+    /** Mining rate, stats and rare drops, for their resets and pickers. */
+    private final ExtrasClient extras;
+    /** "Reset all drops" was clicked once: the next click wipes them. */
+    private boolean confirmWipe;
 
     private Tab tab = Tab.GENERAL;
 
@@ -135,7 +140,7 @@ public final class SettingsScreen extends Screen {
     public SettingsScreen(Screen parent, ModConfig config, Runnable onChange, Runnable openPositions,
                           Runnable openHalloweenPositions, Runnable resetHalloweenRates,
                           Supplier<java.util.Set<String>> pumpkinOwned, Supplier<Previews> previews,
-                          Supplier<List<String>> bossNames) {
+                          Supplier<List<String>> bossNames, ExtrasClient extras) {
         super(Component.literal("MineRefine HUD settings"));
         this.parent = parent;
         this.config = config;
@@ -146,6 +151,7 @@ public final class SettingsScreen extends Screen {
         this.pumpkinOwned = pumpkinOwned;
         this.previews = previews;
         this.bossNames = bossNames;
+        this.extras = extras;
     }
 
     private int left() {
@@ -221,6 +227,7 @@ public final class SettingsScreen extends Screen {
             case BOSSES -> bosses();
             case PROGRESS -> progress();
             case HALLOWEEN -> halloween();
+            case EXTRAS -> extras();
         }
 
         addRenderableWidget(Button.builder(Component.literal("Done"), b -> onClose())
@@ -229,6 +236,7 @@ public final class SettingsScreen extends Screen {
 
     private void openTab(Tab t) {
         tab = t;
+        confirmWipe = false;
         scroll = 0;
         rebuildWidgets();
     }
@@ -334,6 +342,136 @@ public final class SettingsScreen extends Screen {
         every.setTooltip(Tooltip.create(Component.literal("How often: 30s, 1 minute, 5m, 1h 30m, 2 hours... "
                 + "Shortest 30 seconds. Something it cannot read keeps the last good time.")));
         addRenderableWidget(every);
+    }
+
+    /** Mining per hour, stats from /stats, rare drops: three optional panels. */
+    private void extras() {
+        Button mining = toggleAt(x(0), y(0), "Mining per hour", () -> config.showMiningRate,
+                v -> config.showMiningRate = v);
+        mining.setTooltip(Tooltip.create(Component.literal("A panel with what you mine per hour, from the "
+                + "balance on the action bar, what you mined this session, and how long until each "
+                + "progress bar paid in that resource fills at that rate.")));
+        cycle(1, 0, "Rate over", () -> config.mineRateMinutes, v -> config.mineRateMinutes = v,
+                new int[] { 5, 10, 15, 30, 60 }, v -> v + " min");
+
+        Button stats = toggleAt(x(0), y(1), "Stats panel", () -> config.showStats, v -> config.showStats = v);
+        stats.setTooltip(Tooltip.create(Component.literal("Your stats from /stats: Fortune, Luck and the rest. "
+                + "Read whenever you open /stats, and by the automatic check if it is on.")));
+        Button auto = toggleAt(x(1), y(1), "Auto /stats", () -> config.statsAuto, v -> config.statsAuto = v);
+        auto.setTooltip(Tooltip.create(Component.literal("While the stats panel is on, runs /stats by itself "
+                + "every so often and reads it without opening it on your screen, like the automatic "
+                + "/bossindex. It waits while you have a menu or chat open, right after any other command, "
+                + "and on an Expedition.")));
+
+        labels.add(new Label("Every", x(0), y(2) + 6));
+        int labelWidth = this.font.width("Every") + 6;
+        EditBox every = field(x(0) + labelWidth, y(2), COLUMN_WIDTH - labelWidth,
+                minerefinehud.boss.Interval.format(config.statsEveryMs), 24, s -> true, s ->
+                        minerefinehud.boss.Interval.parse(s).ifPresent(ms -> {
+                            config.statsEveryMs = Math.max(StatsPoller.MIN_INTERVAL_MS, ms);
+                            onChange.run();
+                        }));
+        every.setTooltip(Tooltip.create(Component.literal("How often /stats is checked: 1m, 5 minutes, 1h... "
+                + "Shortest 1 minute.")));
+        addRenderableWidget(every);
+        List<String> statNames = extras.statNames();
+        Button pickStats = addRenderableWidget(Button.builder(Component.literal(statsLabel(statNames)), b -> {
+                    onChange.run();
+                    if (this.minecraft != null) {
+                        Compat.setScreen(this.minecraft, new PickScreen(this, "Stats shown",
+                                "Ticked stats show in the panel.",
+                                "No stats yet: open /stats once, or turn on Auto /stats.",
+                                statNames,
+                                n -> !config.statsHiddenSet().contains(n.toLowerCase(java.util.Locale.ROOT)),
+                                n -> {
+                                    String key = n.toLowerCase(java.util.Locale.ROOT);
+                                    if (!config.statsHidden.removeIf(h -> h.equalsIgnoreCase(key))) {
+                                        config.statsHidden.add(key);
+                                    }
+                                },
+                                "Show all", () -> config.statsHidden.clear(), onChange));
+                    }
+                })
+                .bounds(x(1), y(2), COLUMN_WIDTH, 20).build());
+        pickStats.active = !statNames.isEmpty();
+
+        Button drops = toggleAt(x(0), y(3), "Rare drops panel", () -> config.showDrops, v -> config.showDrops = v);
+        drops.setTooltip(Tooltip.create(Component.literal("Counts every \"RARITY! You found ...\" drop from chat, "
+                + "also when SecondChat shows it. The same words typed by a player never count.")));
+        List<String> rarities = extras.raritiesSeen();
+        addRenderableWidget(Button.builder(Component.literal(raritiesLabel(rarities)), b -> {
+                    onChange.run();
+                    if (this.minecraft != null) {
+                        Compat.setScreen(this.minecraft, new PickScreen(this, "Rarities shown",
+                                "Ticked rarities show in the panel. Hidden ones are still counted.", "",
+                                rarities, r -> !config.dropsHiddenSet().contains(r),
+                                r -> {
+                                    if (!config.dropsHiddenRarities.removeIf(h -> h.equalsIgnoreCase(r))) {
+                                        config.dropsHiddenRarities.add(r);
+                                    }
+                                },
+                                "Show all", () -> config.dropsHiddenRarities.clear(), onChange));
+                    }
+                })
+                .bounds(x(1), y(3), COLUMN_WIDTH, 20).build());
+
+        cycle(0, 4, "Items listed", () -> config.dropsRows, v -> config.dropsRows = v,
+                new int[] { 3, 5, 8, 10, 15, 20 }, String::valueOf);
+        cycle(1, 4, "Latest drops", () -> config.dropsRecent, v -> config.dropsRecent = v,
+                new int[] { 0, 1, 3, 5, 10 }, v -> v == 0 ? "off" : String.valueOf(v));
+
+        Button session = addRenderableWidget(Button.builder(Component.literal("New session"), b -> {
+                    extras.resetDropSession();
+                    extras.resetMiningRate();
+                    onChange.run();
+                })
+                .bounds(x(0), y(5), COLUMN_WIDTH, 20).build());
+        session.setTooltip(Tooltip.create(Component.literal("Starts the session drop counts and the mining rate "
+                + "over. All-time drop counts stay.")));
+        Button wipe = addRenderableWidget(Button.builder(Component.literal(confirmWipe
+                        ? "Click again to wipe" : "Reset all drops"), b -> {
+                    if (confirmWipe) {
+                        extras.resetAllDrops();
+                        confirmWipe = false;
+                        onChange.run();
+                    } else {
+                        confirmWipe = true;
+                    }
+                    rebuildWidgets();
+                })
+                .bounds(x(1), y(5), COLUMN_WIDTH, 20).build());
+        wipe.setTooltip(Tooltip.create(Component.literal("Forgets every drop ever counted. Asks twice.")));
+
+        addRenderableWidget(Button.builder(Component.literal("Move and resize panels..."), b -> {
+                    onChange.run();
+                    openPositions.run();
+                })
+                .bounds(x(0), y(6), COLUMN_WIDTH * 2 + 10, 20).build());
+    }
+
+    private String statsLabel(List<String> known) {
+        if (known.isEmpty()) {
+            return "Stats shown: none read";
+        }
+        java.util.Set<String> hidden = config.statsHiddenSet();
+        int shown = 0;
+        for (String n : known) {
+            if (!hidden.contains(n.toLowerCase(java.util.Locale.ROOT))) {
+                shown++;
+            }
+        }
+        return "Stats shown: " + shown + "/" + known.size() + "...";
+    }
+
+    private String raritiesLabel(List<String> all) {
+        java.util.Set<String> hidden = config.dropsHiddenSet();
+        int shown = 0;
+        for (String r : all) {
+            if (!hidden.contains(r)) {
+                shown++;
+            }
+        }
+        return "Rarities: " + shown + "/" + all.size() + "...";
     }
 
     private String watchLabel() {
@@ -938,7 +1076,10 @@ public final class SettingsScreen extends Screen {
                 new PanelEntry("Reminder", config.alertLook, 2.0, Previews::alert),
                 new PanelEntry("Halloween", config.hwStatsLook, 1.0, Previews::halloween),
                 new PanelEntry("Pumpkin set", config.hwPumpkinLook, 1.0, Previews::pumpkin),
-                new PanelEntry("Abilities", config.hwAbilityLook, 1.0, Previews::abilities));
+                new PanelEntry("Abilities", config.hwAbilityLook, 1.0, Previews::abilities),
+                new PanelEntry("Mining", config.miningLook, 1.0, Previews::mining),
+                new PanelEntry("Stats", config.statsLook, 1.0, Previews::stats),
+                new PanelEntry("Rare drops", config.dropsLook, 1.0, Previews::drops));
     }
 
     /** Each panel's own background and size, with that panel drawn as it will look. */

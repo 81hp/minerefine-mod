@@ -71,7 +71,7 @@ java {
 // The logic tests are plain main() classes with no Minecraft in them (tools/run-core-tests.sh runs
 // them without Gradle). `check` runs them too, so a build never ships with a failing one.
 tasks.test { enabled = false }
-val logicTests = listOf("CoreTests", "ShopTests", "LayoutTests", "ProgressTests").map { name ->
+val logicTests = listOf("CoreTests", "ShopTests", "LayoutTests", "ProgressTests", "ExtrasTests").map { name ->
     tasks.register<JavaExec>("run$name") {
         group = "verification"
         classpath = sourceSets.test.get().runtimeClasspath

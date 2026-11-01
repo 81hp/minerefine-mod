@@ -1,6 +1,6 @@
 package minerefinehud.mixin;
 
-import minerefinehud.client.BossIndexPoller;
+import minerefinehud.client.MenuPoller;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.multiplayer.ClientPacketListener;
 import net.minecraft.network.protocol.game.ClientboundContainerClosePacket;
@@ -13,8 +13,8 @@ import org.spongepowered.asm.mixin.injection.Inject;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 
 /**
- * Lets the automatic /bossindex check read the menu without it ever opening: its packets go to
- * {@link BossIndexPoller} instead of the screen. Every other menu passes straight through.
+ * Lets the automatic /bossindex and /stats checks read their menus without it ever opening: its packets go to
+ * {@link MenuPoller} instead of the screen. Every other menu passes straight through.
  *
  * Each handler runs twice: first on the network thread, where vanilla only hands the packet to
  * the game thread, then on the game thread. Only the second call is looked at, so the poller is
@@ -34,7 +34,7 @@ public abstract class ContainerPacketMixin {
     @Inject(method = "handleOpenScreen", at = @At("HEAD"), cancellable = true, require = 0)
     private void minerefine$openScreen(ClientboundOpenScreenPacket packet, CallbackInfo ci) {
         try {
-            if (minerefine$onGameThread() && BossIndexPoller.onOpenScreen(packet.getContainerId(), packet.getTitle())) {
+            if (minerefine$onGameThread() && MenuPoller.onOpenScreen(packet.getContainerId(), packet.getTitle())) {
                 ci.cancel();
             }
         } catch (Exception ignored) {
@@ -44,7 +44,7 @@ public abstract class ContainerPacketMixin {
     @Inject(method = "handleContainerContent", at = @At("HEAD"), cancellable = true, require = 0)
     private void minerefine$content(ClientboundContainerSetContentPacket packet, CallbackInfo ci) {
         try {
-            if (minerefine$onGameThread() && BossIndexPoller.onContent(packet.containerId(), packet.items())) {
+            if (minerefine$onGameThread() && MenuPoller.onContent(packet.containerId(), packet.items())) {
                 ci.cancel();
             }
         } catch (Exception ignored) {
@@ -55,7 +55,7 @@ public abstract class ContainerPacketMixin {
     private void minerefine$slot(ClientboundContainerSetSlotPacket packet, CallbackInfo ci) {
         try {
             if (minerefine$onGameThread()
-                    && BossIndexPoller.onSlot(packet.getContainerId(), packet.getSlot(), packet.getItem())) {
+                    && MenuPoller.onSlot(packet.getContainerId(), packet.getSlot(), packet.getItem())) {
                 ci.cancel();
             }
         } catch (Exception ignored) {
@@ -65,7 +65,7 @@ public abstract class ContainerPacketMixin {
     @Inject(method = "handleContainerClose", at = @At("HEAD"), cancellable = true, require = 0)
     private void minerefine$close(ClientboundContainerClosePacket packet, CallbackInfo ci) {
         try {
-            if (minerefine$onGameThread() && BossIndexPoller.onClose(packet.getContainerId())) {
+            if (minerefine$onGameThread() && MenuPoller.onClose(packet.getContainerId())) {
                 ci.cancel();
             }
         } catch (Exception ignored) {

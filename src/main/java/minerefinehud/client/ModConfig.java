@@ -297,7 +297,8 @@ public final class ModConfig {
 
     /** Every panel's look, for settings that change them all at once. */
     public java.util.List<Look> allLooks() {
-        return java.util.List.of(mineLook, bossLook, progressLook, alertLook, hwStatsLook, hwPumpkinLook, hwAbilityLook);
+        return java.util.List.of(mineLook, bossLook, progressLook, alertLook, hwStatsLook, hwPumpkinLook, hwAbilityLook,
+                miningLook, statsLook, dropsLook);
     }
 
     /** Size a panel is drawn at: its own size times the whole HUD's. */
@@ -471,6 +472,107 @@ public final class ModConfig {
     public minerefinehud.halloween.HalloweenHud.StatsLines hwStatsLines() {
         return new minerefinehud.halloween.HalloweenHud.StatsLines(hwCandyRate, hwCropRates, hwPerCrop,
                 hwPests, hwCaravan, hwRefine, hwBuildings, hwResurrect);
+    }
+
+    // ------------------------------------------------- mining rate, stats, drops
+
+    /** Mined per hour, from the action bar, like the Halloween panel's crops per hour. */
+    public boolean showMiningRate = false;
+    /** The rate is over this many minutes of mining. */
+    public int mineRateMinutes = 10;
+
+    /** The player's stats, read from /stats. */
+    public boolean showStats = false;
+    /** Runs /stats by itself every so often while the panel is on, and reads it unseen. */
+    public boolean statsAuto = true;
+    public long statsEveryMs = 5L * 60_000L;
+    /** The /stats menu's title, learned the first time it is read. Written by the mod. */
+    public String statsTitle = "";
+    /** Stats not shown, by name in lower case. */
+    public java.util.List<String> statsHidden = new java.util.ArrayList<>();
+    /** The last reading. Written by the mod. */
+    public minerefinehud.stats.PlayerStats.Saved statsData = new minerefinehud.stats.PlayerStats.Saved();
+
+    /** Rare drops from chat, counted per item. */
+    public boolean showDrops = false;
+    /** Rarities not shown, upper case ("RARE"). They are still counted. */
+    public java.util.List<String> dropsHiddenRarities = new java.util.ArrayList<>();
+    /** Items listed at most. */
+    public int dropsRows = 8;
+    /** Latest drops listed under them; 0 for none. */
+    public int dropsRecent = 3;
+    /** Every item's all-time count and the latest drops. Written by the mod. */
+    public minerefinehud.drops.RareDrops.Saved dropData = new minerefinehud.drops.RareDrops.Saved();
+
+    /** Clear of the other panels' default spots: under the mine panel, and both right corners are taken. */
+    public static final HudLayout.Placement DEFAULT_MINING_PLACEMENT =
+            new HudLayout.Placement(Anchor.TOP_CENTER, 0, 24);
+    public static final HudLayout.Placement DEFAULT_STATS_PLACEMENT =
+            new HudLayout.Placement(Anchor.TOP_RIGHT, -4, 4);
+    public static final HudLayout.Placement DEFAULT_DROPS_PLACEMENT =
+            new HudLayout.Placement(Anchor.BOTTOM_LEFT, 4, -48);
+
+    public String miningAnchor = DEFAULT_MINING_PLACEMENT.anchor().name();
+    public int miningX = DEFAULT_MINING_PLACEMENT.offsetX();
+    public int miningY = DEFAULT_MINING_PLACEMENT.offsetY();
+    public String statsAnchor = DEFAULT_STATS_PLACEMENT.anchor().name();
+    public int statsX = DEFAULT_STATS_PLACEMENT.offsetX();
+    public int statsY = DEFAULT_STATS_PLACEMENT.offsetY();
+    public String dropsAnchor = DEFAULT_DROPS_PLACEMENT.anchor().name();
+    public int dropsX = DEFAULT_DROPS_PLACEMENT.offsetX();
+    public int dropsY = DEFAULT_DROPS_PLACEMENT.offsetY();
+
+    public Look miningLook = new Look();
+    public Look statsLook = new Look();
+    public Look dropsLook = new Look();
+
+    public HudLayout.Placement miningPlacement() {
+        return new HudLayout.Placement(
+                Anchor.parse(miningAnchor).orElse(DEFAULT_MINING_PLACEMENT.anchor()), miningX, miningY);
+    }
+
+    public void setMiningPlacement(HudLayout.Placement p) {
+        miningAnchor = p.anchor().name();
+        miningX = p.offsetX();
+        miningY = p.offsetY();
+    }
+
+    public HudLayout.Placement statsPlacement() {
+        return new HudLayout.Placement(
+                Anchor.parse(statsAnchor).orElse(DEFAULT_STATS_PLACEMENT.anchor()), statsX, statsY);
+    }
+
+    public void setStatsPlacement(HudLayout.Placement p) {
+        statsAnchor = p.anchor().name();
+        statsX = p.offsetX();
+        statsY = p.offsetY();
+    }
+
+    public HudLayout.Placement dropsPlacement() {
+        return new HudLayout.Placement(
+                Anchor.parse(dropsAnchor).orElse(DEFAULT_DROPS_PLACEMENT.anchor()), dropsX, dropsY);
+    }
+
+    public void setDropsPlacement(HudLayout.Placement p) {
+        dropsAnchor = p.anchor().name();
+        dropsX = p.offsetX();
+        dropsY = p.offsetY();
+    }
+
+    public java.util.Set<String> statsHiddenSet() {
+        java.util.Set<String> out = new java.util.HashSet<>();
+        for (String s : statsHidden) {
+            out.add(s.toLowerCase(java.util.Locale.ROOT));
+        }
+        return out;
+    }
+
+    public java.util.Set<String> dropsHiddenSet() {
+        java.util.Set<String> out = new java.util.HashSet<>();
+        for (String s : dropsHiddenRarities) {
+            out.add(s.toUpperCase(java.util.Locale.ROOT));
+        }
+        return out;
     }
 
     /** One of the Halloween panels' looks, which the Halloween look replaces. */
@@ -697,6 +799,27 @@ public final class ModConfig {
         }
         bossReminderSeconds = Math.max(MIN_REMINDER_SECONDS, Math.min(MAX_REMINDER_SECONDS, bossReminderSeconds));
         bossReminderVolume = Math.max(0, Math.min(100, bossReminderVolume));
+
+        mineRateMinutes = Math.max(1, Math.min(60, mineRateMinutes));
+        statsEveryMs = Math.max(StatsPoller.MIN_INTERVAL_MS, statsEveryMs);
+        if (statsTitle == null) {
+            statsTitle = "";
+        }
+        if (statsHidden == null) {
+            statsHidden = new java.util.ArrayList<>();
+        }
+        statsHidden.removeIf(n -> n == null || n.isBlank());
+        statsData = minerefinehud.stats.PlayerStats.repair(statsData);
+        if (dropsHiddenRarities == null) {
+            dropsHiddenRarities = new java.util.ArrayList<>();
+        }
+        dropsHiddenRarities.removeIf(n -> n == null || n.isBlank());
+        dropsRows = Math.max(1, Math.min(30, dropsRows));
+        dropsRecent = Math.max(0, Math.min(minerefinehud.drops.RareDrops.RECENT_KEPT, dropsRecent));
+        dropData = minerefinehud.drops.RareDrops.repair(dropData);
+        miningLook = fix(miningLook, 1.0);
+        statsLook = fix(statsLook, 1.0);
+        dropsLook = fix(dropsLook, 1.0);
     }
 
     public static final int MAX_BOSSES = 15;

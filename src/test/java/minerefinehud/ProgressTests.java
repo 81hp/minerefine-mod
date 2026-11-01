@@ -1033,7 +1033,8 @@ public final class ProgressTests {
         eq("total counts an older set being upgraded despite a later one", 480L,
                 ProgressPlanner.plan(ProgressSlot.TOTAL, List.of(mainSet, second), catalog, rusty, seen, balances)
                         .cost().orElse(-1L));
-        eq("in the mine, a piece owned only from a later mine still counts", 510L,
+        // Only the later set and nothing on its way here: the Rust chestplate is never bought.
+        eq("in the mine, a piece owned only from a later mine is left out", 370L,
                 ProgressPlanner.plan(ProgressSlot.TOTAL, List.of(mainSet), catalog, rusty, seen, balances)
                         .cost().orElse(-1L));
         eq("away from a mine, the total follows the set being upgraded", "Rust",
@@ -1425,17 +1426,38 @@ public final class ProgressTests {
         eq("total done when every piece is maxed", State.ALL_MAXED,
                 total(everything, rusty, new PriceLedger(), balances).state());
 
-        // In Rusty every Rust piece counts, a Marrow sword or not: the player is there to buy them.
-        eq("in the mine, a piece owned from a later mine still counts", 510L,
+        // A Marrow sword makes the Rust one pointless, in Rusty too: mining Shale with a maxed
+        // Siftite pickaxe, Minus bought still counted the Shale pickaxe.
+        eq("in the mine, a piece owned from a later mine is left out", 500L,
                 total(List.of(new GearRef("Marrow", "sword", 1)), rusty, new PriceLedger(), balances)
                         .cost().orElse(-1L));
-        // Away from it, the maxed Marrow sword makes the Rust one pointless.
         List<GearRef> rustSet = List.of(new GearRef("Marrow", "sword", 6), new GearRef("Rust", "chestplate", 2));
         var awaySet = total(rustSet, Optional.empty(), new PriceLedger(), balances);
         eq("away from a mine, the total is the set being upgraded", "Rust", awaySet.mine());
-        eq("away from a mine, a piece owned from a later mine is skipped",
-                total(rustSet, rusty, new PriceLedger(), balances).cost().orElse(-1L) - 10L,
+        eq("away from a mine, a piece owned from a later mine is skipped as in it",
+                total(rustSet, rusty, new PriceLedger(), balances).cost().orElse(-1L),
                 awaySet.cost().orElse(-1L));
+        eq("full price still counts the piece owned from a later mine", 510L,
+                ProgressPlanner.plan(ProgressSlot.TOTAL, List.of(new GearRef("Marrow", "sword", 1)), totalCatalog(),
+                        new ProgressionLinks(), rusty, new PriceLedger(), balances, ProgressPlanner.Goal.TO_MAX,
+                        false, false).cost().orElse(-1L));
+
+        // An older copy on its way here keeps the piece in, a later one worn or not: maxed
+        // Sapphire chestplates taken on to City Wall's with a Crystalite set worn.
+        MineCatalog three = new MineCatalog(List.of(totalMine("Stone", 1L), totalMine("Rusty", 1L),
+                totalMine("Marrow", 10L)));
+        eq("in the mine, a piece still counts while an older copy is on its way", 510L,
+                ProgressPlanner.plan(ProgressSlot.TOTAL, List.of(new GearRef("Stone", "sword", 6),
+                                new GearRef("Marrow", "sword", 6)), three, three.byName("Rusty"),
+                        new PriceLedger(), balances).cost().orElse(-1L));
+        // Away from any mine nothing says the older copy is coming here: the later one decides.
+        List<GearRef> both = List.of(new GearRef("Stone", "sword", 6), new GearRef("Marrow", "sword", 6),
+                new GearRef("Rust", "helmet", 1));
+        var bothAway = ProgressPlanner.plan(ProgressSlot.TOTAL, both, three, Optional.empty(), new PriceLedger(), balances);
+        eq("away from a mine, the total is still the set being upgraded", "Rust", bothAway.mine());
+        eq("away from a mine, the later copy decides", ProgressPlanner.plan(ProgressSlot.TOTAL, both, three,
+                        three.byName("Rusty"), new PriceLedger(), balances).cost().orElse(-1L) - 10L,
+                bothAway.cost().orElse(-1L));
 
         // Away from any mine: the furthest mine owned from, here Marrow.
         PriceLedger marrowSeen = new PriceLedger();

@@ -21,3 +21,4 @@ echo; echo "=== layout ==="; java -cp "$OUT" minerefinehud.LayoutTests
 echo; echo "=== progress ==="; java -cp "$OUT" minerefinehud.ProgressTests
 echo; echo "=== halloween ==="; java -cp "$OUT" minerefinehud.HalloweenTests
 echo; echo "=== style ==="; java -cp "$OUT" minerefinehud.StyleTests
+echo; echo "=== extras ==="; java -cp "$OUT" minerefinehud.ExtrasTests

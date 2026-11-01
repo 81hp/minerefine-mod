@@ -54,6 +54,7 @@ public final class CoreTests {
         sharedIconDecidedByWhereYouStand();
         shaleIsNotWood();
         siftMinesAreNotOtherWorlds();
+        newMineFromItsShop();
         expeditionSidebarIsRecognised();
         ownCommandsKeepClear();
 
@@ -1184,5 +1185,74 @@ public final class CoreTests {
                         Map.of("Diorite", 4_015_000_000L, "Charoite", 4_000_000_000L), catalog, notHere));
         assertTrue("as does the tool hint", shop.sharedByHint("block/diorite", Optional.of("Diorite"),
                 Optional.empty(), catalog, notHere).isEmpty());
+    }
+
+    /**
+     * As seen in game, November 2026: reading a new Sift mine's shop and then mining it showed no
+     * mine for a long while. The shop shows a balance of 0 for a mine not started yet, and 0
+     * matches no mining total, so only a later shop visit or a pickup taught the block.
+     */
+    private static void newMineFromItsShop() {
+        MineCatalog catalog = new MineCatalog(List.of(mine("Aethermud", "Aether", "shovel"),
+                mine("Granite", "Aether", "pickaxe")));
+        java.util.function.Predicate<String> nowhere = m -> false;
+        java.util.function.Predicate<String> aetherFar = m -> m.equalsIgnoreCase("Aethermud");
+
+        MiningBlocks blocks = new MiningBlocks();
+        blocks.importLearned(Map.of("block/emerald_block", "Jade"));
+        blocks.onShopSeen("Ichor", 0L, 0L);
+        blocks.onShopSeen("Siftite", 6_870_000_000L, 1_000L);
+        assertEquals("the first unknown block after a new mine's shop is that mine's", Optional.of("Ichor"),
+                blocks.inferFromNewShop("block/crimson_nylium", 30_000L, catalog, nowhere));
+        assertEquals("and stays learned", "Ichor", blocks.learned().get("block/crimson_nylium"));
+        assertTrue("only once", blocks.inferFromNewShop("block/stone", 31_000L, catalog, nowhere).isEmpty());
+
+        MiningBlocks known = new MiningBlocks();
+        known.importLearned(Map.of("block/emerald_block", "Jade"));
+        known.onShopSeen("Ichor", 0L, 0L);
+        assertTrue("a block known here is left alone",
+                known.inferFromNewShop("block/emerald_block", 1_000L, catalog, nowhere).isEmpty()
+                        && "Jade".equals(known.learned().get("block/emerald_block")));
+
+        MiningBlocks late = new MiningBlocks();
+        late.onShopSeen("Ichor", 0L, 0L);
+        assertTrue("more than two minutes after the shop says nothing",
+                late.inferFromNewShop("block/crimson_nylium", 3 * 60_000L, catalog, nowhere).isEmpty());
+
+        MiningBlocks two = new MiningBlocks();
+        two.onShopSeen("Ichor", 0L, 0L);
+        two.onShopSeen("Rosewood", 0L, 5_000L);
+        assertTrue("two new mines' shops: unclear, nothing learned",
+                two.inferFromNewShop("block/crimson_nylium", 10_000L, catalog, nowhere).isEmpty());
+
+        MiningBlocks started = new MiningBlocks();
+        started.onShopSeen("Ichor", 0L, 0L);
+        started.onShopSeen("Ichor", 2_000_000L, 5_000L);
+        assertTrue("a shop showing the mine started is no new mine",
+                started.inferFromNewShop("block/crimson_nylium", 10_000L, catalog, nowhere).isEmpty());
+
+        MiningBlocks taken = new MiningBlocks();
+        taken.importLearned(Map.of("block/warped_nylium", "Ichor"));
+        taken.onShopSeen("Ichor", 0L, 0L);
+        assertTrue("a mine with a block already is not given another",
+                taken.inferFromNewShop("block/crimson_nylium", 10_000L, catalog, nowhere).isEmpty());
+
+        MiningBlocks old = new MiningBlocks();
+        old.importLearned(Map.of("block/packed_mud", "Aethermud"));
+        old.onShopSeen("Ichor", 0L, 0L);
+        assertEquals("an old area's block is shared with the new mine", Optional.of("Ichor"),
+                old.inferFromNewShop("block/packed_mud", 10_000L, catalog, aetherFar));
+        assertEquals("by both", List.of("Aethermud", "Ichor"), old.shared().get("block/packed_mud"));
+        MiningBlocks oldHere = new MiningBlocks();
+        oldHere.importLearned(Map.of("block/packed_mud", "Aethermud"));
+        oldHere.onShopSeen("Ichor", 0L, 0L);
+        assertTrue("but not in that old mine's own area",
+                oldHere.inferFromNewShop("block/packed_mud", 10_000L, catalog, nowhere).isEmpty());
+        MiningBlocks byName = new MiningBlocks();
+        byName.onShopSeen("Ichor", 0L, 0L);
+        assertEquals("a block named after a far mine is shared too", Optional.of("Ichor"),
+                byName.inferFromNewShop("block/granite", 10_000L, catalog, m -> m.equalsIgnoreCase("Granite")));
+        assertTrue("never taken over", byName.isShared("block/granite")
+                && byName.shared().get("block/granite").containsAll(List.of("Granite", "Ichor")));
     }
 }

@@ -531,7 +531,14 @@ public final class MinerefineHudClient implements ClientModInitializer {
             List<ShopItemParser.Entry> entries = ShopItemParser.parseAll(items);
             recordUnrecognised(client, ShopItemParser.unrecognised(items).stream()
                     .filter(item -> !HalloweenClient.isHalloweenItem(item)).toList());
+            // The mine whose shop this is, from its priced rows. A boss's shop stands in no mine.
+            Optional<String> shopMineNow = MineDetector.mostCommon(entries.stream().map(ShopItemParser.Entry::mine).toList())
+                    .filter(mine -> !MineDetector.isBossName(catalogSource.catalog(), mine));
             ShopItemParser.balanceReadings(items).forEach((currency, reading) -> {
+                // Only the shop's own currency says its mine is new: a fragment shop's 0 does not.
+                boolean ownCurrency = shopMineNow.map(m -> catalogSource.catalog().serverName(m)
+                        .equalsIgnoreCase(catalogSource.catalog().serverName(currency))).orElse(false);
+                miningBlocks.onShopSeen(currency, ownCurrency ? reading.amount() : -1L, now);
                 // "(637M)" is rounded: an exact balance it could be rounded from is kept, so the
                 // bars do not jump to the rounded figure every time a shop is opened.
                 boolean keepExact = reading.precision() > 1L && balances.get(currency)
@@ -573,14 +580,11 @@ public final class MinerefineHudClient implements ClientModInitializer {
             }
 
             // Only priced rows count: the player's own inventory is part of the same screen.
-            // A boss's shop, Monarch's, stands in no mine.
-            MineDetector.mostCommon(entries.stream().map(ShopItemParser.Entry::mine).toList())
-                    .filter(mine -> !MineDetector.isBossName(catalogSource.catalog(), mine))
-                    .ifPresent(mine -> {
-                        lastShopMine = Optional.of(mine);
-                        lastShopAt = now;
-                        lastMineCheck = 0L;   // re-detect as soon as the HUD is visible again
-                    });
+            shopMineNow.ifPresent(mine -> {
+                lastShopMine = Optional.of(mine);
+                lastShopAt = now;
+                lastMineCheck = 0L;   // re-detect as soon as the HUD is visible again
+            });
 
             // A price that moved is worth saying out loud: it usually means a balance patch, and
             // silently swapping the number would leave the player trusting a figure they never
@@ -877,9 +881,16 @@ public final class MinerefineHudClient implements ClientModInitializer {
         Optional<MineSpots.Spot> here = playerSpot();
         java.util.function.Predicate<String> notHere =
                 m -> here.map(h -> mineSpots.outOfArea(m, h, areaCatalog)).orElse(false);
+        // Nor, while an unknown block is mined, a mine whose balance is already above the total
+        // on screen: that total is the mined mine's balance. Starting a new mine, the last shop
+        // read was Siftite's with billions, and the panel said Siftite.
+        long total = lastActionBarReading.map(ActionBarReader.Reading::amount).orElse(-1L);
+        java.util.function.Predicate<String> richer = m -> miningUnknown && total >= 0L
+                && balances.get(areaCatalog.serverName(m))
+                        .map(b -> b.amount() - b.amount() / 100L > total).orElse(false);
         Optional<String> tool = toolInHand(client);
-        tool.filter(notHere).ifPresent(ruledOut::add);
-        lastShopMine.filter(notHere).ifPresent(ruledOut::add);
+        tool.filter(notHere.or(richer)).ifPresent(ruledOut::add);
+        lastShopMine.filter(notHere.or(richer)).ifPresent(ruledOut::add);
 
         MineDetector.Detection found = MineDetector.detect(
                 areaCatalog,
@@ -956,6 +967,12 @@ public final class MinerefineHudClient implements ClientModInitializer {
         // but Shale's was read as a mine from some other world.
         java.util.function.Predicate<String> notHere =
                 m -> here.map(h -> mineSpots.outOfArea(m, h, catalog)).orElse(false);
+        // A block no mine here has, mined just after reading the shop of a mine not started yet,
+        // is that mine's: its balance of 0 matches no total, so nothing else could tell.
+        Optional<String> startedNow = miningBlocks.inferFromNewShop(r.sprite(), now, catalog, notHere);
+        if (startedNow.isPresent()) {
+            saveLearnedBlocks();
+        }
         Optional<MiningBlocks.Match> blockMine = miningBlocks.lookup(r.sprite(), catalog)
                 .filter(m -> !notHere.test(m.mine()));
         List<String> sharedHere = miningBlocks.shared().getOrDefault(r.sprite(), List.of()).stream()
@@ -970,7 +987,7 @@ public final class MinerefineHudClient implements ClientModInitializer {
             // Two mines show this icon. First where the player stands, then whose balance this
             // total continues. Neither needs a shop: spots come from mining, balances from mining
             // and are kept across logins.
-            sharedDecided = here.flatMap(h -> mineSpots.nearest(sharedHere, h, catalog));
+            sharedDecided = startedNow.or(() -> here.flatMap(h -> mineSpots.nearest(sharedHere, h, catalog)));
             if (sharedDecided.isEmpty()) {
                 Map<String, Long> known = new java.util.HashMap<>();
                 balances.all().forEach((c, seen) -> known.put(c, seen.amount()));

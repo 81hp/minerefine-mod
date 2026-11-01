@@ -126,6 +126,71 @@ public final class MiningBlocks {
         return match != null && claim(sprite, match);
     }
 
+    /** Shops that showed a balance of 0, and when: mines not started yet. */
+    private final Map<String, Long> newShops = new LinkedHashMap<>();
+
+    /**
+     * Any balance a shop shows, exact or rounded, or -1 for one that is not the shop's own mine's
+     * (a fragment shop's 0 says nothing). A balance of 0 is a mine not started yet, and its first
+     * block cannot be matched by balance: 0 matches no total, so a new mine's block went
+     * unrecognised until the shop was opened again (see {@link #inferFromNewShop}).
+     */
+    public void onShopSeen(String currency, long amount, long nowMs) {
+        if (currency == null || currency.isBlank() || amount < 0L) {
+            return;
+        }
+        String c = currency.trim();
+        newShops.keySet().removeIf(k -> k.equalsIgnoreCase(c));
+        if (amount == 0L) {
+            newShops.put(c, nowMs);
+        }
+    }
+
+    /**
+     * Learns a block no mine here has from the shop of a mine not started yet, read at most
+     * {@link #WINDOW_MS} ago: reading a new mine's shop and then mining an unknown block is
+     * starting that mine. Only when exactly one such shop was read, and its mine has no block yet.
+     * An icon known only as mines of other areas is shared with it rather than taken over.
+     *
+     * @param notHere mines that cannot be the one being mined, from where the player is
+     * @return the mine learned
+     */
+    public Optional<String> inferFromNewShop(String sprite, long nowMs, MineCatalog catalog,
+                                             java.util.function.Predicate<String> notHere) {
+        if (sprite == null || sprite.isBlank()) {
+            return Optional.empty();
+        }
+        Set<String> sharedBy = shared.get(sprite);
+        Optional<Match> known = sharedBy == null ? lookup(sprite, catalog) : Optional.empty();
+        if (sharedBy != null ? !sharedBy.stream().allMatch(notHere)
+                : known.isPresent() && !notHere.test(known.get().mine())) {
+            return Optional.empty();
+        }
+        String match = null;
+        for (Map.Entry<String, Long> e : newShops.entrySet()) {
+            if (nowMs - e.getValue() > WINDOW_MS || hasIcon(e.getKey()) || isCandidate(e.getKey())
+                    || notHere.test(e.getKey())) {
+                continue;
+            }
+            if (match != null) {
+                return Optional.empty();   // two new mines' shops read: which one is unclear
+            }
+            match = e.getKey();
+        }
+        if (match == null) {
+            return Optional.empty();
+        }
+        newShops.remove(match);
+        if (sharedBy != null) {
+            addCandidate(sprite, match);
+        } else if (known.isPresent()) {
+            markShared(sprite, List.of(known.get().mine(), match));
+        } else {
+            learn(sprite, match);
+        }
+        return Optional.of(match);
+    }
+
     /** An exact balance from a shop. Returns true if it taught a new mapping. */
     public boolean onShopBalance(String currency, long amount, long nowMs) {
         shopBalances.put(currency, new Snapshot(amount, nowMs));
@@ -474,6 +539,11 @@ public final class MiningBlocks {
 
     private static boolean sameMine(String a, String b, MineCatalog catalog) {
         return catalog.serverName(a).equalsIgnoreCase(catalog.serverName(b));
+    }
+
+    /** Whether some shared icon already counts this mine among its own. */
+    private boolean isCandidate(String mine) {
+        return shared.values().stream().anyMatch(ms -> ms.stream().anyMatch(m -> m.equalsIgnoreCase(mine.trim())));
     }
 
     private boolean hasIcon(String mine) {

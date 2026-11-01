@@ -183,6 +183,8 @@ public final class MiningBlocks {
         newShops.remove(match);
         if (sharedBy != null) {
             addCandidate(sprite, match);
+        } else if (known.isPresent() && known.get().how() == How.LEARNED && isGuess(known.get().mine())) {
+            learn(sprite, match);   // a guess for a mine of another area: replaced, not kept
         } else if (known.isPresent()) {
             markShared(sprite, List.of(known.get().mine(), match));
         } else {
@@ -238,7 +240,13 @@ public final class MiningBlocks {
      */
     public boolean inferFromBalances(String sprite, long total, Map<String, Long> known,
                                      java.util.function.Predicate<String> elsewhere) {
-        if (sprite == null || sprite.isBlank() || learned.containsKey(sprite) || shared.containsKey(sprite)
+        // An earlier guess for a mine that cannot be here is no reason to stop: Siftite's block
+        // had been guessed as Blackstone, a Sculk mine, so in the Sift it stayed unknown and the
+        // bar stood still until a shop visit replaced the guess.
+        // A block proven for a mine of another area is shared with the one matched here instead.
+        String was = sprite == null ? null : learned.get(sprite);
+        boolean otherArea = was != null && elsewhere.test(was);
+        if (sprite == null || sprite.isBlank() || (was != null && !otherArea) || shared.containsKey(sprite)
                 || total <= 0L) {
             return false;
         }
@@ -261,7 +269,10 @@ public final class MiningBlocks {
                 match = currency;
             }
         }
-        return match != null && learn(sprite, match);
+        if (match == null || match.equalsIgnoreCase(was == null ? "" : was.trim())) {
+            return false;
+        }
+        return was != null && !isGuess(was) ? markShared(sprite, List.of(was, match)) : learn(sprite, match);
     }
 
     public boolean inferFromBalances(String sprite, long total, Map<String, Long> known) {

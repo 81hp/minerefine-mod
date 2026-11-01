@@ -55,6 +55,7 @@ public final class CoreTests {
         shaleIsNotWood();
         siftMinesAreNotOtherWorlds();
         newMineFromItsShop();
+        siftiteWasBlackstone();
         expeditionSidebarIsRecognised();
         ownCommandsKeepClear();
 
@@ -1254,5 +1255,53 @@ public final class CoreTests {
                 byName.inferFromNewShop("block/granite", 10_000L, catalog, m -> m.equalsIgnoreCase("Granite")));
         assertTrue("never taken over", byName.isShared("block/granite")
                 && byName.shared().get("block/granite").containsAll(List.of("Granite", "Ichor")));
+    }
+
+    /**
+     * As seen in game, November 2026, from the player's saved data: mining Siftite, the bar stood
+     * still until something was bought. Siftite's block, pink glazed terracotta, had been guessed
+     * as "blackstone" (a Sculk mine) long before. In the Sift that guess is rightly ignored, but it
+     * also stopped the block being learned from the Siftite balance, so nothing named the mine.
+     */
+    private static void siftiteWasBlackstone() {
+        MineCatalog catalog = new MineCatalog(List.of(mine("Blackstone", "Sculk", "pickaxe"),
+                mine("Onyx", "Sculk", "pickaxe")));
+        String icon = "block/pink_glazed_terracotta";
+        java.util.function.Predicate<String> inSift = m -> m.equalsIgnoreCase("blackstone");
+        Map<String, Long> wallet = Map.of("siftite", 6_870_000_000L, "blackstone", 25_760_000_000L);
+
+        MiningBlocks blocks = new MiningBlocks();
+        blocks.importLearned(Map.of(icon, "blackstone"));
+        assertTrue("in the Sift, the old guess gives way to the Siftite balance",
+                blocks.inferFromBalances(icon, 6_900_000_000L, wallet, inSift));
+        assertEquals("so the block is Siftite's", "siftite", blocks.learned().get(icon));
+
+        MiningBlocks sculk = new MiningBlocks();
+        sculk.importLearned(Map.of(icon, "blackstone"));
+        assertTrue("in its own area the guess stands", !sculk.inferFromBalances(icon, 6_900_000_000L, wallet, m -> false)
+                && "blackstone".equals(sculk.learned().get(icon)));
+        MiningBlocks proven = new MiningBlocks();
+        proven.importLearned(Map.of(icon, "Blackstone"));
+        assertTrue("a block proven for a mine of another area is shared with the one matched here",
+                proven.inferFromBalances(icon, 6_900_000_000L, wallet, inSift)
+                        && proven.shared().get(icon).equals(List.of("Blackstone", "siftite")));
+        assertEquals("which then decides its blocks here", Optional.of("siftite"),
+                proven.sharedByBalance(icon, 6_950_000_000L, wallet, catalog, inSift));
+        MiningBlocks provenHome = new MiningBlocks();
+        provenHome.importLearned(Map.of(icon, "Blackstone"));
+        assertTrue("but a proven block in its own area is never re-guessed",
+                !provenHome.inferFromBalances(icon, 6_900_000_000L, wallet, m -> false));
+
+        MiningBlocks newShop = new MiningBlocks();
+        newShop.importLearned(Map.of(icon, "blackstone"));
+        newShop.onShopSeen("Siftite", 0L, 0L);
+        assertEquals("a new mine's shop replaces the guess too", Optional.of("Siftite"),
+                newShop.inferFromNewShop(icon, 5_000L, catalog, inSift));
+        assertTrue("instead of sharing with it", !newShop.isShared(icon) && "Siftite".equals(newShop.learned().get(icon)));
+
+        MiningBlocks picked = new MiningBlocks();
+        picked.importLearned(Map.of(icon, "blackstone"));
+        picked.onPickup(icon, "Siftite", catalog, 0L, inSift);
+        assertEquals("and so does one pickup", "Siftite", picked.learned().get(icon));
     }
 }

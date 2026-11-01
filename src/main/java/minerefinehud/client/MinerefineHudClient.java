@@ -187,6 +187,13 @@ public final class MinerefineHudClient implements ClientModInitializer {
 
         catalogSource = new ProgressionData(dir.resolve("progression.json"));
         catalogSource.load();
+        miningBlocks.nameMinesFrom(catalogSource::catalog);
+        // Spots recorded before 1.5.5 while another area's block was taken for a mine: Crystalite
+        // was placed in the Sift and won its blocks from then on.
+        if (!mineSpots.dropStrays(catalogSource.catalog()).isEmpty()) {
+            config.mineSpots = new java.util.LinkedHashMap<>(mineSpots.export());
+            config.save(configFile);
+        }
 
         bossStore = new BossStore(dir.resolve("bosses.json"));
         bossStore.load(bossTracker);
@@ -863,18 +870,27 @@ public final class MinerefineHudClient implements ClientModInitializer {
         // Mining a block nobody has placed rules out every mine whose block is known.
         boolean miningUnknown = lastUnknownBlockAt > 0L && now - lastUnknownBlockAt <= UNKNOWN_BLOCK_MS;
         java.util.Set<String> ruledOut = miningUnknown
-                ? new java.util.HashSet<>(miningBlocks.learned().values()) : java.util.Set.of();
+                ? new java.util.HashSet<>(miningBlocks.learned().values()) : new java.util.HashSet<>();
+        // A tool or a shop from another world says nothing about this one: an old pickaxe in hand
+        // in the Sift showed its mine, from a world the player had left.
+        var areaCatalog = catalogSource.catalog();
+        Optional<MineSpots.Spot> here = playerSpot();
+        java.util.function.Predicate<String> notHere =
+                m -> here.map(h -> mineSpots.outOfArea(m, h, areaCatalog)).orElse(false);
+        Optional<String> tool = toolInHand(client);
+        tool.filter(notHere).ifPresent(ruledOut::add);
+        lastShopMine.filter(notHere).ifPresent(ruledOut::add);
 
         MineDetector.Detection found = MineDetector.detect(
-                catalogSource.catalog(),
+                areaCatalog,
                 MineDetector.stillMining(lastMinedMine, lastActionBarAt, lastShopAt),
-                toolInHand(client),
+                tool,
                 lastShopMine,
                 ruledOut);
         if (found.found()) {
             currentMine = found.mine();
             currentMineSource = found.source();
-        } else if (miningUnknown) {
+        } else if (miningUnknown || currentMine.map(m -> notHere.test(m.name())).orElse(false)) {
             // Better to say "unknown" than to keep showing a mine the player has provably left.
             currentMine = Optional.empty();
             currentMineSource = MineDetector.Source.NONE;
@@ -926,40 +942,53 @@ public final class MinerefineHudClient implements ClientModInitializer {
             saveLearnedBlocks();
         }
         lastActionBarAt = now;
+        // Only an icon nothing names yet; one named by its block (diorite) is the pickup
+        // check's to share, or Diorite's own blocks would be filed under this resource.
         if (lastPickup.isPresent() && now - lastPickupAt <= SAME_BLOCK_MS
+                && miningBlocks.lookup(r.sprite(), catalog).isEmpty()
                 && miningBlocks.teach(r.sprite(), lastPickup.get())) {
             saveLearnedBlocks();
         }
 
-        Optional<MiningBlocks.Match> blockMine = miningBlocks.lookup(r.sprite(), catalog);
-        boolean shared = miningBlocks.isShared(r.sprite());
+        Optional<MineSpots.Spot> here = playerSpot();
+        // A mine the price data puts in another world is not the one being mined, whatever the
+        // icon says. New areas reuse the icons of older mines' blocks: every block in the Sift
+        // but Shale's was read as a mine from some other world.
+        java.util.function.Predicate<String> notHere =
+                m -> here.map(h -> mineSpots.outOfArea(m, h, catalog)).orElse(false);
+        Optional<MiningBlocks.Match> blockMine = miningBlocks.lookup(r.sprite(), catalog)
+                .filter(m -> !notHere.test(m.mine()));
+        List<String> sharedHere = miningBlocks.shared().getOrDefault(r.sprite(), List.of()).stream()
+                .filter(m -> !notHere.test(m))
+                .toList();
+        // An icon whose every mine is in another world is, here, a block nobody has placed yet:
+        // the panel falls back to the tool in hand, and a pickup teaches the mine.
+        boolean shared = !sharedHere.isEmpty();
         // For a shared icon: decided by a balance or by where the player is, so safe to file under.
         Optional<String> sharedDecided = Optional.empty();
         if (shared) {
             // Two mines show this icon. First where the player stands, then whose balance this
             // total continues. Neither needs a shop: spots come from mining, balances from mining
             // and are kept across logins.
-            sharedDecided = playerSpot().flatMap(here -> mineSpots.nearest(
-                    miningBlocks.shared().getOrDefault(r.sprite(), List.of()), here, catalog));
+            sharedDecided = here.flatMap(h -> mineSpots.nearest(sharedHere, h, catalog));
             if (sharedDecided.isEmpty()) {
                 Map<String, Long> known = new java.util.HashMap<>();
                 balances.all().forEach((c, seen) -> known.put(c, seen.amount()));
-                sharedDecided = miningBlocks.sharedByBalance(r.sprite(), r.amount(), known, catalog);
+                sharedDecided = miningBlocks.sharedByBalance(r.sprite(), r.amount(), known, catalog, notHere);
             }
             blockMine = sharedDecided
                     .or(() -> miningBlocks.sharedByHint(r.sprite(), toolInHand(Minecraft.getInstance()),
-                            lastMinedMine, catalog))
+                            lastMinedMine, catalog, notHere))
                     .map(m -> new MiningBlocks.Match(m, MiningBlocks.How.SHARED));
         } else if (blockMine.isEmpty()) {
             // Mined resources are a balance here, not items, so pickups rarely teach a block.
             // A balance already known, from mining or saved from the last session, usually can.
             Map<String, Long> known = new java.util.HashMap<>();
             balances.all().forEach((c, seen) -> known.put(c, seen.amount()));
-            Optional<MineSpots.Spot> here = playerSpot();
             if (miningBlocks.inferFromBalances(r.sprite(), r.amount(), known,
-                    m -> here.map(h -> mineSpots.elsewhere(m, h)).orElse(false))) {
+                    m -> notHere.test(m) || here.map(h -> mineSpots.elsewhere(m, h)).orElse(false))) {
                 saveLearnedBlocks();
-                blockMine = miningBlocks.lookup(r.sprite(), catalog);
+                blockMine = miningBlocks.lookup(r.sprite(), catalog).filter(m -> !notHere.test(m.mine()));
             }
         }
         boolean pickupNow = lastPickup.isPresent() && now - lastPickupAt <= SAME_BLOCK_MS;
@@ -982,7 +1011,13 @@ public final class MinerefineHudClient implements ClientModInitializer {
         // Every block a mine is recognised by for certain says where that mine is. A guess from a
         // close balance is not certain: placed here, it would beat the real mine here from then on.
         Optional<String> certain = (shared ? currency : mined).filter(m -> !MiningBlocks.isGuess(m));
-        if (certain.isPresent() && playerSpot().map(here -> mineSpots.record(certain.get(), here)).orElse(false)) {
+        // Never recorded out of its area, or a mistaken spot would put a mine where it is not,
+        // except a pickup of a mine the price data has no world for: the resource names the mine,
+        // and its own spot is all there is to place it by.
+        boolean pickupPlaces = pickupHere.isPresent() && certain.equals(pickupHere)
+                && catalog.exactly(certain.get()).isEmpty();
+        if (certain.isPresent() && here.map(h -> pickupPlaces ? mineSpots.record(certain.get(), h)
+                : mineSpots.record(certain.get(), h, catalog)).orElse(false)) {
             config.mineSpots = new java.util.LinkedHashMap<>(mineSpots.export());
             config.save(configFile);
         }
@@ -1093,7 +1128,9 @@ public final class MinerefineHudClient implements ClientModInitializer {
             return;
         }
         ActionBarReader.Reading r = lastActionBarReading.get();
-        if (miningBlocks.onPickup(r.sprite(), resource, catalog, now)) {
+        Optional<MineSpots.Spot> here = playerSpot();
+        if (miningBlocks.onPickup(r.sprite(), resource, catalog, now,
+                m -> here.map(h -> mineSpots.outOfArea(m, h, catalog)).orElse(false))) {
             saveLearnedBlocks();
         }
         // The total on screen is this resource's. If the icon filed it under another mine, put
@@ -1289,7 +1326,9 @@ public final class MinerefineHudClient implements ClientModInitializer {
         out.add(" mining: " + lastActionBarReading.map(r -> r.sprite() + " -> "
                 + miningBlocks.lookup(r.sprite(), catalogSource.catalog())
                         .map(m -> m.mine() + (m.how() != MiningBlocks.How.LEARNED ? " (by name)"
-                                : MiningBlocks.isGuess(m.mine()) ? " (guessed from a balance)" : " (learned)"))
+                                : MiningBlocks.isGuess(m.mine()) ? " (guessed from a balance)" : " (learned)")
+                                + (playerSpot().map(h -> mineSpots.outOfArea(m.mine(), h, catalogSource.catalog()))
+                                        .orElse(false) ? ", but that mine is in another world: not this one" : ""))
                         .orElse(miningBlocks.isShared(r.sprite())
                                 ? "shared by " + miningBlocks.shared().get(r.sprite()) + ", now "
                                         + lastActionBarCurrency.orElse("undecided, mine another block here first")

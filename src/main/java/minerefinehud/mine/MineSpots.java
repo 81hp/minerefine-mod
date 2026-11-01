@@ -72,24 +72,44 @@ public final class MineSpots {
         }
         String best = null;
         double bestD = Double.POSITIVE_INFINITY;
-        double secondD = Double.POSITIVE_INFINITY;
+        boolean bestOwn = false;
+        Map<String, Double> dist = new LinkedHashMap<>();
         for (String candidate : candidates) {
             double d = distance(candidate, here, catalog);
             if (Double.isNaN(d)) {
                 return Optional.empty();
             }
-            if (d < bestD) {
-                secondD = bestD;
+            boolean own = hasOwnSpot(candidate, here, catalog);
+            dist.put(candidate, d);
+            // On a tie, a mine's own spot beats one only placed by its world-mates: that estimate
+            // is the distance to the nearest of them, so it ties with each of them standing on it.
+            if (d < bestD || (d == bestD && own && !bestOwn)) {
                 bestD = d;
                 best = candidate;
-            } else if (d < secondD) {
-                secondD = d;
+                bestOwn = own;
             }
         }
-        if (best == null || bestD > MAX_DISTANCE || bestD * 2.0 > secondD) {
+        if (best == null || bestD > MAX_DISTANCE) {
+            return Optional.empty();
+        }
+        // Standing where this mine itself is mined: only another mine's own spot as near argues.
+        // Otherwise a mine placed by its world-mates is as near as any of them, and only clearly
+        // nearer counts; Frost and a Crystalite placed by Frost's spot are both 0 away at Frost.
+        boolean onItsSpot = bestOwn && bestD <= MOVED;
+        double secondD = Double.POSITIVE_INFINITY;
+        for (Map.Entry<String, Double> e : dist.entrySet()) {
+            if (!e.getKey().equals(best) && (!onItsSpot || hasOwnSpot(e.getKey(), here, catalog))) {
+                secondD = Math.min(secondD, e.getValue());
+            }
+        }
+        if (bestD * 2.0 >= secondD) {
             return Optional.empty();
         }
         return Optional.of(best);
+    }
+
+    private boolean hasOwnSpot(String candidate, Spot here, MineCatalog catalog) {
+        return spots.containsKey(key(candidate)) && !outOfArea(candidate, here, catalog);
     }
 
     /**
@@ -98,6 +118,9 @@ public final class MineSpots {
      * could be anywhere, right here included.
      */
     private double distance(String candidate, Spot here, MineCatalog catalog) {
+        if (outOfArea(candidate, here, catalog)) {
+            return Double.POSITIVE_INFINITY;
+        }
         Spot own = spots.get(key(candidate));
         if (own != null) {
             return own.distanceTo(here);
@@ -115,6 +138,114 @@ public final class MineSpots {
         return best;
     }
 
+    /**
+     * How far a mine may be from the other mines of its world. Each world's mines sit within
+     * about 300 blocks of each other, and the worlds are thousands of blocks apart (Darkwater
+     * Caves and Palace, the closest two, about 600).
+     */
+    static final double AREA = 500.0;
+
+    /**
+     * Whether the price data puts this mine in a world whose known mines are mostly far from
+     * here, so the player cannot be mining it. Judged by the other mines of that world, never by
+     * the mine's own spot: that spot is simply wherever its icon was last mined, so once an icon
+     * shown by a new mine was taken for an old one, the old mine's spot moved to the new area and
+     * agreed with the mistake from then on. The Sift's blocks were all read as mines from other
+     * worlds this way, and Crystalite's spot ended up in the Sift.
+     *
+     * A mine the price data has no world for, a new area's, has only its own spot to go by: far
+     * from it, it is not here. Such a spot cannot wander off the same way, as nothing of another
+     * area is ever recorded for a mine that is out of area. False when nothing places the mine.
+     */
+    public boolean outOfArea(String mine, Spot here, MineCatalog catalog) {
+        if (mine == null || mine.isBlank() || here == null || here.dimension() == null || catalog == null) {
+            return false;
+        }
+        if (!hasWorld(mine, catalog)) {
+            Spot own = spots.get(key(mine));
+            return own != null && own.distanceTo(here) > AREA;
+        }
+        return !inArea(mine, here, catalog);
+    }
+
+    private boolean hasWorld(String mine, MineCatalog catalog) {
+        return !worldOf(mine, catalog).isEmpty();
+    }
+
+    /**
+     * Whether a majority of the known spots of this mine's world-mates are within {@link #AREA}
+     * of the spot, true when that cannot be judged (no world, or no mate placed yet).
+     */
+    private boolean inArea(String mine, Spot at, MineCatalog catalog) {
+        Optional<Mine> entry = entry(mine, catalog);
+        String world = entry.map(Mine::world).orElse("");
+        if (world.isEmpty()) {
+            return true;
+        }
+        String self = entry.get().name();
+        int mates = 0;
+        int near = 0;
+        for (Map.Entry<String, Spot> e : spots.entrySet()) {
+            Optional<Mine> other = entry(e.getKey(), catalog);
+            if (other.isEmpty() || other.get().name().equalsIgnoreCase(self)
+                    || !world.equalsIgnoreCase(other.get().world())) {
+                continue;
+            }
+            mates++;
+            if (e.getValue().distanceTo(at) <= AREA) {
+                near++;
+            }
+        }
+        return mates == 0 || near * 2 >= mates;
+    }
+
+    /**
+     * Forgets every spot that lies outside its own world's area, judged by at least two other
+     * mines of that world: recorded while another area's block was taken for this mine.
+     *
+     * @return the mines forgotten
+     */
+    public java.util.Set<String> dropStrays(MineCatalog catalog) {
+        java.util.Set<String> strays = new java.util.LinkedHashSet<>();
+        if (catalog == null) {
+            return strays;
+        }
+        for (Map.Entry<String, Spot> e : spots.entrySet()) {
+            if (worldMates(e.getKey(), catalog) >= 2 && !inArea(e.getKey(), e.getValue(), catalog)) {
+                strays.add(e.getKey());
+            }
+        }
+        strays.forEach(spots::remove);
+        return strays;
+    }
+
+    private int worldMates(String mine, MineCatalog catalog) {
+        Optional<Mine> entry = entry(mine, catalog);
+        if (entry.isEmpty() || entry.get().world() == null || entry.get().world().isEmpty()) {
+            return 0;
+        }
+        int n = 0;
+        for (String key : spots.keySet()) {
+            Optional<Mine> other = entry(key, catalog);
+            if (other.isPresent() && !other.get().name().equalsIgnoreCase(entry.get().name())
+                    && entry.get().world().equalsIgnoreCase(other.get().world())) {
+                n++;
+            }
+        }
+        return n;
+    }
+
+    /**
+     * {@link #record(String, Spot)}, except where the mine cannot be (see {@link #outOfArea}):
+     * that block was another mine's, and its spot would put this mine in the wrong area.
+     */
+    public boolean record(String mine, Spot here, MineCatalog catalog) {
+        if (outOfArea(mine, here, catalog)) {
+            return false;
+        }
+        return record(mine, here);
+    }
+
     /** Whether this mine's own spot is known and the player is far from it, or in another dimension. */
     public boolean elsewhere(String mine, Spot here) {
         Spot own = mine == null || here == null ? null : spots.get(key(mine));
@@ -126,8 +257,24 @@ public final class MineSpots {
         return mine != null && spots.remove(key(mine)) != null;
     }
 
-    private static String worldOf(String mine, MineCatalog catalog) {
-        return catalog.exactly(mine).map(Mine::world).orElse("");
+    private String worldOf(String mine, MineCatalog catalog) {
+        String world = entry(mine, catalog).map(Mine::world).orElse("");
+        return world == null ? "" : world;
+    }
+
+    private MineCatalog cachedFor;
+    private final Map<String, Optional<Mine>> entries = new java.util.HashMap<>();
+
+    /**
+     * The price data's entry for a mine, remembered per catalog: every block mined asks this for
+     * every spot known, and the catalog matches names by pattern.
+     */
+    private Optional<Mine> entry(String mine, MineCatalog catalog) {
+        if (catalog != cachedFor) {
+            entries.clear();
+            cachedFor = catalog;
+        }
+        return entries.computeIfAbsent(key(mine), catalog::exactly);
     }
 
     private static String key(String mine) {

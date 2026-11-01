@@ -53,6 +53,7 @@ public final class CoreTests {
         resourcesNameTheirWorld();
         sharedIconDecidedByWhereYouStand();
         shaleIsNotWood();
+        siftMinesAreNotOtherWorlds();
         expeditionSidebarIsRecognised();
         ownCommandsKeepClear();
 
@@ -989,10 +990,15 @@ public final class CoreTests {
         assertEquals("the dimension alone decides", Optional.of("Rust"),
                 worlds.nearest(both, new minerefinehud.mine.MineSpots.Spot("server:trials", 10, 10), catalog));
 
-        // A mine's own spot wins over its world's.
+        // A mine's own spot wins over its world's, but only inside its world's area: one in
+        // another area was recorded while another mine's block was taken for it.
         worlds.record("Woodland Copper", new minerefinehud.mine.MineSpots.Spot("server:trials", 300, 0));
-        assertEquals("own spot counts", Optional.of("Woodland Copper"),
+        assertEquals("own spot in another world's area does not count", Optional.of("Rust"),
                 worlds.nearest(both, new minerefinehud.mine.MineSpots.Spot("server:trials", 290, 0), catalog));
+        worlds.record("Woodland Copper", new minerefinehud.mine.MineSpots.Spot("server:woodland", 300, 0));
+        assertEquals("own spot counts", Optional.of("Woodland Copper"),
+                worlds.nearest(List.of("Woodland Copper", "Podzol"),
+                        new minerefinehud.mine.MineSpots.Spot("server:woodland", 290, 0), catalog));
         assertTrue("small moves are not saved", !worlds.record("Podzol",
                 new minerefinehud.mine.MineSpots.Spot("server:woodland", 5, 5)));
 
@@ -1076,5 +1082,107 @@ public final class CoreTests {
         assertTrue("far from Wood's spot is elsewhere", placed.elsewhere("wood", atShale)
                 && !placed.elsewhere("wood", new minerefinehud.mine.MineSpots.Spot("minecraft:minerefine", 10, 10))
                 && !placed.elsewhere("Shale", atShale));
+    }
+
+    /**
+     * As seen in game, November 2026, from the player's saved data: in the Sift every block but
+     * Shale's was read as a mine from another world. The Sift reuses older mines' icons, an icon
+     * filed under one mine named it anywhere, and a mine's spot followed its icon: Crystalite's
+     * moved into the Sift (item/diamond) and Amethyst's too (Charoite mines amethyst blocks).
+     */
+    private static void siftMinesAreNotOtherWorlds() {
+        MineCatalog catalog = new MineCatalog(List.of(
+                mine("Frost", "Darkwater Palace", "pickaxe"), mine("Slush", "Darkwater Palace", "pickaxe"),
+                mine("Crystalite", "Darkwater Palace", "pickaxe"), mine("Silt", "Darkwater Palace", "pickaxe"),
+                mine("Endstone", "End", "pickaxe"), mine("Purpur", "End", "pickaxe"),
+                mine("Amethyst", "End", "pickaxe"), mine("Shulker", "End", "pickaxe"),
+                mine("Granite", "Aether", "pickaxe"), mine("Diorite", "Aether", "pickaxe"),
+                mine("Aethermud", "Aether", "shovel"),
+                mine("Ruby", "Sculk", "pickaxe"), mine("Onyx", "Sculk", "pickaxe"),
+                mine("Blackstone", "Sculk", "pickaxe")));
+        String dim = "minecraft:minerefine";
+        var sift = new minerefinehud.mine.MineSpots.Spot(dim, 55010, 55020);
+        minerefinehud.mine.MineSpots spots = new minerefinehud.mine.MineSpots();
+        Map<String, minerefinehud.mine.MineSpots.Spot> saved = new LinkedHashMap<>();
+        saved.put("frost", new minerefinehud.mine.MineSpots.Spot(dim, 4742, -41));
+        saved.put("slush", new minerefinehud.mine.MineSpots.Spot(dim, 4948, 103));
+        saved.put("silt", new minerefinehud.mine.MineSpots.Spot(dim, 4870, -166));
+        saved.put("crystalite", new minerefinehud.mine.MineSpots.Spot(dim, 55000.5, 55000.5));
+        saved.put("endstone", new minerefinehud.mine.MineSpots.Spot(dim, 10044, 9888));
+        saved.put("purpur", new minerefinehud.mine.MineSpots.Spot(dim, 10263, 9847));
+        saved.put("shulker", new minerefinehud.mine.MineSpots.Spot(dim, 10045, 10127));
+        saved.put("amethyst", new minerefinehud.mine.MineSpots.Spot(dim, 54858, 55054));
+        saved.put("granite", new minerefinehud.mine.MineSpots.Spot(dim, 15041, 15027));
+        saved.put("aethermud", new minerefinehud.mine.MineSpots.Spot(dim, 14957, 15078));
+        saved.put("ruby", new minerefinehud.mine.MineSpots.Spot(dim, 35249, 34971));
+        saved.put("onyx", new minerefinehud.mine.MineSpots.Spot(dim, 35178, 35155));
+        saved.put("shale", new minerefinehud.mine.MineSpots.Spot(dim, 54977, 55029));
+        spots.importAll(saved);
+
+        assertTrue("even before the clean-up, a mine moved into the Sift does not win there",
+                spots.nearest(List.of("Crystalite", "Frost", "Granite"), sift, catalog).isEmpty());
+        assertEquals("spots outside their own world are dropped on start",
+                java.util.Set.of("crystalite", "amethyst"), spots.dropStrays(catalog));
+        assertTrue("and nothing else", spots.size() == saved.size() - 2);
+
+        // Every old mine is out of area in the Sift, whichever way it was filed.
+        for (String old : List.of("Crystalite", "Frost", "Amethyst", "Aethermud", "Diorite", "Ruby", "Onyx")) {
+            assertTrue(old + " is not mined in the Sift", spots.outOfArea(old, sift, catalog));
+        }
+        assertTrue("a mine of the price data is in area at its own world",
+                !spots.outOfArea("Diorite", new minerefinehud.mine.MineSpots.Spot(dim, 15000, 15050), catalog)
+                        && !spots.outOfArea("Crystalite", new minerefinehud.mine.MineSpots.Spot(dim, 4800, 0), catalog));
+        assertTrue("a new area's mine goes by its own spot", !spots.outOfArea("Shale", sift, catalog)
+                && spots.outOfArea("Shale", new minerefinehud.mine.MineSpots.Spot(dim, 4800, 0), catalog)
+                && !spots.outOfArea("Thicket", sift, catalog));
+        assertTrue("nothing from another world is recorded",
+                !spots.record("Aethermud", sift, catalog) && !spots.record("Crystalite", sift, catalog)
+                        && spots.record("Thicket", sift, catalog));
+        assertTrue("so Thicket is placed in the Sift", !spots.outOfArea("Thicket", sift, catalog)
+                && spots.outOfArea("Thicket", new minerefinehud.mine.MineSpots.Spot(dim, 15000, 15050), catalog));
+        assertTrue("shared by old mines only: no answer in the Sift",
+                spots.nearest(List.of("Crystalite", "Frost", "Granite"), sift, catalog).isEmpty());
+        assertEquals("shared with a Sift mine: that one", Optional.of("Thicket"),
+                spots.nearest(List.of("Crystalite", "Thicket", "Frost"), sift, catalog));
+
+        // Standing on a mine's own spot beats a mine placed only by its world-mates' spots.
+        var atOnyx = new minerefinehud.mine.MineSpots.Spot(dim, 35180, 35150);
+        assertEquals("Onyx at Onyx, not Blackstone", Optional.of("Onyx"),
+                spots.nearest(List.of("Blackstone", "Ruby", "Onyx"), atOnyx, catalog));
+        assertEquals("Frost at Frost, not Crystalite", Optional.of("Frost"),
+                spots.nearest(List.of("Crystalite", "Frost"), new minerefinehud.mine.MineSpots.Spot(dim, 4745, -40), catalog));
+        assertTrue("away from every own spot a world-mate estimate is no answer",
+                spots.nearest(List.of("Crystalite", "Frost"), new minerefinehud.mine.MineSpots.Spot(dim, 4800, 0), catalog).isEmpty());
+
+        // A pickup proves at once that an icon of an old mine is shared with the mine here.
+        java.util.function.Predicate<String> notHere = m -> spots.outOfArea(m, sift, catalog);
+        MiningBlocks blocks = new MiningBlocks();
+        blocks.importLearned(Map.of("block/packed_mud", "Aethermud"));
+        assertTrue("one pickup marks it shared", blocks.onPickup("block/packed_mud", "Thicket", catalog, 0L, notHere)
+                && blocks.isShared("block/packed_mud"));
+        assertEquals("by both", List.of("Aethermud", "Thicket"), blocks.shared().get("block/packed_mud"));
+        MiningBlocks named = new MiningBlocks();
+        assertTrue("an icon named after an old mine is shared too, not taken over",
+                named.onPickup("block/diorite", "Charoite", catalog, 0L, notHere)
+                        && named.shared().get("block/diorite").equals(List.of("Diorite", "Charoite")));
+        MiningBlocks home = new MiningBlocks();
+        home.importLearned(Map.of("block/packed_mud", "Aethermud"));
+        assertTrue("in its own world a single pickup still proves nothing",
+                !home.onPickup("block/packed_mud", "Thicket", catalog, 0L,
+                        m -> spots.outOfArea(m, new minerefinehud.mine.MineSpots.Spot(dim, 14960, 15070), catalog))
+                        && !home.isShared("block/packed_mud"));
+
+        // A shop proving a block named after an old mine shares it instead of taking it over.
+        MiningBlocks shop = new MiningBlocks();
+        shop.nameMinesFrom(() -> catalog);
+        shop.onShopBalance("Charoite", 4_000_000_000L, 0L);
+        shop.onMining("block/diorite", 4_010_000_000L, 1_000L);
+        assertTrue("diorite stays Diorite's in the Aether", shop.isShared("block/diorite")
+                && shop.shared().get("block/diorite").containsAll(List.of("Diorite", "Charoite")));
+        assertEquals("and the balance check skips an old mine", Optional.of("Charoite"),
+                shop.sharedByBalance("block/diorite", 4_020_000_000L,
+                        Map.of("Diorite", 4_015_000_000L, "Charoite", 4_000_000_000L), catalog, notHere));
+        assertTrue("as does the tool hint", shop.sharedByHint("block/diorite", Optional.of("Diorite"),
+                Optional.empty(), catalog, notHere).isEmpty());
     }
 }

@@ -82,13 +82,32 @@ public final class MiningBlocks {
         if (mine != null) {
             return Optional.of(new Match(mine, How.LEARNED));
         }
+        return byName(sprite, catalog).map(m -> new Match(m, How.BY_NAME));
+    }
+
+    /** The mine whose name is this block's, "block/diorite" is Diorite, server spelling. */
+    private static Optional<String> byName(String sprite, MineCatalog catalog) {
+        if (sprite == null || catalog == null) {
+            return Optional.empty();
+        }
         String block = letters(blockName(sprite));
         for (Mine m : catalog.mines()) {
             if (!block.isEmpty() && block.equals(letters(m.name()))) {
-                return Optional.of(new Match(catalog.serverName(m.name()), How.BY_NAME));
+                return Optional.of(catalog.serverName(m.name()));
             }
         }
         return Optional.empty();
+    }
+
+    private java.util.function.Supplier<MineCatalog> names = () -> null;
+
+    /**
+     * The price data, for icons named after their mine. With it, a shop proving such an icon to
+     * be another mine's marks it shared by both instead of taking it over: a new area's mine
+     * showing diorite must not turn the Aether's Diorite into that mine.
+     */
+    public void nameMinesFrom(java.util.function.Supplier<MineCatalog> catalog) {
+        names = catalog == null ? () -> null : catalog;
     }
 
     /** A mining total from the action bar. Returns true if it taught a new mapping. */
@@ -233,6 +252,16 @@ public final class MiningBlocks {
      * @return true if what is learned changed, so the caller knows to save
      */
     public boolean onPickup(String sprite, String pickupMine, MineCatalog catalog, long nowMs) {
+        return onPickup(sprite, pickupMine, catalog, nowMs, mine -> false);
+    }
+
+    /**
+     * {@link #onPickup(String, String, MineCatalog, long)}, where an icon known as a mine
+     * {@code notHere} rules out is marked shared by the first pickup: that mine is in another
+     * world, so this resource cannot be a leftover from it.
+     */
+    public boolean onPickup(String sprite, String pickupMine, MineCatalog catalog, long nowMs,
+                            java.util.function.Predicate<String> notHere) {
         if (sprite == null || sprite.isBlank() || pickupMine == null || pickupMine.isBlank()
                 || shared.containsKey(sprite)) {
             return shared.containsKey(sprite) && addCandidate(sprite, pickupMine);
@@ -244,6 +273,14 @@ public final class MiningBlocks {
         if (catalog.serverName(known.get().mine()).equalsIgnoreCase(catalog.serverName(pickupMine))) {
             conflicts.remove(sprite);
             return false;
+        }
+        if (notHere.test(known.get().mine()) && !notHere.test(pickupMine)) {
+            conflicts.remove(sprite);
+            // Shared even when the icon was only known by its name: diorite is still Diorite's
+            // block in the Aether.
+            boolean changed = markShared(sprite, List.of(known.get().mine(), pickupMine));
+            dropGuesses(sprite);
+            return changed;
         }
         Conflict c = conflicts.get(sprite);
         if (c == null || !c.mine().equalsIgnoreCase(pickupMine)) {
@@ -365,6 +402,12 @@ public final class MiningBlocks {
      */
     public Optional<String> sharedByBalance(String sprite, long total, Map<String, Long> known,
                                             MineCatalog catalog) {
+        return sharedByBalance(sprite, total, known, catalog, mine -> false);
+    }
+
+    /** {@link #sharedByBalance}, never choosing a mine {@code notHere} rules out. */
+    public Optional<String> sharedByBalance(String sprite, long total, Map<String, Long> known,
+                                            MineCatalog catalog, java.util.function.Predicate<String> notHere) {
         Set<String> mines = sprite == null ? null : shared.get(sprite);
         if (mines == null || mines.isEmpty()) {
             return Optional.empty();
@@ -372,6 +415,9 @@ public final class MiningBlocks {
         String best = null;
         long bestGap = Long.MAX_VALUE;
         for (String mine : mines) {
+            if (notHere.test(mine)) {
+                continue;
+            }
             Long balance = balanceOf(known, mine, catalog);
             if (balance == null || balance <= 0L) {
                 continue;
@@ -395,6 +441,12 @@ public final class MiningBlocks {
      */
     public Optional<String> sharedByHint(String sprite, Optional<String> toolMine, Optional<String> previous,
                                          MineCatalog catalog) {
+        return sharedByHint(sprite, toolMine, previous, catalog, mine -> false);
+    }
+
+    /** {@link #sharedByHint}, never choosing a mine {@code notHere} rules out. */
+    public Optional<String> sharedByHint(String sprite, Optional<String> toolMine, Optional<String> previous,
+                                         MineCatalog catalog, java.util.function.Predicate<String> notHere) {
         Set<String> mines = sprite == null ? null : shared.get(sprite);
         if (mines == null) {
             return Optional.empty();
@@ -402,7 +454,7 @@ public final class MiningBlocks {
         for (Optional<String> hint : List.of(toolMine, previous)) {
             if (hint.isPresent()) {
                 for (String mine : mines) {
-                    if (sameMine(mine, hint.get(), catalog)) {
+                    if (!notHere.test(mine) && sameMine(mine, hint.get(), catalog)) {
                         return Optional.of(mine);
                     }
                 }
@@ -468,6 +520,10 @@ public final class MiningBlocks {
         String was = learned.get(sprite);
         if (was != null && !was.equalsIgnoreCase(mine.trim()) && !isGuess(was)) {
             return markShared(sprite, List.of(was, mine));
+        }
+        Optional<String> named = was == null ? byName(sprite, names.get()) : Optional.empty();
+        if (named.isPresent() && !named.get().equalsIgnoreCase(mine.trim())) {
+            return markShared(sprite, List.of(named.get(), mine));
         }
         String m = mine.toLowerCase(Locale.ROOT).trim();
         boolean dropped = learned.entrySet().removeIf(e -> !e.getKey().equals(sprite)

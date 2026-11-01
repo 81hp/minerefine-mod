@@ -478,8 +478,8 @@ public final class ModConfig {
 
     /** Mined per hour, from the action bar, like the Halloween panel's crops per hour. */
     public boolean showMiningRate = false;
-    /** The rate is over this many minutes of mining. */
-    public int mineRateMinutes = 10;
+    /** The rate is what the last this many blocks brought, over the time they took; 1 is the last block alone. */
+    public int mineRateBlocks = 10;
 
     /** The player's stats, read from /stats. */
     public boolean showStats = false;
@@ -800,7 +800,7 @@ public final class ModConfig {
         bossReminderSeconds = Math.max(MIN_REMINDER_SECONDS, Math.min(MAX_REMINDER_SECONDS, bossReminderSeconds));
         bossReminderVolume = Math.max(0, Math.min(100, bossReminderVolume));
 
-        mineRateMinutes = Math.max(1, Math.min(60, mineRateMinutes));
+        mineRateBlocks = Math.max(1, Math.min(minerefinehud.mine.MiningRate.MAX_BLOCKS, mineRateBlocks));
         statsEveryMs = Math.max(StatsPoller.MIN_INTERVAL_MS, statsEveryMs);
         if (statsTitle == null) {
             statsTitle = "";

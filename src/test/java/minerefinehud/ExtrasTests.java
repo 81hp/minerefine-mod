@@ -173,23 +173,50 @@ public final class ExtrasTests {
         MiningRate r = new MiningRate();
         long t = 0L;
         r.observe("Shale", 1_000.0, t);
-        // Two minutes of mining, +100 a second.
-        for (int i = 1; i <= 120; i++) {
+        yes("no block yet: no rate", Double.isNaN(r.perHour("Shale", 10)));
+        // One block a second, +100 each: 360,000 an hour from the very first block.
+        t += 1_000L;
+        r.tick(t);
+        r.observe("Shale", 1_100.0, t);
+        eq("first block gives the rate straight away", 360_000.0, r.perHour("Shale", 10));
+        for (int i = 2; i <= 120; i++) {
             t += 1_000L;
             r.tick(t);
             r.observe("Shale", 1_000.0 + 100.0 * i, t);
         }
-        // The first tick only starts the clock, so two minutes measure as 119 seconds.
-        yes("per hour", Math.abs(r.perHour("Shale", 10 * 60_000L) - 360_000.0) < 360_000.0 * 0.02);
+        eq("steady mining stays the same, never creeps up", 360_000.0, r.perHour("Shale", 10));
         eq("session", 12_000.0, r.session("shale"));
 
-        // A shop purchase: the balance falls. Not mining, and nothing taken off.
+        // A lucky block: +1,000 in one second.
+        t += 1_000L;
+        r.tick(t);
+        r.observe("Shale", 13_000.0 + 1_000.0, t);
+        eq("last block alone", 3_600_000.0, r.perHour("Shale", 1));
+        eq("averaged over 10 blocks", (900.0 + 1_000.0) * 360.0, r.perHour("Shale", 10));
+
+        // The action bar showing the same figure again is not a block.
+        r.observe("Shale", 14_000.0, t + 200L);
+        eq("same figure again changes nothing", 3_600_000.0, r.perHour("Shale", 1));
+
+        // A shop purchase: the balance falls. Nothing taken off, and the next block counts from it.
         t += 1_000L;
         r.tick(t);
         r.observe("Shale", 500.0, t);
-        eq("spending is ignored", 12_000.0, r.session("Shale"));
+        eq("spending is ignored", 13_000.0, r.session("Shale"));
+        t += 1_000L;
+        r.tick(t);
+        r.observe("Shale", 600.0, t);
+        eq("mining after spending counts from the lower figure", 13_100.0, r.session("Shale"));
 
-        // A long break: the time does not count, and what came in meanwhile (turrets) is no gain.
+        // A slow block (looking around for 20 seconds) counts as at most 10.
+        for (int i = 0; i < 20; i++) {
+            t += 1_000L;
+            r.tick(t);
+        }
+        r.observe("Shale", 700.0, t);
+        eq("a long gap is capped", 100.0 * 360.0, r.perHour("Shale", 1));
+
+        // A long break: not mining time, and what came in meanwhile (turrets) is no gain.
         long before = r.miningMs();
         for (int i = 0; i < 600; i++) {
             t += 1_000L;
@@ -197,30 +224,31 @@ public final class ExtrasTests {
         }
         yes("a break is not mining time", r.miningMs() - before <= MiningRate.IDLE_MS + 1_000L);
         r.observe("Shale", 900_000.0, t);
-        eq("first reading after a break is a baseline", 12_000.0, r.session("Shale"));
+        eq("first reading after a break is a baseline", 13_200.0, r.session("Shale"));
 
         // Another mine in between: its first reading is a baseline, then back to Shale too.
         t += 1_000L;
-        r.tick(t);
         r.observe("Amber", 5_000_000.0, t);
+        yes("another mine has no rate yet", Double.isNaN(r.perHour("Amber", 10)));
+        yes("the old mine's rate is not shown for it", Double.isNaN(r.perHour("Shale", 10)));
         t += 1_000L;
-        r.tick(t);
         r.observe("Shale", 950_000.0, t);
-        eq("switching mines counts nothing", 12_000.0, r.session("Shale"));
+        eq("switching mines counts nothing", 13_200.0, r.session("Shale"));
         eq("nor for the other mine", 0.0, r.session("Amber"));
-        t += 1_000L;
-        r.tick(t);
+        t += 2_000L;
         r.observe("Shale", 950_100.0, t);
-        eq("then counts again", 12_100.0, r.session("Shale"));
+        eq("then counts again", 13_300.0, r.session("Shale"));
+        eq("from that block", 180_000.0, r.perHour("Shale", 10));
 
         MiningRate fresh = new MiningRate();
         fresh.observe("Shale", 10.0, 0L);
-        fresh.tick(5_000L);
-        fresh.observe("Shale", 20.0, 5_000L);
-        yes("too little time: no rate yet", Double.isNaN(fresh.perHour("Shale", 600_000L)));
+        fresh.observe("Shale", 20.0, 0L);
+        yes("two readings in the same instant: no rate", Double.isNaN(fresh.perHour("Shale", 10)));
         fresh.observe(null, 5.0, 6_000L);
         fresh.observe("Shale", Double.NaN, 6_000L);
         eq("junk readings ignored", 10.0, fresh.session("Shale"));
+        fresh.reset();
+        eq("reset", 0.0, fresh.session("Shale"));
     }
 
     private static void panels() {

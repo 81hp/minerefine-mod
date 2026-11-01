@@ -122,8 +122,7 @@ final class ExtrasClient {
             return List.of();
         }
         String mine = miningRate.mine();
-        long window = config.mineRateMinutes * 60_000L;
-        double perHour = miningRate.perHour(mine, window);
+        double perHour = miningRate.perHour(mine, config.mineRateBlocks);
         return ExtrasHud.miningPanel(new ExtrasHud.Mining(mine, balance, perHour, miningRate.session(mine),
                 miningRate.miningMs(), ExtrasHud.etas(progress, mine, perHour)));
     }
@@ -179,7 +178,7 @@ final class ExtrasClient {
         List<String> out = new ArrayList<>();
         String mine = miningRate.mine();
         out.add("mining rate: " + (mine.isEmpty() ? "nothing read yet" : mine + " "
-                + Math.round(miningRate.perHour(mine, config.mineRateMinutes * 60_000L)) + "/h, mining "
+                + Math.round(miningRate.perHour(mine, config.mineRateBlocks)) + "/h, mining "
                 + (miningRate.mining(now) ? "now" : "stopped") + ", "
                 + ExtrasHud.eta(miningRate.miningMs()) + " measured"));
         out.add("stats: " + config.statsData.stats.size() + " read "

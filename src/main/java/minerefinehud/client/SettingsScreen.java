@@ -348,11 +348,11 @@ public final class SettingsScreen extends Screen {
     private void extras() {
         Button mining = toggleAt(x(0), y(0), "Mining per hour", () -> config.showMiningRate,
                 v -> config.showMiningRate = v);
-        mining.setTooltip(Tooltip.create(Component.literal("A panel with what you mine per hour, from the "
-                + "balance on the action bar, what you mined this session, and how long until each "
-                + "progress bar paid in that resource fills at that rate.")));
-        cycle(1, 0, "Rate over", () -> config.mineRateMinutes, v -> config.mineRateMinutes = v,
-                new int[] { 5, 10, 15, 30, 60 }, v -> v + " min");
+        mining.setTooltip(Tooltip.create(Component.literal("A panel with what you mine per hour, worked out "
+                + "from what each block adds to the balance on the action bar and how long it took, what you "
+                + "mined this session, and how long until each progress bar paid in that resource fills.")));
+        cycle(1, 0, "Rate from", () -> config.mineRateBlocks, v -> config.mineRateBlocks = v,
+                new int[] { 1, 3, 5, 10, 20, 50 }, v -> v == 1 ? "last block" : "last " + v + " blocks");
 
         Button stats = toggleAt(x(0), y(1), "Stats panel", () -> config.showStats, v -> config.showStats = v);
         stats.setTooltip(Tooltip.create(Component.literal("Your stats from /stats: Fortune, Luck and the rest. "

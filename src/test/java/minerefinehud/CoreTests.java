@@ -1350,6 +1350,18 @@ public final class CoreTests {
         assertTrue("a stray spot of another world's mine does not", !strays.awayFrom("Jade",
                 new MineSpots.Spot(dim, 54925.0, 55186.8), catalog));
 
+        // Their Rosewood and Ichor balances were both 553.4B: cherry logs at Rosewood went to Ichor.
+        MiningBlocks sift = new MiningBlocks();
+        sift.importShared(Map.of("block/cherry_log", List.of("Ichor", "Rosewood")));
+        Map<String, Long> tied = Map.of("rosewood", 553_400_000_000L, "ichor", 553_390_000_000L);
+        assertEquals("two balances that both fit decide nothing", Optional.empty(),
+                sift.sharedByBalance("block/cherry_log", 553_400_000_000L, tied, catalog));
+        Map<String, Long> apart = Map.of("rosewood", 553_400_000_000L, "ichor", 600_000_000_000L);
+        assertEquals("but a clearly closer one still does", Optional.of("Ichor"),
+                sift.sharedByBalance("block/cherry_log", 600_100_000_000L, apart, catalog));
+        assertEquals("and the other way", Optional.of("Rosewood"),
+                sift.sharedByBalance("block/cherry_log", 553_500_000_000L, apart, catalog));
+
         minerefinehud.mine.MobDrops drops = new minerefinehud.mine.MobDrops();
         long t = 1_000_000L;
         assertEquals("a drop line alone names nothing", Optional.empty(),

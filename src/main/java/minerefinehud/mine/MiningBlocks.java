@@ -477,8 +477,8 @@ public final class MiningBlocks {
     /**
      * Which of a shared icon's mines this block is, from its balance. The total on the action bar
      * is that mine's balance, so the mine whose last known balance it continues is the one: at
-     * most 10% above it, or 1% below for the rounding. Two mines' balances are practically never
-     * that close. Empty while none of their balances is known this session.
+     * most 10% above it, or 1% below for the rounding. Empty while none of their balances is known
+     * this session, or while two of them fit about as well.
      *
      * @param known balance per currency, as last seen
      */
@@ -496,6 +496,7 @@ public final class MiningBlocks {
         }
         String best = null;
         long bestGap = Long.MAX_VALUE;
+        long secondGap = Long.MAX_VALUE;
         for (String mine : mines) {
             if (notHere.test(mine)) {
                 continue;
@@ -507,10 +508,20 @@ public final class MiningBlocks {
             if (total >= balance - balance / 100L && total <= balance + balance / 10L) {
                 long gap = Math.abs(total - balance);
                 if (gap < bestGap) {
+                    secondGap = bestGap;
                     best = mine;
                     bestGap = gap;
+                } else if (gap < secondGap) {
+                    secondGap = gap;
                 }
             }
+        }
+        // Two balances this total could both continue say nothing. A user's Rosewood and Ichor
+        // were both 553.4B, one filed from the other; Ichor won about every other block at
+        // Rosewood, each win was filed and placed Ichor at Rosewood, and it never let go. Only a
+        // clearly closer one counts, gaps within the bar's rounding (0.1%) being the same.
+        if (best != null && secondGap != Long.MAX_VALUE && secondGap <= bestGap * 2L + total / 1_000L) {
+            return Optional.empty();
         }
         return Optional.ofNullable(best);
     }

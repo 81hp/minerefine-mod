@@ -50,6 +50,24 @@ public final class MiningBlocks {
     public record Match(String mine, How how) {}
 
     /**
+     * Blocks whose mine is known from the server itself, never relearned. Verified with a player
+     * 2026-11-02: in the Sift, Rosewood is cherry logs and stripped cherry logs, Ichor shroomlight
+     * and Jade emerald blocks, each used by no other mine there. Learned, they ended up shared
+     * (cherry logs by Ichor and Rosewood, shroomlight by Jade and Ichor), and as nothing ever
+     * takes a mine off a shared icon, Rosewood showed Ichor and Ichor showed Jade for good.
+     */
+    public static final Map<String, String> VERIFIED = Map.of(
+            "block/cherry_log", "Rosewood",
+            "block/stripped_cherry_log", "Rosewood",
+            "block/shroomlight", "Ichor",
+            "block/emerald_block", "Jade");
+
+    /** Whether this is a mine whose every block is in {@link #VERIFIED}: no other icon is its. */
+    static boolean verifiedMine(String mine) {
+        return mine != null && VERIFIED.values().stream().anyMatch(v -> v.equalsIgnoreCase(mine.trim()));
+    }
+
+    /**
      * A shop balance and a mining total this far apart in time are not compared. It was ten
      * minutes, long enough to mine Zircon, teleport to Debris and open its shop; the Debris
      * balance happened to be within 1% of the Zircon total, and Zircon's icon was relabelled
@@ -73,8 +91,39 @@ public final class MiningBlocks {
     private final Map<String, Snapshot> shopBalances = new HashMap<>();
     private Mined lastMined;
 
+    {
+        applyVerified();
+    }
+
+    /**
+     * Files every {@link #VERIFIED} block under its own mine alone, over whatever was learned, and
+     * takes those mines off every other icon: all their blocks are known, so any other was filed
+     * while some other mine was mined.
+     */
+    private void applyVerified() {
+        learned.entrySet().removeIf(e -> !VERIFIED.containsKey(e.getKey()) && verifiedMine(e.getValue()));
+        for (var it = shared.entrySet().iterator(); it.hasNext(); ) {
+            var e = it.next();
+            e.getValue().removeIf(MiningBlocks::verifiedMine);
+            if (e.getValue().size() <= 1) {
+                it.remove();
+                if (e.getValue().size() == 1) {
+                    learned.putIfAbsent(e.getKey(), e.getValue().iterator().next());
+                }
+            }
+        }
+        VERIFIED.forEach((sprite, mine) -> {
+            shared.remove(sprite);
+            learned.put(sprite, mine);
+        });
+    }
+
     /** The mine for a block sprite, if learned or obvious from its name. */
     public Optional<Match> lookup(String sprite, MineCatalog catalog) {
+        String verified = sprite == null ? null : VERIFIED.get(sprite);
+        if (verified != null) {
+            return Optional.of(new Match(verified, How.LEARNED));
+        }
         if (sprite == null || sprite.isBlank() || shared.containsKey(sprite)) {
             return Optional.empty();
         }
@@ -157,7 +206,7 @@ public final class MiningBlocks {
      */
     public Optional<String> inferFromNewShop(String sprite, long nowMs, MineCatalog catalog,
                                              java.util.function.Predicate<String> notHere) {
-        if (sprite == null || sprite.isBlank()) {
+        if (sprite == null || sprite.isBlank() || VERIFIED.containsKey(sprite)) {
             return Optional.empty();
         }
         Set<String> sharedBy = shared.get(sprite);
@@ -246,7 +295,7 @@ public final class MiningBlocks {
         // A block proven for a mine of another area is shared with the one matched here instead.
         String was = sprite == null ? null : learned.get(sprite);
         boolean otherArea = was != null && elsewhere.test(was);
-        if (sprite == null || sprite.isBlank() || (was != null && !otherArea) || shared.containsKey(sprite)
+        if (sprite == null || sprite.isBlank() || VERIFIED.containsKey(sprite) || (was != null && !otherArea) || shared.containsKey(sprite)
                 || total <= 0L) {
             return false;
         }
@@ -294,7 +343,7 @@ public final class MiningBlocks {
      * the action bar shows "[block/x]" means x is Zircon's block. Returns true if it was new.
      */
     public boolean teach(String sprite, String mine) {
-        if (sprite == null || sprite.isBlank() || mine == null || mine.isBlank()) {
+        if (sprite == null || sprite.isBlank() || mine == null || mine.isBlank() || VERIFIED.containsKey(sprite)) {
             return false;
         }
         // Only fills a gap, never overwrites. A pickup is weak evidence: logs left lying at an
@@ -338,6 +387,9 @@ public final class MiningBlocks {
      */
     public boolean onPickup(String sprite, String pickupMine, MineCatalog catalog, long nowMs,
                             java.util.function.Predicate<String> notHere) {
+        if (sprite != null && VERIFIED.containsKey(sprite)) {
+            return false;
+        }
         if (sprite == null || sprite.isBlank() || pickupMine == null || pickupMine.isBlank()
                 || shared.containsKey(sprite)) {
             return shared.containsKey(sprite) && addCandidate(sprite, pickupMine);
@@ -384,6 +436,9 @@ public final class MiningBlocks {
         if (sprite == null) {
             return false;
         }
+        if (VERIFIED.containsKey(sprite)) {
+            return false;
+        }
         boolean wasShared = shared.remove(sprite) != null;
         return learned.remove(sprite) != null || wasShared;
     }
@@ -393,24 +448,36 @@ public final class MiningBlocks {
      * as. Returns true if anything changed.
      */
     public boolean markShared(String sprite, java.util.Collection<String> mines) {
-        if (sprite == null || sprite.isBlank()) {
+        if (sprite == null || sprite.isBlank() || VERIFIED.containsKey(sprite)) {
             return false;
         }
-        boolean changed = learned.remove(sprite) != null;
-        if (!shared.containsKey(sprite)) {
-            shared.put(sprite, new LinkedHashSet<>());
-            changed = true;
-        }
+        String learnedBefore = learned.get(sprite);
+        Set<String> sharedBefore = shared.containsKey(sprite) ? new LinkedHashSet<>(shared.get(sprite)) : null;
+        learned.remove(sprite);
+        shared.computeIfAbsent(sprite, s -> new LinkedHashSet<>());
         if (mines != null) {
             for (String mine : mines) {
-                changed |= addCandidate(sprite, mine);
+                addCandidate(sprite, mine);
             }
         }
-        return changed;
+        // A verified mine is never added, so one mine may be all there is: then it is just its.
+        // None at all, every one offered being verified: the icon stays as it was.
+        Set<String> left = shared.get(sprite);
+        if (left.size() == 1) {
+            shared.remove(sprite);
+            learned.put(sprite, left.iterator().next());
+        } else if (left.isEmpty()) {
+            shared.remove(sprite);
+            if (learnedBefore != null) {
+                learned.put(sprite, learnedBefore);
+            }
+        }
+        return !java.util.Objects.equals(learnedBefore, learned.get(sprite))
+                || !java.util.Objects.equals(sharedBefore, shared.get(sprite));
     }
 
     private boolean addCandidate(String sprite, String mine) {
-        if (mine == null || mine.isBlank()) {
+        if (mine == null || mine.isBlank() || verifiedMine(mine)) {
             return false;
         }
         Set<String> mines = shared.get(sprite);
@@ -449,6 +516,7 @@ public final class MiningBlocks {
                 dropped.addAll(dropGuesses(sprite));
             });
         }
+        applyVerified();
         return dropped;
     }
 
@@ -592,9 +660,13 @@ public final class MiningBlocks {
                 }
             });
         }
+        applyVerified();
     }
 
     private boolean learn(String sprite, String mine) {
+        if (VERIFIED.containsKey(sprite) || verifiedMine(mine)) {
+            return false;
+        }
         return !mine.equals(learned.put(sprite, mine));
     }
 
@@ -611,6 +683,9 @@ public final class MiningBlocks {
      * placed itself where the proven mine is and won every block there.
      */
     private boolean claim(String sprite, String mine) {
+        if (VERIFIED.containsKey(sprite) || verifiedMine(mine)) {
+            return false;
+        }
         if (shared.containsKey(sprite)) {
             boolean added = addCandidate(sprite, mine);
             return !dropGuesses(sprite).isEmpty() || added;
@@ -624,7 +699,7 @@ public final class MiningBlocks {
             return markShared(sprite, List.of(named.get(), mine));
         }
         String m = mine.toLowerCase(Locale.ROOT).trim();
-        boolean dropped = learned.entrySet().removeIf(e -> !e.getKey().equals(sprite)
+        boolean dropped = learned.entrySet().removeIf(e -> !e.getKey().equals(sprite) && !VERIFIED.containsKey(e.getKey())
                 && e.getValue().toLowerCase(Locale.ROOT).trim().equals(m));
         return learn(sprite, mine) || dropped;
     }

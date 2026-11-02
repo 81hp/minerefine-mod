@@ -60,6 +60,7 @@ public final class CoreTests {
         siftiteWasBlackstone();
         siftMinesHoldTogether();
         ichorIsNotJade();
+        siftBlocksAreVerified();
         trillions();
         expeditionSidebarIsRecognised();
         ownCommandsKeepClear();
@@ -1206,60 +1207,60 @@ public final class CoreTests {
 
         MiningBlocks blocks = new MiningBlocks();
         blocks.importLearned(Map.of("block/emerald_block", "Jade"));
-        blocks.onShopSeen("Ichor", 0L, 0L);
+        blocks.onShopSeen("Nebula", 0L, 0L);
         blocks.onShopSeen("Siftite", 6_870_000_000L, 1_000L);
-        assertEquals("the first unknown block after a new mine's shop is that mine's", Optional.of("Ichor"),
+        assertEquals("the first unknown block after a new mine's shop is that mine's", Optional.of("Nebula"),
                 blocks.inferFromNewShop("block/crimson_nylium", 30_000L, catalog, nowhere));
-        assertEquals("and stays learned", "Ichor", blocks.learned().get("block/crimson_nylium"));
+        assertEquals("and stays learned", "Nebula", blocks.learned().get("block/crimson_nylium"));
         assertTrue("only once", blocks.inferFromNewShop("block/stone", 31_000L, catalog, nowhere).isEmpty());
 
         MiningBlocks known = new MiningBlocks();
         known.importLearned(Map.of("block/emerald_block", "Jade"));
-        known.onShopSeen("Ichor", 0L, 0L);
+        known.onShopSeen("Nebula", 0L, 0L);
         assertTrue("a block known here is left alone",
                 known.inferFromNewShop("block/emerald_block", 1_000L, catalog, nowhere).isEmpty()
                         && "Jade".equals(known.learned().get("block/emerald_block")));
 
         MiningBlocks late = new MiningBlocks();
-        late.onShopSeen("Ichor", 0L, 0L);
+        late.onShopSeen("Nebula", 0L, 0L);
         assertTrue("more than two minutes after the shop says nothing",
                 late.inferFromNewShop("block/crimson_nylium", 3 * 60_000L, catalog, nowhere).isEmpty());
 
         MiningBlocks two = new MiningBlocks();
-        two.onShopSeen("Ichor", 0L, 0L);
-        two.onShopSeen("Rosewood", 0L, 5_000L);
+        two.onShopSeen("Nebula", 0L, 0L);
+        two.onShopSeen("Comet", 0L, 5_000L);
         assertTrue("two new mines' shops: unclear, nothing learned",
                 two.inferFromNewShop("block/crimson_nylium", 10_000L, catalog, nowhere).isEmpty());
 
         MiningBlocks started = new MiningBlocks();
-        started.onShopSeen("Ichor", 0L, 0L);
-        started.onShopSeen("Ichor", 2_000_000L, 5_000L);
+        started.onShopSeen("Nebula", 0L, 0L);
+        started.onShopSeen("Nebula", 2_000_000L, 5_000L);
         assertTrue("a shop showing the mine started is no new mine",
                 started.inferFromNewShop("block/crimson_nylium", 10_000L, catalog, nowhere).isEmpty());
 
         MiningBlocks taken = new MiningBlocks();
-        taken.importLearned(Map.of("block/warped_nylium", "Ichor"));
-        taken.onShopSeen("Ichor", 0L, 0L);
+        taken.importLearned(Map.of("block/warped_nylium", "Nebula"));
+        taken.onShopSeen("Nebula", 0L, 0L);
         assertTrue("a mine with a block already is not given another",
                 taken.inferFromNewShop("block/crimson_nylium", 10_000L, catalog, nowhere).isEmpty());
 
         MiningBlocks old = new MiningBlocks();
         old.importLearned(Map.of("block/packed_mud", "Aethermud"));
-        old.onShopSeen("Ichor", 0L, 0L);
-        assertEquals("an old area's block is shared with the new mine", Optional.of("Ichor"),
+        old.onShopSeen("Nebula", 0L, 0L);
+        assertEquals("an old area's block is shared with the new mine", Optional.of("Nebula"),
                 old.inferFromNewShop("block/packed_mud", 10_000L, catalog, aetherFar));
-        assertEquals("by both", List.of("Aethermud", "Ichor"), old.shared().get("block/packed_mud"));
+        assertEquals("by both", List.of("Aethermud", "Nebula"), old.shared().get("block/packed_mud"));
         MiningBlocks oldHere = new MiningBlocks();
         oldHere.importLearned(Map.of("block/packed_mud", "Aethermud"));
-        oldHere.onShopSeen("Ichor", 0L, 0L);
+        oldHere.onShopSeen("Nebula", 0L, 0L);
         assertTrue("but not in that old mine's own area",
                 oldHere.inferFromNewShop("block/packed_mud", 10_000L, catalog, nowhere).isEmpty());
         MiningBlocks byName = new MiningBlocks();
-        byName.onShopSeen("Ichor", 0L, 0L);
-        assertEquals("a block named after a far mine is shared too", Optional.of("Ichor"),
+        byName.onShopSeen("Nebula", 0L, 0L);
+        assertEquals("a block named after a far mine is shared too", Optional.of("Nebula"),
                 byName.inferFromNewShop("block/granite", 10_000L, catalog, m -> m.equalsIgnoreCase("Granite")));
         assertTrue("never taken over", byName.isShared("block/granite")
-                && byName.shared().get("block/granite").containsAll(List.of("Granite", "Ichor")));
+                && byName.shared().get("block/granite").containsAll(List.of("Granite", "Nebula")));
     }
 
     /**
@@ -1299,13 +1300,13 @@ public final class CoreTests {
 
         MiningBlocks guessed = new MiningBlocks();
         guessed.importLearned(Map.of("block/pink_wool", "sulfur"));
-        assertTrue("one Rosewood pickup replaces a sulfur guess", guessed.onPickup("block/pink_wool", "Rosewood", catalog, 0L, none)
-                && "Rosewood".equals(guessed.learned().get("block/pink_wool")));
+        assertTrue("one Charoite pickup replaces a sulfur guess", guessed.onPickup("block/pink_wool", "Charoite", catalog, 0L, none)
+                && "Charoite".equals(guessed.learned().get("block/pink_wool")));
         MiningBlocks proven = new MiningBlocks();
-        proven.importLearned(Map.of("block/pink_wool", "Rosewood"));
+        proven.importLearned(Map.of("block/pink_wool", "Charoite"));
         assertTrue("but one pickup never overturns a proven block",
-                !proven.onPickup("block/pink_wool", "Ichor", catalog, 0L, none)
-                        && "Rosewood".equals(proven.learned().get("block/pink_wool")));
+                !proven.onPickup("block/pink_wool", "Amber", catalog, 0L, none)
+                        && "Charoite".equals(proven.learned().get("block/pink_wool")));
 
         assertTrue("Ichor taken out of a vault is not mined", ResourcePickups.fromMenu(10_000L, 9_000L));
         assertTrue("nor just after closing it", ResourcePickups.fromMenu(10_000L, 8_600L));
@@ -1352,15 +1353,15 @@ public final class CoreTests {
 
         // Their Rosewood and Ichor balances were both 553.4B: cherry logs at Rosewood went to Ichor.
         MiningBlocks sift = new MiningBlocks();
-        sift.importShared(Map.of("block/cherry_log", List.of("Ichor", "Rosewood")));
-        Map<String, Long> tied = Map.of("rosewood", 553_400_000_000L, "ichor", 553_390_000_000L);
+        sift.importShared(Map.of("block/test_log", List.of("Amber", "Thicket")));
+        Map<String, Long> tied = Map.of("thicket", 553_400_000_000L, "amber", 553_390_000_000L);
         assertEquals("two balances that both fit decide nothing", Optional.empty(),
-                sift.sharedByBalance("block/cherry_log", 553_400_000_000L, tied, catalog));
-        Map<String, Long> apart = Map.of("rosewood", 553_400_000_000L, "ichor", 600_000_000_000L);
-        assertEquals("but a clearly closer one still does", Optional.of("Ichor"),
-                sift.sharedByBalance("block/cherry_log", 600_100_000_000L, apart, catalog));
-        assertEquals("and the other way", Optional.of("Rosewood"),
-                sift.sharedByBalance("block/cherry_log", 553_500_000_000L, apart, catalog));
+                sift.sharedByBalance("block/test_log", 553_400_000_000L, tied, catalog));
+        Map<String, Long> apart = Map.of("thicket", 553_400_000_000L, "amber", 600_000_000_000L);
+        assertEquals("but a clearly closer one still does", Optional.of("Amber"),
+                sift.sharedByBalance("block/test_log", 600_100_000_000L, apart, catalog));
+        assertEquals("and the other way", Optional.of("Thicket"),
+                sift.sharedByBalance("block/test_log", 553_500_000_000L, apart, catalog));
 
         minerefinehud.mine.MobDrops drops = new minerefinehud.mine.MobDrops();
         long t = 1_000_000L;
@@ -1383,6 +1384,77 @@ public final class CoreTests {
         drops.reset();
         assertEquals("forgotten on a relog", Optional.empty(),
                 drops.onChat("+ ⬢ Ultra Compressed Jade x29", t + 90_100L, catalog));
+    }
+
+    /**
+     * 2026-11-02, the user's saved links after 1.6.4: Rosewood still showed Ichor and Ichor Jade.
+     * Confirmed by them: Rosewood is cherry logs and stripped cherry logs, Ichor shroomlight, Jade
+     * emerald blocks, none of them used by another Sift mine.
+     */
+    private static void siftBlocksAreVerified() {
+        MineCatalog catalog = new MineCatalog(List.of(mine("Jade", "The Sift", "pickaxe"),
+                mine("Ichor", "The Sift", "pickaxe"), mine("Rosewood", "The Sift", "pickaxe"),
+                mine("Petal", "The Sift", "pickaxe")));
+        MiningBlocks saved = new MiningBlocks();
+        Map<String, List<String>> theirs = new LinkedHashMap<>();
+        theirs.put("block/cherry_log", List.of("Ichor", "Rosewood"));
+        theirs.put("block/shroomlight", List.of("Jade", "Ichor"));
+        theirs.put("block/emerald_block", List.of("Jade", "Petal"));
+        theirs.put("block/resin_clump", List.of("Amber", "Sulfur", "Charoite"));
+        saved.importShared(theirs);
+        saved.importLearned(Map.of("block/pink_petals", "Petal", "block/shroomlight", "Jade"));
+        assertEquals("cherry logs are Rosewood's", Optional.of(new MiningBlocks.Match("Rosewood", MiningBlocks.How.LEARNED)),
+                saved.lookup("block/cherry_log", catalog));
+        assertEquals("stripped ones too", Optional.of(new MiningBlocks.Match("Rosewood", MiningBlocks.How.LEARNED)),
+                saved.lookup("block/stripped_cherry_log", catalog));
+        assertEquals("shroomlight is Ichor's", Optional.of(new MiningBlocks.Match("Ichor", MiningBlocks.How.LEARNED)),
+                saved.lookup("block/shroomlight", catalog));
+        assertEquals("emerald blocks are Jade's", Optional.of(new MiningBlocks.Match("Jade", MiningBlocks.How.LEARNED)),
+                saved.lookup("block/emerald_block", catalog));
+        assertTrue("none of them shared any more, and saved that way",
+                !saved.shared().containsKey("block/cherry_log") && !saved.shared().containsKey("block/shroomlight")
+                        && !saved.shared().containsKey("block/emerald_block")
+                        && "Ichor".equals(saved.learned().get("block/shroomlight")));
+        assertTrue("other shared icons are left as they were", saved.shared().get("block/resin_clump").size() == 3);
+        assertTrue("and Petal keeps its own", "Petal".equals(saved.learned().get("block/pink_petals")));
+
+        long t = 0L;
+        for (int i = 0; i < 4; i++) {
+            t += 10_000L;
+            saved.onPickup("block/shroomlight", "Jade", catalog, t);
+        }
+        assertEquals("Jade picked up at Ichor again and again does not share it", "Ichor",
+                saved.lookup("block/shroomlight", catalog).map(MiningBlocks.Match::mine).orElse(""));
+        saved.onShopBalance("Ichor", 553_390_000_000L, t);
+        saved.onMining("block/cherry_log", 553_400_000_000L, t + 1_000L);
+        assertEquals("nor does a balance that happens to fit", "Rosewood",
+                saved.lookup("block/cherry_log", catalog).map(MiningBlocks.Match::mine).orElse(""));
+        assertTrue("nor marking it shared, or forgetting it", !saved.markShared("block/cherry_log", List.of("Ichor"))
+                && !saved.forget("block/emerald_block") && !saved.teach("block/emerald_block", "Petal"));
+        assertTrue("nor a balance guess", !saved.inferFromBalances("block/shroomlight", 7_240_000_000L,
+                Map.of("jade", 7_200_000_000L), m -> false));
+        saved.onShopBalance("Rosewood", 2_000_000L, t + 2_000L);
+        saved.onMining("block/rosewood_test", 2_010_000L, t + 3_000L);
+        assertTrue("a new icon taught to Rosewood keeps its cherry logs",
+                "Rosewood".equals(saved.learned().get("block/cherry_log")));
+        assertTrue("and is not filed under Rosewood: all its blocks are known",
+                !saved.learned().containsKey("block/rosewood_test"));
+
+        MiningBlocks stale = new MiningBlocks();
+        stale.importShared(Map.of("block/red_wool", List.of("Ichor", "Amber"), "block/blue_wool", List.of("Jade", "Ichor")));
+        stale.importLearned(Map.of("block/crimson_nylium", "Ichor", "block/pink_petals", "Petal"));
+        assertTrue("another block saved as Ichor's is dropped", !stale.learned().containsKey("block/crimson_nylium"));
+        assertEquals("one shared with Amber is Amber's", "Amber", stale.learned().get("block/red_wool"));
+        assertTrue("one shared only by verified mines is forgotten",
+                !stale.learned().containsKey("block/blue_wool") && !stale.shared().containsKey("block/blue_wool"));
+        assertTrue("an Ichor pickup never shares another mine's block", !stale.onPickup("block/pink_petals", "Ichor",
+                catalog, 0L, m -> m.equalsIgnoreCase("Petal")) && "Petal".equals(stale.learned().get("block/pink_petals")));
+        assertTrue("sharing a block between verified mines only leaves it as it was",
+                !stale.markShared("block/pink_petals", List.of("Jade", "Rosewood"))
+                        && "Petal".equals(stale.learned().get("block/pink_petals")) && !stale.isShared("block/pink_petals"));
+        assertTrue("and an unknown one stays unknown, not stuck shared by nobody",
+                !stale.markShared("block/jade_test", List.of("Jade", "Ichor")) && !stale.isShared("block/jade_test")
+                        && !stale.learned().containsKey("block/jade_test"));
     }
 
     private static void trillions() {

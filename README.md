@@ -105,7 +105,7 @@ or the GUI scale changes. A panel is clamped so it can never be lost off screen.
 | General | Overlay, mine and boss panels on or off, costs in credits, block rate, the turret calculator |
 | Style | How the panels look, with the panels drawn beside it as you change things: five presets (Fork, Tooltip, Ledger, Minimal, Icons), panel background (none, shade, tooltip, framed) and opacity, the whole HUD's size, titles (plain, underlined, band), numbers after the label or lined up in columns, gear names or item icons, boss status as coloured text, dots or chips, progress bar (thin, thick, segments, none), where the percentage goes, one bar colour or red to green, spacing, text shadow, credits column, amount still needed, and quick accent and frame colours |
 | Mine | Which rows show: sword, tool, armour (or its four pieces), charm, mine total, item in hand |
-| Bosses | Only this dimension, rows for alive and still-learning bosses, how many, the reminder, its timing, sound and volume, the Reforger timer |
+| Bosses | Only this dimension, rows for alive and still-learning bosses, how many, the reminder, its timing, sound and volume, the Reforger timer, and Reset learned bosses (forgets every boss and timer, then reads /bossindex once to learn them again) |
 | Progress | The bars (item, amount, remove, add), the text line and the "still needed" line, and next tier or to max |
 | Halloween | The Halloween panels and their rows, the rate window, the caravan alert, ability timers, pumpkin set bars, the refine cost |
 | Panels | Each panel on its own: background, opacity and size, with that panel previewed |

@@ -27,6 +27,7 @@ public final class ExtrasTests {
         stats();
         statsUpdates();
         miningRate();
+        vaultIsNotMining();
         panels();
 
         System.out.println();
@@ -249,6 +250,49 @@ public final class ExtrasTests {
         eq("junk readings ignored", 10.0, fresh.session("Shale"));
         fresh.reset();
         eq("reset", 0.0, fresh.session("Shale"));
+    }
+
+    /** A user took Rosewood out of their vault: 174,318b/h and +15,041b in the session. */
+    private static void vaultIsNotMining() {
+        MiningRate r = new MiningRate();
+        long t = 0L;
+        r.observe("Rosewood", 1_000.0, t);
+        for (int i = 1; i <= 5; i++) {
+            t += 1_000L;
+            r.tick(t);
+            r.observe("Rosewood", 1_000.0 + i, t);
+        }
+        eq("five blocks", 5.0, r.session("Rosewood"));
+        t += 1_000L;
+        r.observe("Rosewood", 2_005.0, t);
+        eq("a thousand from the vault is not mined", 5.0, r.session("Rosewood"));
+        eq("nor in the rate", 3_600.0, r.perHour("Rosewood", 5));
+        t += 1_000L;
+        r.observe("Rosewood", 2_006.0, t);
+        eq("the next block counts from there", 6.0, r.session("Rosewood"));
+
+        // With the vault open the items come in before the next block.
+        r.interrupt();
+        t += 1_000L;
+        r.observe("Rosewood", 2_009.0, t);
+        eq("the reading after a menu is a baseline", 6.0, r.session("Rosewood"));
+        t += 1_000L;
+        r.observe("Rosewood", 2_010.0, t);
+        eq("then mining counts again", 7.0, r.session("Rosewood"));
+        eq("and the blocks before still make the rate", 3_600.0, r.perHour("Rosewood", 5));
+
+        // A far better pickaxe: every block is 30 times more. Three in a row and it starts again.
+        for (int i = 1; i <= 3; i++) {
+            t += 1_000L;
+            r.observe("Rosewood", 2_010.0 + 30.0 * i, t);
+        }
+        t += 1_000L;
+        r.observe("Rosewood", 2_130.0, t);
+        eq("after three, the new yield counts", 37.0, r.session("Rosewood"));
+        eq("at its own rate", 30.0 * 3_600.0, r.perHour("Rosewood", 1));
+        t += 1_000L;
+        r.observe("Rosewood", 2_160.0, t);
+        eq("and keeps counting", 67.0, r.session("Rosewood"));
     }
 
     private static void panels() {

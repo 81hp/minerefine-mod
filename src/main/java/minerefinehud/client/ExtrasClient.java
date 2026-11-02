@@ -46,6 +46,11 @@ final class ExtrasClient {
         ClientTickEvents.END_CLIENT_TICK.register(client -> {
             long now = System.currentTimeMillis();
             miningRate.tick(now);
+            // Items taken out of a vault or chest raise the total too; they are not mined.
+            if (client != null && Compat.screen(client)
+                    instanceof net.minecraft.client.gui.screens.inventory.AbstractContainerScreen<?>) {
+                miningRate.interrupt();
+            }
             if (client != null && client.player != null) {
                 statsPoller.tick(client, now);
             }

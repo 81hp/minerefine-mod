@@ -130,6 +130,8 @@ public final class MinerefineHudClient implements ClientModInitializer {
 
     /** A pickup and an action bar line this close together came from the same block. */
     private static final long SAME_BLOCK_MS = 3_000L;
+    /** When a vault, chest or the inventory was last open: what came in then was not mined. */
+    private long lastContainerAt;
 
     private final ResourceBalances balances = new ResourceBalances();
 
@@ -308,7 +310,21 @@ public final class MinerefineHudClient implements ClientModInitializer {
         }
         Compat.setScreen(client, new SettingsScreen(null, config, this::settingsChanged,
                 () -> openPositionScreen(client), () -> openPositionScreen(client, true),
-                () -> halloween.resetRates(), () -> halloween.owned(), this::previews, this::bossNames, extras));
+                () -> halloween.resetRates(), () -> halloween.owned(), this::previews, this::bossNames, extras,
+                this::resetBosses));
+    }
+
+    /**
+     * Forgets every boss timer and every boss's learned world, then reads /bossindex once to
+     * learn them again: for bosses picked up somewhere they do not belong, such as another server.
+     */
+    private void resetBosses() {
+        bossTracker.clear();
+        bossStore.save(bossTracker);
+        bossWorlds.clear();
+        config.bossWorlds = new java.util.LinkedHashMap<>(bossWorlds.export());
+        config.save(configFile);
+        bossIndex.requestNow();
     }
 
     /** Settings apply live: the HUD reads the config every frame. This saves and re-plans now. */
@@ -458,6 +474,10 @@ public final class MinerefineHudClient implements ClientModInitializer {
                 return;
             }
 
+            // Another server's bosses are not MineRefine's: learned there, they showed up here.
+            if (!halloween.seenMineRefine()) {
+                return;
+            }
             BossMessageParser.parse(text).ifPresent(event -> {
                 long now = System.currentTimeMillis();
                 switch (event.kind()) {
@@ -927,9 +947,14 @@ public final class MinerefineHudClient implements ClientModInitializer {
         java.util.function.Predicate<String> richer = m -> miningUnknown && total >= 0L
                 && balances.get(areaCatalog.serverName(m))
                         .map(b -> b.amount() - b.amount() / 100L > total).orElse(false);
+        // Nor a tool or shop of a mine known to be elsewhere in this area: in the Sift the best
+        // pickaxe is the last mine's, and mining Jade with a Blub one showed Blub, Ichor with a
+        // Jade one Jade. A shop is the fresher answer when it was opened after mining, so only
+        // while an unknown block is mined.
+        java.util.function.Predicate<String> farAway = m -> here.map(h -> mineSpots.awayFrom(m, h)).orElse(false);
         Optional<String> tool = toolInHand(client);
-        tool.filter(notHere.or(richer)).ifPresent(ruledOut::add);
-        lastShopMine.filter(notHere.or(richer)).ifPresent(ruledOut::add);
+        tool.filter(notHere.or(richer).or(farAway)).ifPresent(ruledOut::add);
+        lastShopMine.filter(notHere.or(richer).or(m -> miningUnknown && farAway.test(m))).ifPresent(ruledOut::add);
 
         MineDetector.Detection found = MineDetector.detect(
                 areaCatalog,
@@ -1012,8 +1037,11 @@ public final class MinerefineHudClient implements ClientModInitializer {
         if (startedNow.isPresent()) {
             saveLearnedBlocks();
         }
+        // A guess from a close balance, for a mine known to be elsewhere in this area, is wrong:
+        // a user mining Rosewood saw "sulfur", a guess left on one of Rosewood's blocks.
         Optional<MiningBlocks.Match> blockMine = miningBlocks.lookup(r.sprite(), catalog)
-                .filter(m -> !notHere.test(m.mine()));
+                .filter(m -> !notHere.test(m.mine()))
+                .filter(m -> !(MiningBlocks.isGuess(m.mine()) && here.map(h -> mineSpots.awayFrom(m.mine(), h)).orElse(false)));
         List<String> sharedHere = miningBlocks.shared().getOrDefault(r.sprite(), List.of()).stream()
                 .filter(m -> !notHere.test(m))
                 .toList();
@@ -1032,9 +1060,16 @@ public final class MinerefineHudClient implements ClientModInitializer {
                 balances.all().forEach((c, seen) -> known.put(c, seen.amount()));
                 sharedDecided = miningBlocks.sharedByBalance(r.sprite(), r.amount(), known, catalog, notHere);
             }
+            // Then the mine of the block before, if the player is still where that mine is: the
+            // Sift's Rosewood and Ichor both have cherry logs, and with the tool asked first the
+            // panel went Rosewood, Ichor, Rosewood every other block. After a warp the block
+            // before is another area's, and the tool in hand hints, unless its mine is elsewhere.
+            Optional<String> previousHere = lastMinedMine.filter(m -> here.map(h -> mineSpots.near(m, h)).orElse(false));
+            Optional<String> toolHere = toolInHand(Minecraft.getInstance())
+                    .filter(m -> here.map(h -> !mineSpots.awayFrom(m, h)).orElse(true));
             blockMine = sharedDecided
-                    .or(() -> miningBlocks.sharedByHint(r.sprite(), toolInHand(Minecraft.getInstance()),
-                            lastMinedMine, catalog, notHere))
+                    .or(() -> miningBlocks.sharedByHint(r.sprite(), previousHere, toolHere, catalog, notHere))
+                    .or(() -> miningBlocks.sharedByHint(r.sprite(), Optional.empty(), lastMinedMine, catalog, notHere))
                     .map(m -> new MiningBlocks.Match(m, MiningBlocks.How.SHARED));
         } else if (blockMine.isEmpty()) {
             // Mined resources are a balance here, not items, so pickups rarely teach a block.
@@ -1042,7 +1077,7 @@ public final class MinerefineHudClient implements ClientModInitializer {
             Map<String, Long> known = new java.util.HashMap<>();
             balances.all().forEach((c, seen) -> known.put(c, seen.amount()));
             if (miningBlocks.inferFromBalances(r.sprite(), r.amount(), known,
-                    m -> notHere.test(m) || here.map(h -> mineSpots.elsewhere(m, h)).orElse(false))) {
+                    m -> notHere.test(m) || here.map(h -> mineSpots.awayFrom(m, h)).orElse(false))) {
                 saveLearnedBlocks();
                 blockMine = miningBlocks.lookup(r.sprite(), catalog).filter(m -> !notHere.test(m.mine()));
             }
@@ -1050,7 +1085,7 @@ public final class MinerefineHudClient implements ClientModInitializer {
         boolean pickupNow = lastPickup.isPresent() && now - lastPickupAt <= SAME_BLOCK_MS;
         // The resource last picked up names the mine, over anything the icon says, for as long as
         // the same block is being mined in the same place. "Very Compressed Rust" is Rust.
-        Optional<String> pickupHere = pickupStillApplies(r.sprite(), now) ? lastPickup : Optional.empty();
+        Optional<String> pickupHere = pickupStillApplies(r.sprite(), now, catalog, notHere) ? lastPickup : Optional.empty();
         Optional<String> mined = MineDetector.minedMine(blockMine.map(MiningBlocks.Match::mine), pickupHere);
         // A shared icon is not unknown: it just cannot say which of its mines this is, so the
         // mine last named by a pickup stays rather than being dropped for the tool in hand.
@@ -1090,24 +1125,41 @@ public final class MinerefineHudClient implements ClientModInitializer {
 
     /** Further than this from where the last resource was picked up, and it may be another mine. */
     private static final double PICKUP_RANGE = 48.0;
+    /**
+     * The same, for another block than the one the pickup came with: mines sit a few dozen blocks
+     * apart, so a new block a little way off may be the next mine's.
+     */
+    private static final double PICKUP_RANGE_OTHER_BLOCK = 24.0;
 
     /**
-     * Whether the last resource picked up still names the mine for this block: the same block icon
-     * as when it was picked up, and the player still near where that was. Mining hands out a
-     * compressed resource only every so many blocks, so the name has to carry over the blocks in
-     * between; a fixed few seconds let the icon decide most of the time. Leaving the spot or a
-     * different icon ends it, so a warp from Rust to Woodland Copper (the same icon) does not carry
-     * Rust over. Without a known position, only the few seconds around the pickup count.
+     * Whether the last resource picked up still names the mine for this block: the player still
+     * near where that was, mining the same block icon or another one that is not certainly some
+     * other mine's. Mining hands out a compressed resource only every so many blocks, so the name
+     * has to carry over the blocks in between.
+     *
+     * Any block, not only the pickup's: the Sift's mines have several blocks each and share some
+     * (Rosewood and Ichor both have cherry logs), so with only the pickup's own block carried,
+     * every other block went back to its icon and the panel jumped between mines. A block known
+     * for certain as only another mine's ends it, as does walking off, so a warp from Rust to
+     * Woodland Copper (the same icon) does not carry Rust over. Without a known position, only the
+     * pickup's own block for the few seconds around it.
      */
-    private boolean pickupStillApplies(String sprite, long now) {
-        if (lastPickup.isEmpty() || !lastPickupSprite.equals(Optional.of(sprite))) {
+    private boolean pickupStillApplies(String sprite, long now, minerefinehud.mine.MineCatalog catalog,
+                                       java.util.function.Predicate<String> notHere) {
+        if (lastPickup.isEmpty()) {
             return false;
         }
+        boolean sameBlock = lastPickupSprite.equals(Optional.of(sprite));
         Optional<MineSpots.Spot> here = playerSpot();
         if (here.isEmpty() || lastPickupSpot.isEmpty()) {
-            return now - lastPickupAt <= SAME_BLOCK_MS;
+            return sameBlock && now - lastPickupAt <= SAME_BLOCK_MS;
         }
-        return lastPickupSpot.get().distanceTo(here.get()) <= PICKUP_RANGE;
+        double moved = lastPickupSpot.get().distanceTo(here.get());
+        if (sameBlock) {
+            return moved <= PICKUP_RANGE;
+        }
+        return moved <= PICKUP_RANGE_OTHER_BLOCK
+                && !MineDetector.anotherMinesBlock(miningBlocks.lookup(sprite, catalog), lastPickup.get(), catalog, notHere);
     }
 
     /** The player's dimension and position, or empty when not in a world. */
@@ -1149,6 +1201,9 @@ public final class MinerefineHudClient implements ClientModInitializer {
                 return;
             }
             long now = System.currentTimeMillis();
+            if (Compat.screen(client) instanceof net.minecraft.client.gui.screens.inventory.AbstractContainerScreen<?>) {
+                lastContainerAt = now;
+            }
             if (now - lastProgressCheck < 500L) {
                 return;
             }
@@ -1170,7 +1225,8 @@ public final class MinerefineHudClient implements ClientModInitializer {
         Optional<String> gained = resourcePickups.observe(items, catalog);
         // Still observed above, so the inventory baseline stays current, but a gain while not
         // mining (compressing, a backpack, a sale) says nothing about where the player is.
-        if (gained.isEmpty() || !ResourcePickups.namesTheMine(now, lastActionBarAt, SAME_BLOCK_MS)) {
+        if (gained.isEmpty() || !ResourcePickups.namesTheMine(now, lastActionBarAt, SAME_BLOCK_MS)
+                || ResourcePickups.fromMenu(now, lastContainerAt)) {
             return;
         }
         String resource = gained.get();

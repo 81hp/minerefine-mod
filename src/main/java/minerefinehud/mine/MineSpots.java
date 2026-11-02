@@ -246,6 +246,28 @@ public final class MineSpots {
         return record(mine, here);
     }
 
+    /**
+     * Mines sit a few dozen blocks apart (the Sift's 50 to 80), and a spot follows the player
+     * within {@link #MOVED} while they mine there: further than this from a mine's own spot and
+     * the player is at another mine.
+     */
+    public static final double NEAR = 64.0;
+
+    /**
+     * Whether this mine's own spot is known and further than {@link #NEAR}: the player is at
+     * another mine, even in the same area. Mining Jade with a Blub pickaxe showed Blub.
+     */
+    public boolean awayFrom(String mine, Spot here) {
+        Spot own = mine == null || here == null ? null : spots.get(key(mine));
+        return own != null && own.distanceTo(here) > NEAR;
+    }
+
+    /** Whether this mine's own spot is known and within {@link #NEAR}. */
+    public boolean near(String mine, Spot here) {
+        Spot own = mine == null || here == null ? null : spots.get(key(mine));
+        return own != null && own.distanceTo(here) <= NEAR;
+    }
+
     /** Whether this mine's own spot is known and the player is far from it, or in another dimension. */
     public boolean elsewhere(String mine, Spot here) {
         Spot own = mine == null || here == null ? null : spots.get(key(mine));

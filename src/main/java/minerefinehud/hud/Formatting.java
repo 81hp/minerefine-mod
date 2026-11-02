@@ -7,17 +7,24 @@ public final class Formatting {
 
     private static final long MILLION = 1_000_000L;
     private static final long BILLION = 1_000_000_000L;
+    private static final long TRILLION = 1_000_000_000_000L;
+    private static final long QUADRILLION = 1_000_000_000_000_000L;
 
     private Formatting() {
     }
 
-    /** Block counts the way the site writes them: 3.25b, 1.04m, 12345. */
+    private static final long[] UNITS = { QUADRILLION, TRILLION, BILLION, MILLION };
+    private static final String[] SUFFIXES = { "q", "t", "b", "m" };
+
+    /**
+     * Block counts the way the site writes them: 1.03t, 3.25b, 1.04m, 12345. A figure that rounds
+     * up to the next unit is written in it, 1t rather than 1000b.
+     */
     public static String blocks(long value) {
-        if (value >= BILLION) {
-            return trim(value / (double) BILLION) + "b";
-        }
-        if (value >= MILLION) {
-            return trim(value / (double) MILLION) + "m";
+        for (int i = 0; i < UNITS.length; i++) {
+            if (value >= UNITS[i] - UNITS[i] / 200_000L) {
+                return trim(value / (double) UNITS[i]) + SUFFIXES[i];
+            }
         }
         return String.format(Locale.ROOT, "%,d", value);
     }

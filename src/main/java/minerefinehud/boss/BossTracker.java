@@ -201,6 +201,11 @@ public final class BossTracker {
         return bosses.size();
     }
 
+    /** Forgets every boss, its timer and what was measured: learned again from /bossindex and chat. */
+    public void clear() {
+        bosses.clear();
+    }
+
     // ----------------------------------------------------------- persistence
 
     /** Flat form for writing to disk, so timers survive a relog. */

@@ -58,6 +58,8 @@ public abstract class MenuPoller {
     private final List<ItemStack> items = new ArrayList<>();
     private int misses;
     private boolean sendingOurs;
+    /** One check asked for by the player ({@link #requestNow}), sent even with the automatic check off. */
+    private boolean wanted;
     /** Hidden menus read, so the client game test can prove the mixin is applied. */
     private volatile int menusRead;
 
@@ -89,6 +91,14 @@ public abstract class MenuPoller {
 
     int menusRead() {
         return menusRead;
+    }
+
+    /**
+     * Sends the command once as soon as it may, automatic check on or off: right away on
+     * MineRefine, else once the player is back on it.
+     */
+    void requestNow() {
+        wanted = true;
     }
 
     /** For the client game test: take the next menu as this one's, as if the command had gone. */
@@ -157,14 +167,15 @@ public abstract class MenuPoller {
         if (mineRefineSince == 0L) {
             mineRefineSince = now;
         }
-        if (!auto() || sentAt > 0L || now - mineRefineSince < SETTLE_AFTER_JOIN_MS
-                || now - lastPollAt < intervalMs() || anotherBusy(this, now)) {
+        if (!auto() && !wanted || sentAt > 0L || now - mineRefineSince < SETTLE_AFTER_JOIN_MS
+                || !wanted && now - lastPollAt < intervalMs() || anotherBusy(this, now)) {
             return;
         }
         sendingOurs = true;
         try {
             // Held (a screen open, a command just sent, an Expedition): tried again next tick.
             if (AutoCommands.send(client, command(), now)) {
+                wanted = false;
                 lastPollAt = now;
                 sentAt = now;
                 acceptUntil = now + LATE_REPLY_MS;

@@ -36,6 +36,7 @@ public final class Amounts {
             case 'M' -> multiplierDigits = 6;
             case 'B' -> multiplierDigits = 9;
             case 'T' -> multiplierDigits = 12;
+            case 'Q' -> multiplierDigits = 15;
             default -> { }
         }
         if (multiplierDigits > 0) {
@@ -71,6 +72,7 @@ public final class Amounts {
             case 'M' -> 6;
             case 'B' -> 9;
             case 'T' -> 12;
+            case 'Q' -> 15;
             default -> 0;
         };
         if (digits == 0) {
@@ -83,6 +85,12 @@ public final class Amounts {
 
     /** Renders back in the server's own style, for the HUD. */
     public static String format(long value) {
+        if (value >= 1_000_000_000_000_000L) {
+            return trim(value / 1e15) + "Q";
+        }
+        if (value >= 1_000_000_000_000L) {
+            return trim(value / 1e12) + "T";
+        }
         if (value >= 1_000_000_000L) {
             return trim(value / 1_000_000_000.0) + "B";
         }

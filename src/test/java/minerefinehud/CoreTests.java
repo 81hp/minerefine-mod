@@ -11,6 +11,8 @@ import minerefinehud.mine.Mine;
 import minerefinehud.mine.MineCatalog;
 import minerefinehud.mine.MineDetector;
 import minerefinehud.mine.MiningBlocks;
+import minerefinehud.mine.MineSpots;
+import minerefinehud.shop.Amounts;
 import minerefinehud.mine.ResourcePickups;
 import minerefinehud.turret.TurretCalculator;
 import minerefinehud.turret.TurretItem;
@@ -56,6 +58,8 @@ public final class CoreTests {
         siftMinesAreNotOtherWorlds();
         newMineFromItsShop();
         siftiteWasBlackstone();
+        siftMinesHoldTogether();
+        trillions();
         expeditionSidebarIsRecognised();
         ownCommandsKeepClear();
 
@@ -1263,6 +1267,68 @@ public final class CoreTests {
      * as "blackstone" (a Sculk mine) long before. In the Sift that guess is rightly ignored, but it
      * also stopped the block being learned from the Siftite balance, so nothing named the mine.
      */
+    /** 2026-11-02 reports: Rosewood/Ichor flipping, Jade shown as Blub, "sulfur" at Rosewood. */
+    private static void siftMinesHoldTogether() {
+        MineCatalog catalog = new MineCatalog(List.of(mine("Blackstone", "Sculk", "pickaxe")));
+        String dim = "minecraft:minerefine";
+        MineSpots spots = new MineSpots();
+        spots.importAll(Map.of("rosewood", new MineSpots.Spot(dim, 54901, 55152),
+                "jade", new MineSpots.Spot(dim, 55068, 55198), "blub", new MineSpots.Spot(dim, 55098, 55087)));
+        MineSpots.Spot atJade = new MineSpots.Spot(dim, 55070, 55190);
+        assertTrue("at Jade, a Blub pickaxe's mine is elsewhere", spots.awayFrom("Blub", atJade));
+        assertTrue("and Jade is right here", spots.near("Jade", atJade) && !spots.awayFrom("Jade", atJade));
+        assertTrue("a mine with no spot is neither", !spots.awayFrom("Ichor", atJade) && !spots.near("Ichor", atJade));
+        assertTrue("another dimension is away", spots.awayFrom("Jade", new MineSpots.Spot("minecraft:halloween", 55070, 55190)));
+
+        java.util.function.Predicate<String> none = m -> false;
+        assertTrue("a block learned as only Rosewood's ends an Ichor pickup's hold",
+                MineDetector.anotherMinesBlock(Optional.of(new MiningBlocks.Match("Rosewood", MiningBlocks.How.LEARNED)),
+                        "Ichor", catalog, none));
+        assertTrue("a shared block does not",
+                !MineDetector.anotherMinesBlock(Optional.of(new MiningBlocks.Match("Rosewood", MiningBlocks.How.SHARED)),
+                        "Ichor", catalog, none));
+        assertTrue("nor an unknown one", !MineDetector.anotherMinesBlock(Optional.empty(), "Ichor", catalog, none));
+        assertTrue("nor a guess", !MineDetector.anotherMinesBlock(
+                Optional.of(new MiningBlocks.Match("sulfur", MiningBlocks.How.LEARNED)), "Rosewood", catalog, none));
+        assertTrue("nor the pickup's own mine", !MineDetector.anotherMinesBlock(
+                Optional.of(new MiningBlocks.Match("Rosewood", MiningBlocks.How.LEARNED)), "rosewood", catalog, none));
+        assertTrue("nor a mine of another area", !MineDetector.anotherMinesBlock(
+                Optional.of(new MiningBlocks.Match("Blackstone", MiningBlocks.How.BY_NAME)), "Rosewood", catalog,
+                m -> m.equalsIgnoreCase("blackstone")));
+
+        MiningBlocks guessed = new MiningBlocks();
+        guessed.importLearned(Map.of("block/pink_wool", "sulfur"));
+        assertTrue("one Rosewood pickup replaces a sulfur guess", guessed.onPickup("block/pink_wool", "Rosewood", catalog, 0L, none)
+                && "Rosewood".equals(guessed.learned().get("block/pink_wool")));
+        MiningBlocks proven = new MiningBlocks();
+        proven.importLearned(Map.of("block/pink_wool", "Rosewood"));
+        assertTrue("but one pickup never overturns a proven block",
+                !proven.onPickup("block/pink_wool", "Ichor", catalog, 0L, none)
+                        && "Rosewood".equals(proven.learned().get("block/pink_wool")));
+
+        assertTrue("Ichor taken out of a vault is not mined", ResourcePickups.fromMenu(10_000L, 9_000L));
+        assertTrue("nor just after closing it", ResourcePickups.fromMenu(10_000L, 8_600L));
+        assertTrue("but a while later it is", !ResourcePickups.fromMenu(10_000L, 5_000L));
+        assertTrue("and with no menu ever open", !ResourcePickups.fromMenu(10_000L, 0L));
+    }
+
+    private static void trillions() {
+        assertEquals("a trillion balance in t", "1.03t", Formatting.blocks(1_034_000_000_000L));
+        assertEquals("a user's Rosewood", "1.67t", Formatting.blocks(1_669_680_000_000L));
+        assertEquals("billions as before", "553.4b", Formatting.blocks(553_400_000_000L));
+        assertEquals("rounding up to a trillion says so", "1t", Formatting.blocks(999_999_000_000L));
+        assertEquals("quadrillions", "2.5q", Formatting.blocks(2_500_000_000_000_000L));
+        assertEquals("millions as before", "1.04m", Formatting.blocks(1_040_000L));
+        assertEquals("small as before", "12,345", Formatting.blocks(12_345L));
+        assertEquals("server style T", "1.03T", Amounts.format(1_034_000_000_000L));
+        assertEquals("server style Q", "1.5Q", Amounts.format(1_500_000_000_000_000L));
+        assertEquals("1.034T read", java.util.OptionalLong.of(1_034_000_000_000L), Amounts.parse("1.034T"));
+        assertEquals("Q read", java.util.OptionalLong.of(1_500_000_000_000_000L), Amounts.parse("1.5Q"));
+        assertEquals("a trillion total on the action bar", Optional.of(new minerefinehud.progress.ActionBarReader.Reading(
+                        1_030_000_000_000L, "block/cherry_log")),
+                minerefinehud.progress.ActionBarReader.read("+12 EXP | 1.03T[block/cherry_log]"));
+    }
+
     private static void siftiteWasBlackstone() {
         MineCatalog catalog = new MineCatalog(List.of(mine("Blackstone", "Sculk", "pickaxe"),
                 mine("Onyx", "Sculk", "pickaxe")));

@@ -89,6 +89,19 @@ public final class ResourcePickups {
         return fromMining(gainAt, lastMiningLineAt, windowMs);
     }
 
+    /** A menu closed less than this ago may still be moving items in. */
+    public static final long MENU_GRACE_MS = 1_500L;
+
+    /**
+     * Whether a gain came out of a menu: a vault, a chest or the inventory open now or a moment
+     * ago. Ichor taken out of a vault while mining Rosewood is not Ichor being mined.
+     *
+     * @param lastMenuAt when a menu was last seen open, 0 for never
+     */
+    public static boolean fromMenu(long gainAt, long lastMenuAt) {
+        return lastMenuAt > 0L && gainAt - lastMenuAt <= MENU_GRACE_MS;
+    }
+
     public Optional<String> lastWorldTag() {
         return lastWorldTag;
     }

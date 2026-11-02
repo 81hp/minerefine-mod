@@ -350,6 +350,12 @@ public final class MiningBlocks {
             conflicts.remove(sprite);
             return false;
         }
+        // A guess from a close balance gives way to the resource itself at once: a user mining
+        // Rosewood kept seeing "sulfur", guessed for one of Rosewood's blocks.
+        if (isGuess(known.get().mine()) && !notHere.test(pickupMine)) {
+            conflicts.remove(sprite);
+            return learn(sprite, pickupMine.trim());
+        }
         if (notHere.test(known.get().mine()) && !notHere.test(pickupMine)) {
             conflicts.remove(sprite);
             // Shared even when the icon was only known by its name: diorite is still Diorite's

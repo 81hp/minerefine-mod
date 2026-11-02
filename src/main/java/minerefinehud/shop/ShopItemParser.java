@@ -60,7 +60,7 @@ public final class ShopItemParser {
      * rounded as well, "Glacite x67.61M (637M)". Not an item line, which starts "[".
      */
     private static final Pattern MATERIAL_COST = Pattern.compile(
-            "^(?<currency>[\\p{L}][\\p{L} '\\-]*?)\\s*[x×]\\s*(?<amount>[0-9][0-9,.]*\\s*[KMBTkmbt]?)\\s*(?:\\((?<have>[0-9][0-9,.]*\\s*[KMBTkmbt]?)\\))?\\s*$");
+            "^(?<currency>[\\p{L}][\\p{L} '\\-]*?)\\s*[x×]\\s*(?<amount>[0-9][0-9,.]*\\s*[KMBTQkmbtq]?)\\s*(?:\\((?<have>[0-9][0-9,.]*\\s*[KMBTQkmbtq]?)\\))?\\s*$");
 
     private static final Pattern COST_HEADER = Pattern.compile("^cost\\s*:?$", Pattern.CASE_INSENSITIVE);
 

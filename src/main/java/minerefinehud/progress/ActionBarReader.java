@@ -43,7 +43,7 @@ public final class ActionBarReader {
      * excluded, so a gain can never be joined to the sprite.
      */
     private static final Pattern TOTAL = Pattern.compile(
-            "(?<![\\p{N}.,+\\-])(?<num>[0-9][0-9,]*(?:\\.[0-9]+)?)(?<suffix>[KMBTkmbt])?"
+            "(?<![\\p{N}.,+\\-])(?<num>[0-9][0-9,]*(?:\\.[0-9]+)?)(?<suffix>[KMBTQkmbtq])?"
             + "[^\\p{L}\\p{N}\\[\\]|+\\-]{0,4}"
             + "\\[(?<sprite>(?:block|item)/[a-z0-9_./\\-]+)(?:@[a-z0-9_:./\\-]+)?\\]",
             Pattern.CASE_INSENSITIVE);

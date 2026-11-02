@@ -92,6 +92,7 @@ public final class HalloweenText {
             case 'K' -> 1e3;
             case 'M' -> 1e6;
             case 'B' -> 1e9;
+            case 'T' -> 1e12;
             default -> 1.0;
         };
         if (multiplier != 1.0) {

@@ -97,6 +97,12 @@ public final class SettingsScreen extends Screen {
     private final ExtrasClient extras;
     /** "Reset all drops" was clicked once: the next click wipes them. */
     private boolean confirmWipe;
+    /** Forgets every boss and reads /bossindex again. */
+    private final Runnable resetBosses;
+    /** "Reset learned bosses" was clicked once: the next click forgets them. */
+    private boolean confirmBossReset;
+    /** The bosses were just reset: the button says so until the screen is left. */
+    private boolean bossesReset;
 
     private Tab tab = Tab.GENERAL;
 
@@ -140,7 +146,7 @@ public final class SettingsScreen extends Screen {
     public SettingsScreen(Screen parent, ModConfig config, Runnable onChange, Runnable openPositions,
                           Runnable openHalloweenPositions, Runnable resetHalloweenRates,
                           Supplier<java.util.Set<String>> pumpkinOwned, Supplier<Previews> previews,
-                          Supplier<List<String>> bossNames, ExtrasClient extras) {
+                          Supplier<List<String>> bossNames, ExtrasClient extras, Runnable resetBosses) {
         super(Component.literal("MineRefine HUD settings"));
         this.parent = parent;
         this.config = config;
@@ -152,6 +158,7 @@ public final class SettingsScreen extends Screen {
         this.previews = previews;
         this.bossNames = bossNames;
         this.extras = extras;
+        this.resetBosses = resetBosses;
     }
 
     private int left() {
@@ -237,6 +244,7 @@ public final class SettingsScreen extends Screen {
     private void openTab(Tab t) {
         tab = t;
         confirmWipe = false;
+        confirmBossReset = false;
         scroll = 0;
         rebuildWidgets();
     }
@@ -342,6 +350,27 @@ public final class SettingsScreen extends Screen {
         every.setTooltip(Tooltip.create(Component.literal("How often: 30s, 1 minute, 5m, 1h 30m, 2 hours... "
                 + "Shortest 30 seconds. Something it cannot read keeps the last good time.")));
         addRenderableWidget(every);
+
+        String resetLabel = bossesReset ? "Reset, reading /bossindex..."
+                : confirmBossReset ? "Click again to forget them" : "Reset learned bosses";
+        Button reset = addRenderableWidget(Button.builder(Component.literal(resetLabel), b -> {
+                    if (bossesReset) {
+                        return;
+                    }
+                    if (confirmBossReset) {
+                        resetBosses.run();
+                        confirmBossReset = false;
+                        bossesReset = true;
+                        onChange.run();
+                    } else {
+                        confirmBossReset = true;
+                    }
+                    rebuildWidgets();
+                })
+                .bounds(x(0), y(7), COLUMN_WIDTH * 2 + 10, 20).build());
+        reset.setTooltip(Tooltip.create(Component.literal("Forgets every boss and timer the mod has learned "
+                + "(also ones picked up on another server) and reads /bossindex once to learn them again. "
+                + "Your picked bosses stay picked. Asks twice.")));
     }
 
     /** Mining per hour, stats from /stats, rare drops: three optional panels. */

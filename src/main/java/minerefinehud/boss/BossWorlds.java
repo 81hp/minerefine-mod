@@ -197,6 +197,11 @@ public final class BossWorlds {
         return out;
     }
 
+    /** Forgets every boss's learned world; the spreadsheet's stay. */
+    public void clear() {
+        learned.clear();
+    }
+
     public int learnedCount() {
         return learned.size();
     }

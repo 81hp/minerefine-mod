@@ -121,6 +121,23 @@ public final class MineDetector {
     }
 
     /**
+     * Whether a block is known for certain as only another mine's than {@code mine}: learned (not
+     * shared, not a guess from a close balance) for a mine that can be here. Such a block ends a
+     * pickup's hold on the mine; an unknown or shared one does not.
+     */
+    public static boolean anotherMinesBlock(Optional<MiningBlocks.Match> block, String mine, MineCatalog catalog,
+                                            java.util.function.Predicate<String> notHere) {
+        if (block.isEmpty() || block.get().how() == MiningBlocks.How.SHARED) {
+            return false;
+        }
+        String other = block.get().mine();
+        if (other == null || other.isBlank() || MiningBlocks.isGuess(other) || notHere.test(other)) {
+            return false;
+        }
+        return !catalog.serverName(other).equalsIgnoreCase(catalog.serverName(mine));
+    }
+
+    /**
      * The mine last seen being mined, updated for one more mined block.
      *
      * A known block names its mine. An unknown block cannot name one, but it does prove the

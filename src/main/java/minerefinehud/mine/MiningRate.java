@@ -20,6 +20,12 @@ import java.util.Map;
  * turret income or a sale made meanwhile is never taken for mining. Spending makes the balance
  * fall, which is ignored.
  *
+ * The total is everything of that resource in the inventory, so items taken out of a private
+ * vault, a chest or a backpack raise it as well. A menu open in between makes the next reading a
+ * baseline ({@link #interrupt}), and a single rise far above the blocks before it
+ * ({@link #OUTLIER} times their median) is taken for the same and not counted: a user's rate
+ * went to 174,318b/h and the session to +15,041b from what they took out of their vault.
+ *
  * No Minecraft types; times are epoch milliseconds from the caller.
  */
 public final class MiningRate {
@@ -30,6 +36,12 @@ public final class MiningRate {
     public static final long MAX_GAP_MS = 10_000L;
     /** Blocks averaged at most, whatever is asked. */
     public static final int MAX_BLOCKS = 100;
+    /** A rise this many times the usual block's is not a block: items came in some other way. */
+    static final double OUTLIER = 20.0;
+    /** Blocks needed before a rise can be judged against them. */
+    static final int OUTLIER_AFTER = 3;
+    /** The usual block is the median of this many latest ones. */
+    private static final int OUTLIER_OVER = 20;
 
     private record Block(double gain, long tookMs) {}
 
@@ -44,6 +56,8 @@ public final class MiningRate {
     private long lastGainAt = -1L;
     private long miningMs;
     private long lastTick = -1L;
+    /** Rises in a row too big to be a block. */
+    private int outliersInRow;
 
     /** Every tick: adds up the time spent mining. */
     public void tick(long now) {
@@ -72,8 +86,19 @@ public final class MiningRate {
             currency = key;
             lastAmount = amount;
             lastGainAt = now;
+        } else if (amount > lastAmount + 1e-9 && outlier(amount - lastAmount)) {
+            // Taken out of a vault or a chest: the figure moves on, nothing is counted, and the
+            // next block's time runs from here. Several in a row are no accident but a far better
+            // tool or boost: the old blocks are no measure any more, so it starts again.
+            if (++outliersInRow >= OUTLIER_AFTER) {
+                blocks.clear();
+                outliersInRow = 0;
+            }
+            lastAmount = amount;
+            lastGainAt = now;
         } else if (amount > lastAmount + 1e-9) {
             double gain = amount - lastAmount;
+            outliersInRow = 0;
             long took = Math.max(0L, Math.min(MAX_GAP_MS, now - lastGainAt));
             blocks.addLast(new Block(gain, took));
             while (blocks.size() > MAX_BLOCKS) {
@@ -88,6 +113,30 @@ public final class MiningRate {
         }
         name = mine.trim();
         lastReadingAt = now;
+    }
+
+    /**
+     * A menu is open (a vault, a chest, the inventory): whatever comes into the inventory meanwhile
+     * is not mined, so the next reading starts again from its own figure. The blocks so far stay.
+     */
+    public void interrupt() {
+        lastAmount = Double.NaN;
+    }
+
+    /** Far more than the latest blocks brought, judged once there are a few of them. */
+    private boolean outlier(double gain) {
+        if (blocks.size() < OUTLIER_AFTER) {
+            return false;
+        }
+        double[] recent = new double[Math.min(OUTLIER_OVER, blocks.size())];
+        var it = blocks.descendingIterator();
+        for (int i = 0; i < recent.length; i++) {
+            recent[i] = it.next().gain();
+        }
+        java.util.Arrays.sort(recent);
+        double median = recent.length % 2 == 1 ? recent[recent.length / 2]
+                : (recent[recent.length / 2 - 1] + recent[recent.length / 2]) / 2.0;
+        return median > 0.0 && gain > median * OUTLIER;
     }
 
     /** The mine last read, as the caller named it; empty before any reading. */
@@ -136,6 +185,7 @@ public final class MiningRate {
         lastGainAt = -1L;
         miningMs = 0L;
         lastTick = -1L;
+        outliersInRow = 0;
     }
 
     private static String key(String mine) {

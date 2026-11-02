@@ -109,6 +109,7 @@ public final class MinerefineHudClient implements ClientModInitializer {
     /** Resource items gained, which name the mine being mined outright. */
     private final ResourcePickups resourcePickups = new ResourcePickups();
     private final FragmentCounts fragmentCounts = new FragmentCounts();
+    private final minerefinehud.mine.MobDrops mobDrops = new minerefinehud.mine.MobDrops();
     private Optional<String> lastPickup = Optional.empty();
     private long lastPickupAt;
     /** The block icon on screen when the last resource was picked up. */
@@ -478,6 +479,7 @@ public final class MinerefineHudClient implements ClientModInitializer {
             if (!halloween.seenMineRefine()) {
                 return;
             }
+            mobDrops.onChat(text, System.currentTimeMillis(), catalogSource.catalog()).ifPresent(this::onMobDrop);
             BossMessageParser.parse(text).ifPresent(event -> {
                 long now = System.currentTimeMillis();
                 switch (event.kind()) {
@@ -510,6 +512,7 @@ public final class MinerefineHudClient implements ClientModInitializer {
             currentWorld = Optional.empty();
             lastUnknownBlockAt = 0L;
             resourcePickups.reset();
+            mobDrops.reset();
             fragmentCounts.reset();
             AutoCommands.onJoin();
             halloween.onJoin();
@@ -951,7 +954,7 @@ public final class MinerefineHudClient implements ClientModInitializer {
         // pickaxe is the last mine's, and mining Jade with a Blub one showed Blub, Ichor with a
         // Jade one Jade. A shop is the fresher answer when it was opened after mining, so only
         // while an unknown block is mined.
-        java.util.function.Predicate<String> farAway = m -> here.map(h -> mineSpots.awayFrom(m, h)).orElse(false);
+        java.util.function.Predicate<String> farAway = m -> here.map(h -> mineSpots.awayFrom(m, h, areaCatalog)).orElse(false);
         Optional<String> tool = toolInHand(client);
         tool.filter(notHere.or(richer).or(farAway)).ifPresent(ruledOut::add);
         lastShopMine.filter(notHere.or(richer).or(m -> miningUnknown && farAway.test(m))).ifPresent(ruledOut::add);
@@ -965,7 +968,8 @@ public final class MinerefineHudClient implements ClientModInitializer {
         if (found.found()) {
             currentMine = found.mine();
             currentMineSource = found.source();
-        } else if (miningUnknown || currentMine.map(m -> notHere.test(m.name())).orElse(false)) {
+        } else if (miningUnknown || currentMine.map(m -> notHere.test(m.name())).orElse(false)
+                || (now - lastActionBarAt <= SAME_BLOCK_MS && currentMine.map(m -> farAway.test(m.name())).orElse(false))) {
             // Better to say "unknown" than to keep showing a mine the player has provably left.
             currentMine = Optional.empty();
             currentMineSource = MineDetector.Source.NONE;
@@ -1041,7 +1045,7 @@ public final class MinerefineHudClient implements ClientModInitializer {
         // a user mining Rosewood saw "sulfur", a guess left on one of Rosewood's blocks.
         Optional<MiningBlocks.Match> blockMine = miningBlocks.lookup(r.sprite(), catalog)
                 .filter(m -> !notHere.test(m.mine()))
-                .filter(m -> !(MiningBlocks.isGuess(m.mine()) && here.map(h -> mineSpots.awayFrom(m.mine(), h)).orElse(false)));
+                .filter(m -> !(MiningBlocks.isGuess(m.mine()) && here.map(h -> mineSpots.awayFrom(m.mine(), h, catalog)).orElse(false)));
         List<String> sharedHere = miningBlocks.shared().getOrDefault(r.sprite(), List.of()).stream()
                 .filter(m -> !notHere.test(m))
                 .toList();
@@ -1064,12 +1068,13 @@ public final class MinerefineHudClient implements ClientModInitializer {
             // Sift's Rosewood and Ichor both have cherry logs, and with the tool asked first the
             // panel went Rosewood, Ichor, Rosewood every other block. After a warp the block
             // before is another area's, and the tool in hand hints, unless its mine is elsewhere.
-            Optional<String> previousHere = lastMinedMine.filter(m -> here.map(h -> mineSpots.near(m, h)).orElse(false));
+            Optional<String> previousHere = lastMinedMine.filter(m -> here.map(h -> mineSpots.near(m, h, catalog)).orElse(false));
             Optional<String> toolHere = toolInHand(Minecraft.getInstance())
-                    .filter(m -> here.map(h -> !mineSpots.awayFrom(m, h)).orElse(true));
+                    .filter(m -> here.map(h -> !mineSpots.awayFrom(m, h, catalog)).orElse(true));
             blockMine = sharedDecided
                     .or(() -> miningBlocks.sharedByHint(r.sprite(), previousHere, toolHere, catalog, notHere))
-                    .or(() -> miningBlocks.sharedByHint(r.sprite(), Optional.empty(), lastMinedMine, catalog, notHere))
+                    .or(() -> miningBlocks.sharedByHint(r.sprite(), Optional.empty(), lastMinedMine, catalog,
+                            notHere.or(m -> here.map(h -> mineSpots.awayFrom(m, h, catalog)).orElse(false))))
                     .map(m -> new MiningBlocks.Match(m, MiningBlocks.How.SHARED));
         } else if (blockMine.isEmpty()) {
             // Mined resources are a balance here, not items, so pickups rarely teach a block.
@@ -1077,7 +1082,7 @@ public final class MinerefineHudClient implements ClientModInitializer {
             Map<String, Long> known = new java.util.HashMap<>();
             balances.all().forEach((c, seen) -> known.put(c, seen.amount()));
             if (miningBlocks.inferFromBalances(r.sprite(), r.amount(), known,
-                    m -> notHere.test(m) || here.map(h -> mineSpots.awayFrom(m, h)).orElse(false))) {
+                    m -> notHere.test(m) || here.map(h -> mineSpots.awayFrom(m, h, catalog)).orElse(false))) {
                 saveLearnedBlocks();
                 blockMine = miningBlocks.lookup(r.sprite(), catalog).filter(m -> !notHere.test(m.mine()));
             }
@@ -1090,7 +1095,10 @@ public final class MinerefineHudClient implements ClientModInitializer {
         // A shared icon is not unknown: it just cannot say which of its mines this is, so the
         // mine last named by a pickup stays rather than being dropped for the tool in hand.
         lastUnknownBlockAt = mined.isEmpty() && !shared ? now : 0L;
-        lastMinedMine = MineDetector.afterMining(lastMinedMine, mined, pickupNow || shared);
+        // Kept over a shared block only while the player is still there: walked from Jade to
+        // Ichor, every block both share kept Jade.
+        Optional<String> stillThere = lastMinedMine.filter(m -> !here.map(h -> mineSpots.awayFrom(m, h, catalog)).orElse(false));
+        lastMinedMine = MineDetector.afterMining(stillThere, mined, pickupNow || shared);
         lastMineCheck = 0L;   // re-detect now: what is being mined just changed or was confirmed
 
         // A shared icon decided only by a hint shows a mine but files nothing: guessed wrong, the
@@ -1262,6 +1270,31 @@ public final class MinerefineHudClient implements ClientModInitializer {
         }
     }
 
+
+    /**
+     * A mining mob dropped this mine's resource, so the player is at that mine: the same as a
+     * pickup, without a block icon (the mob was not a block) and without touching a balance (the
+     * total on screen may be from before the fight). In the Sift, where Ichor's blocks are all
+     * Jade's or Rosewood's too, it is what names the mine.
+     */
+    private void onMobDrop(String resource) {
+        long now = System.currentTimeMillis();
+        Optional<MineSpots.Spot> here = playerSpot();
+        var catalog = catalogSource.catalog();
+        if (here.map(h -> mineSpots.outOfArea(resource, h, catalog)).orElse(false)) {
+            return;
+        }
+        lastPickup = Optional.of(resource);
+        lastPickupAt = now;
+        lastPickupSprite = Optional.empty();
+        lastPickupSpot = here;
+        lastMinedMine = lastPickup;
+        lastMineCheck = 0L;
+        if (here.map(h -> mineSpots.record(resource, h, catalog)).orElse(false)) {
+            config.mineSpots = new java.util.LinkedHashMap<>(mineSpots.export());
+            config.save(configFile);
+        }
+    }
 
     private static List<ResourcePickups.Item> inventoryItems(Minecraft client) {
         List<ResourcePickups.Item> out = new java.util.ArrayList<>();

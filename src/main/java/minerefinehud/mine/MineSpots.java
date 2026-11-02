@@ -247,25 +247,54 @@ public final class MineSpots {
     }
 
     /**
-     * Mines sit a few dozen blocks apart (the Sift's 50 to 80), and a spot follows the player
+     * Mines sit a few dozen blocks apart (the Sift's 28 to 71), and a spot follows the player
      * within {@link #MOVED} while they mine there: further than this from a mine's own spot and
      * the player is at another mine.
      */
     public static final double NEAR = 64.0;
 
     /**
-     * Whether this mine's own spot is known and further than {@link #NEAR}: the player is at
-     * another mine, even in the same area. Mining Jade with a Blub pickaxe showed Blub.
+     * Whether this mine's own spot is known and the player is at another mine, even in the same
+     * area: further than {@link #NEAR}, or more than twice as far as some other mine's own spot.
+     * Mining Jade with a Blub pickaxe showed Blub. The Sift's Ichor is only 71 from Jade, so on
+     * Ichor's Jade side Jade was still within 64, and a Jade pickaxe and the Jade just left kept
+     * the panel on Jade; Ichor's own spot (or Siftite's) is far nearer there.
+     *
+     * Only beyond {@link #MOVED}: a spot moves only that far behind the player, so closer than
+     * that the mine may well be right here. Only against spots that can be here and are not this
+     * mine under another spelling: a stray spot of another world's mine is not a mine here.
      */
-    public boolean awayFrom(String mine, Spot here) {
+    public boolean awayFrom(String mine, Spot here, MineCatalog catalog) {
         Spot own = mine == null || here == null ? null : spots.get(key(mine));
-        return own != null && own.distanceTo(here) > NEAR;
+        if (own == null) {
+            return false;
+        }
+        double d = own.distanceTo(here);
+        if (d > NEAR) {
+            return true;
+        }
+        if (d <= MOVED) {
+            return false;
+        }
+        String self = key(mine);
+        for (Map.Entry<String, Spot> e : spots.entrySet()) {
+            String other = e.getKey();
+            if (other.equals(self) || e.getValue().distanceTo(here) * 2.0 >= d) {
+                continue;
+            }
+            if (catalog != null && (outOfArea(other, here, catalog)
+                    || catalog.serverName(other).equalsIgnoreCase(catalog.serverName(mine)))) {
+                continue;
+            }
+            return true;
+        }
+        return false;
     }
 
-    /** Whether this mine's own spot is known and within {@link #NEAR}. */
-    public boolean near(String mine, Spot here) {
+    /** Whether this mine's own spot is known and the player is not {@link #awayFrom} it. */
+    public boolean near(String mine, Spot here, MineCatalog catalog) {
         Spot own = mine == null || here == null ? null : spots.get(key(mine));
-        return own != null && own.distanceTo(here) <= NEAR;
+        return own != null && !awayFrom(mine, here, catalog);
     }
 
     /** Whether this mine's own spot is known and the player is far from it, or in another dimension. */

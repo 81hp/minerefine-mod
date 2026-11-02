@@ -59,6 +59,7 @@ public final class CoreTests {
         newMineFromItsShop();
         siftiteWasBlackstone();
         siftMinesHoldTogether();
+        ichorIsNotJade();
         trillions();
         expeditionSidebarIsRecognised();
         ownCommandsKeepClear();
@@ -1275,10 +1276,10 @@ public final class CoreTests {
         spots.importAll(Map.of("rosewood", new MineSpots.Spot(dim, 54901, 55152),
                 "jade", new MineSpots.Spot(dim, 55068, 55198), "blub", new MineSpots.Spot(dim, 55098, 55087)));
         MineSpots.Spot atJade = new MineSpots.Spot(dim, 55070, 55190);
-        assertTrue("at Jade, a Blub pickaxe's mine is elsewhere", spots.awayFrom("Blub", atJade));
-        assertTrue("and Jade is right here", spots.near("Jade", atJade) && !spots.awayFrom("Jade", atJade));
-        assertTrue("a mine with no spot is neither", !spots.awayFrom("Ichor", atJade) && !spots.near("Ichor", atJade));
-        assertTrue("another dimension is away", spots.awayFrom("Jade", new MineSpots.Spot("minecraft:halloween", 55070, 55190)));
+        assertTrue("at Jade, a Blub pickaxe's mine is elsewhere", spots.awayFrom("Blub", atJade, catalog));
+        assertTrue("and Jade is right here", spots.near("Jade", atJade, catalog) && !spots.awayFrom("Jade", atJade, catalog));
+        assertTrue("a mine with no spot is neither", !spots.awayFrom("Ichor", atJade, catalog) && !spots.near("Ichor", atJade, catalog));
+        assertTrue("another dimension is away", spots.awayFrom("Jade", new MineSpots.Spot("minecraft:halloween", 55070, 55190), catalog));
 
         java.util.function.Predicate<String> none = m -> false;
         assertTrue("a block learned as only Rosewood's ends an Ichor pickup's hold",
@@ -1310,6 +1311,66 @@ public final class CoreTests {
         assertTrue("nor just after closing it", ResourcePickups.fromMenu(10_000L, 8_600L));
         assertTrue("but a while later it is", !ResourcePickups.fromMenu(10_000L, 5_000L));
         assertTrue("and with no menu ever open", !ResourcePickups.fromMenu(10_000L, 0L));
+    }
+
+    /**
+     * 2026-11-02, the user's own: mining Ichor showed Jade on the armor and Total bars. Their saved
+     * Sift spots, and the chat lines of a mining mob from their log.
+     */
+    private static void ichorIsNotJade() {
+        MineCatalog catalog = new MineCatalog(List.of(mine("Jade", "The Sift", "pickaxe"),
+                mine("Ichor", "The Sift", "pickaxe"), mine("Rosewood", "The Sift", "pickaxe"),
+                mine("Siftite", "The Sift", "pickaxe"), mine("Timber", "Woodland", "axe"),
+                mine("Vase", "Woodland", "pickaxe")));
+        String dim = "minecraft:minerefine";
+        MineSpots spots = new MineSpots();
+        spots.importAll(Map.of(
+                "ichor", new MineSpots.Spot(dim, 54892.4, 55189.0),
+                "jade", new MineSpots.Spot(dim, 54963.1, 55186.8),
+                "rosewood", new MineSpots.Spot(dim, 54901.4, 55152.3),
+                "siftite", new MineSpots.Spot(dim, 54916.2, 55204.1)));
+        MineSpots.Spot ichorJadeSide = new MineSpots.Spot(dim, 54912.0, 55190.0);
+        assertTrue("on Ichor's Jade side Jade is within 64", new MineSpots.Spot(dim, 54963.1, 55186.8)
+                .distanceTo(ichorJadeSide) < MineSpots.NEAR);
+        assertTrue("but Jade is away there: Ichor and Siftite are far nearer", spots.awayFrom("Jade", ichorJadeSide, catalog)
+                && !spots.near("Jade", ichorJadeSide, catalog));
+        assertTrue("and Ichor is not", !spots.awayFrom("Ichor", ichorJadeSide, catalog));
+        MineSpots.Spot atJade = new MineSpots.Spot(dim, 54955.0, 55180.0);
+        assertTrue("at Jade, Jade is near", spots.near("Jade", atJade, catalog) && spots.awayFrom("Ichor", atJade, catalog));
+        MineSpots.Spot between = new MineSpots.Spot(dim, 54898.0, 55166.0);
+        assertTrue("between Rosewood and Ichor neither is ruled out",
+                !spots.awayFrom("Rosewood", between, catalog) && !spots.awayFrom("Ichor", between, catalog));
+
+        MineSpots.Spot behind = new MineSpots.Spot(dim, 54914.0, 55195.0);
+        assertTrue("a spot up to 24 behind does not rule its mine out", !spots.awayFrom("Ichor", behind, catalog));
+        MineSpots strays = new MineSpots();
+        strays.importAll(Map.of("jade", new MineSpots.Spot(dim, 54963.1, 55186.8),
+                "timber", new MineSpots.Spot(dim, 54930.0, 55186.8),
+                "vase", new MineSpots.Spot(dim, 40003.7, 39860.3)));
+        assertTrue("a stray spot of another world's mine does not", !strays.awayFrom("Jade",
+                new MineSpots.Spot(dim, 54925.0, 55186.8), catalog));
+
+        minerefinehud.mine.MobDrops drops = new minerefinehud.mine.MobDrops();
+        long t = 1_000_000L;
+        assertEquals("a drop line alone names nothing", Optional.empty(),
+                drops.onChat("+ ⬢ Ultra Compressed Ichor x33", t, catalog));
+        assertEquals("nor the hunting line", Optional.empty(), drops.onChat("+ ⟡ 1,400 Hunting EXP", t, catalog));
+        assertEquals("nor tokens", Optional.empty(), drops.onChat("+ 16 Tokens", t, catalog));
+        assertEquals("nor a charm", Optional.empty(), drops.onChat("+ « Mob » - Charm x1", t, catalog));
+        assertEquals("the mob's Ichor names Ichor", Optional.of("Ichor"),
+                drops.onChat("+ ⬢ Ultra Compressed Ichor x33", t, catalog));
+        assertEquals("as does the next line", Optional.of("Ichor"),
+                drops.onChat("+ ⬟ Super Compressed Ichor x18", t + 100L, catalog));
+        assertEquals("a player's message is not a drop", Optional.empty(),
+                drops.onChat("[★1401] vrtualsin: + ⬢ Ultra Compressed Jade x29", t + 200L, catalog));
+        assertEquals("a dungeon reward later is not the mine", Optional.empty(),
+                drops.onChat("+ ⬢ Mega Compressed Timber x1", t + 60_000L, catalog));
+        assertEquals("nor a resource the price data does not know", Optional.empty(),
+                drops.onChat("+ ⬢ Ultra Compressed Nothing x3", t + 300L, catalog));
+        drops.onChat("+ ⟡ 1,375 Hunting EXP", t + 90_000L, catalog);
+        drops.reset();
+        assertEquals("forgotten on a relog", Optional.empty(),
+                drops.onChat("+ ⬢ Ultra Compressed Jade x29", t + 90_100L, catalog));
     }
 
     private static void trillions() {

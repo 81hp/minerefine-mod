@@ -43,6 +43,11 @@ public final class ExtrasHud {
                          List<Eta> etas) {}
 
     public static List<Line> miningPanel(Mining m) {
+        return miningPanel(m, null);
+    }
+
+    /** The mining panel with a row of EXP per hour under the session, when {@code xp} is given. */
+    public static List<Line> miningPanel(Mining m, Xp xp) {
         List<Line> lines = new ArrayList<>();
         lines.add(Line.header("Mining", "pickaxe"));
         if (m == null || m.mine() == null || m.mine().isBlank()) {
@@ -56,6 +61,11 @@ public final class ExtrasHud {
             lines.add(HalloweenHud.figures(HudModel.Kind.ROW, "Session", "", "+" + HalloweenHud.compact(m.session()),
                     m.miningMs() >= 60_000L ? eta(m.miningMs()) : ""));
         }
+        if (xp != null && xp.session() > 0.0) {
+            String xpRate = Double.isNaN(xp.perHour()) ? "…/h"
+                    : HalloweenHud.compact(Math.max(0.0, xp.perHour())) + "/h";
+            lines.add(HalloweenHud.figures(HudModel.Kind.ROW, "EXP", "", "+" + HalloweenHud.compact(xp.session()), xpRate));
+        }
         if (!m.etas().isEmpty()) {
             lines.add(Line.section("AT THIS RATE"));
             for (Eta e : m.etas()) {
@@ -67,25 +77,10 @@ public final class ExtrasHud {
     }
 
     /**
-     * @param perHour  EXP per hour, NaN while too little is measured
-     * @param session  EXP since joining
-     * @param miningMs time spent mining since joining
+     * @param perHour EXP per hour, NaN while too little is measured
+     * @param session EXP since joining
      */
-    public record Xp(double perHour, double session, long miningMs) {}
-
-    public static List<Line> xpPanel(Xp x) {
-        List<Line> lines = new ArrayList<>();
-        lines.add(Line.header("EXP", "item:experience_bottle"));
-        if (x == null || x.session() <= 0.0) {
-            lines.add(Line.of("start mining to measure", Style.DIM));
-            return lines;
-        }
-        String rate = Double.isNaN(x.perHour()) ? "…/h" : HalloweenHud.compact(Math.max(0.0, x.perHour())) + "/h";
-        lines.add(HalloweenHud.figures(HudModel.Kind.ROW, "EXP", "", "", rate));
-        lines.add(HalloweenHud.figures(HudModel.Kind.ROW, "Session", "", "+" + HalloweenHud.compact(x.session()),
-                x.miningMs() >= 60_000L ? eta(x.miningMs()) : ""));
-        return lines;
-    }
+    public record Xp(double perHour, double session) {}
 
     /**
      * Every progress bar paid in {@code currency} that is still short, with how long the rest takes

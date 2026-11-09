@@ -111,22 +111,18 @@ public final class SamplePanels {
                 Line.status("Harvest Moon", Style.LABEL, new Cell("12.3s", Style.HEADER, "12.3s")));
     }
 
-    /** Shale at 1.25b an hour, with a bar due in two hours. */
+    /** Shale at 1.25b an hour and 1.2m EXP an hour, with a bar due in two hours. */
     public static List<Line> mining() {
         return ExtrasHud.miningPanel(new ExtrasHud.Mining("Shale", OptionalLong.of(36_420_000_000L), 1_250_000_000.0,
                 4_510_000_000.0, 3L * 3_600_000L + 25L * 60_000L,
                 List.of(new ExtrasHud.Eta("Total left", (2L * 60L + 13L) * 60_000L),
-                        new ExtrasHud.Eta("Pickaxe IV", 41L * 60_000L))));
+                        new ExtrasHud.Eta("Pickaxe IV", 41L * 60_000L))),
+                new ExtrasHud.Xp(1_200_000.0, 4_100_000.0));
     }
 
     /** Two minutes forty to the next Beacon Mine reset. */
     public static List<Line> beacon() {
         return ExtrasHud.beaconPanel(160_000L, false);
-    }
-
-    /** 1.2m EXP an hour, 4.1m earned in three and a half hours. */
-    public static List<Line> xp() {
-        return ExtrasHud.xpPanel(new ExtrasHud.Xp(1_200_000.0, 4_100_000.0, 3L * 3_600_000L + 30L * 60_000L));
     }
 
     /** The two outposts from the /outpost screenshots. */

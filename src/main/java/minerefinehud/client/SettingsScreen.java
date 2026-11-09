@@ -59,8 +59,7 @@ public final class SettingsScreen extends Screen {
                            List<HudModel.Line> alert, List<HudModel.Line> halloween,
                            List<HudModel.Line> pumpkin, List<HudModel.Line> abilities,
                            List<HudModel.Line> mining, List<HudModel.Line> stats, List<HudModel.Line> drops,
-                           List<HudModel.Line> beacon, List<HudModel.Line> outposts,
-                           List<HudModel.Line> xp) {}
+                           List<HudModel.Line> beacon, List<HudModel.Line> outposts) {}
 
     private static final int COLUMN_WIDTH = 150;
     private static final int ROW_HEIGHT = 22;
@@ -386,18 +385,24 @@ public final class SettingsScreen extends Screen {
         cycle(1, 0, "Rate from", () -> config.mineRateBlocks, v -> config.mineRateBlocks = v,
                 new int[] { 1, 3, 5, 10, 20, 50 }, v -> v == 1 ? "last block" : "last " + v + " blocks");
 
-        Button stats = toggleAt(x(0), y(1), "Stats panel", () -> config.showStats, v -> config.showStats = v);
+        Button xp = toggleAt(x(0), y(1), COLUMN_WIDTH * 2 + 10, "EXP per hour in the Mining panel",
+                () -> config.showXp, v -> config.showXp = v);
+        xp.setTooltip(Tooltip.create(Component.literal("Adds a row with the EXP you get per hour while mining, "
+                + "and what you earned this session, to the Mining panel. Read from the +EXP on the action bar, "
+                + "averaged over the same blocks as Mining per hour.")));
+
+        Button stats = toggleAt(x(0), y(2), "Stats panel", () -> config.showStats, v -> config.showStats = v);
         stats.setTooltip(Tooltip.create(Component.literal("Your stats from /stats: Fortune, Luck and the rest. "
                 + "Read whenever you open /stats, and by the automatic check if it is on.")));
-        Button auto = toggleAt(x(1), y(1), "Auto /stats", () -> config.statsAuto, v -> config.statsAuto = v);
+        Button auto = toggleAt(x(1), y(2), "Auto /stats", () -> config.statsAuto, v -> config.statsAuto = v);
         auto.setTooltip(Tooltip.create(Component.literal("While the stats panel is on, runs /stats by itself "
                 + "every so often and reads it without opening it on your screen, like the automatic "
                 + "/bossindex. It waits while you have a menu or chat open, right after any other command, "
                 + "and on an Expedition.")));
 
-        labels.add(new Label("Every", x(0), y(2) + 6));
+        labels.add(new Label("Every", x(0), y(3) + 6));
         int labelWidth = this.font.width("Every") + 6;
-        EditBox every = field(x(0) + labelWidth, y(2), COLUMN_WIDTH - labelWidth,
+        EditBox every = field(x(0) + labelWidth, y(3), COLUMN_WIDTH - labelWidth,
                 minerefinehud.boss.Interval.format(config.statsEveryMs), 24, s -> true, s ->
                         minerefinehud.boss.Interval.parse(s).ifPresent(ms -> {
                             config.statsEveryMs = Math.max(StatsPoller.MIN_INTERVAL_MS, ms);
@@ -424,10 +429,10 @@ public final class SettingsScreen extends Screen {
                                 "Show all", () -> config.statsHidden.clear(), onChange));
                     }
                 })
-                .bounds(x(1), y(2), COLUMN_WIDTH, 20).build());
+                .bounds(x(1), y(3), COLUMN_WIDTH, 20).build());
         pickStats.active = !statNames.isEmpty();
 
-        Button drops = toggleAt(x(0), y(3), "Rare drops panel", () -> config.showDrops, v -> config.showDrops = v);
+        Button drops = toggleAt(x(0), y(4), "Rare drops panel", () -> config.showDrops, v -> config.showDrops = v);
         drops.setTooltip(Tooltip.create(Component.literal("Counts every \"RARITY! You found ...\" drop from chat, "
                 + "also when SecondChat shows it. The same words typed by a player never count.")));
         List<String> rarities = extras.raritiesSeen();
@@ -445,11 +450,11 @@ public final class SettingsScreen extends Screen {
                                 "Show all", () -> config.dropsHiddenRarities.clear(), onChange));
                     }
                 })
-                .bounds(x(1), y(3), COLUMN_WIDTH, 20).build());
+                .bounds(x(1), y(4), COLUMN_WIDTH, 20).build());
 
-        cycle(0, 4, "Items listed", () -> config.dropsRows, v -> config.dropsRows = v,
+        cycle(0, 5, "Items listed", () -> config.dropsRows, v -> config.dropsRows = v,
                 new int[] { 3, 5, 8, 10, 15, 20 }, String::valueOf);
-        cycle(1, 4, "Latest drops", () -> config.dropsRecent, v -> config.dropsRecent = v,
+        cycle(1, 5, "Latest drops", () -> config.dropsRecent, v -> config.dropsRecent = v,
                 new int[] { 0, 1, 3, 5, 10 }, v -> v == 0 ? "off" : String.valueOf(v));
 
         Button session = addRenderableWidget(Button.builder(Component.literal("New session"), b -> {
@@ -457,7 +462,7 @@ public final class SettingsScreen extends Screen {
                     extras.resetMiningRate();
                     onChange.run();
                 })
-                .bounds(x(0), y(5), COLUMN_WIDTH, 20).build());
+                .bounds(x(0), y(6), COLUMN_WIDTH, 20).build());
         session.setTooltip(Tooltip.create(Component.literal("Starts the session drop counts and the mining rate "
                 + "over. All-time drop counts stay.")));
         Button wipe = addRenderableWidget(Button.builder(Component.literal(confirmWipe
@@ -471,14 +476,14 @@ public final class SettingsScreen extends Screen {
                     }
                     rebuildWidgets();
                 })
-                .bounds(x(1), y(5), COLUMN_WIDTH, 20).build());
+                .bounds(x(1), y(6), COLUMN_WIDTH, 20).build());
         wipe.setTooltip(Tooltip.create(Component.literal("Forgets every drop ever counted. Asks twice.")));
 
         addRenderableWidget(Button.builder(Component.literal("Move and resize panels..."), b -> {
                     onChange.run();
                     openPositions.run();
                 })
-                .bounds(x(0), y(6), COLUMN_WIDTH * 2 + 10, 20).build());
+                .bounds(x(0), y(7), COLUMN_WIDTH * 2 + 10, 20).build());
     }
 
     /** The two countdown panels, Beacon Mine and the outposts. By Arreba. */
@@ -522,16 +527,11 @@ public final class SettingsScreen extends Screen {
         now.setTooltip(Tooltip.create(Component.literal("Reads /outpost as soon as it is allowed, "
                 + "with the outpost panel on.")));
 
-        Button xp = toggleAt(x(0), y(4), "EXP per hour", () -> config.showXp, v -> config.showXp = v);
-        xp.setTooltip(Tooltip.create(Component.literal("A panel with the EXP you get per hour while mining, "
-                + "read from the +EXP on the action bar, and what you earned this session. It averages the "
-                + "same number of blocks as Mining per hour (Extras, Rate from).")));
-
         addRenderableWidget(Button.builder(Component.literal("Move and resize panels..."), b -> {
                     onChange.run();
                     openPositions.run();
                 })
-                .bounds(x(0), y(5), COLUMN_WIDTH * 2 + 10, 20).build());
+                .bounds(x(0), y(4), COLUMN_WIDTH * 2 + 10, 20).build());
     }
 
     private String statsLabel(List<String> known) {
@@ -1166,8 +1166,7 @@ public final class SettingsScreen extends Screen {
                 new PanelEntry("Stats", config.statsLook, 1.0, Previews::stats),
                 new PanelEntry("Rare drops", config.dropsLook, 1.0, Previews::drops),
                 new PanelEntry("Beacon Mine", config.beaconLook, 1.0, Previews::beacon),
-                new PanelEntry("Outposts", config.outpostLook, 1.0, Previews::outposts),
-                new PanelEntry("EXP", config.xpLook, 1.0, Previews::xp));
+                new PanelEntry("Outposts", config.outpostLook, 1.0, Previews::outposts));
     }
 
     /** Each panel's own background and size, with that panel drawn as it will look. */

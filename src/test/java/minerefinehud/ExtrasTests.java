@@ -355,14 +355,22 @@ public final class ExtrasTests {
         yes("xp: reset empties it", !timed.any() && timed.session() == 0.0 && timed.miningMs() == 0L
                 && Double.isNaN(timed.perHour(10)));
 
-        var none = ExtrasHud.xpPanel(new ExtrasHud.Xp(Double.NaN, 0.0, 0L));
-        yes("xp panel: nothing yet says so", none.size() == 2 && none.get(1).text().contains("start mining"));
-        var measuring = ExtrasHud.xpPanel(new ExtrasHud.Xp(Double.NaN, 1_500.0, 0L));
-        yes("xp panel: no rate yet", measuring.get(1).text().contains("\u2026/h"));
-        var full = ExtrasHud.xpPanel(new ExtrasHud.Xp(1_200_000.0, 4_100_000.0, 3L * 3_600_000L));
-        yes("xp panel: rate and session", full.size() == 3 && full.get(1).text().contains("1.2m/h")
-                && full.get(2).text().contains("+4.1m"));
-        yes("xp panel: sample is the same panel", minerefinehud.hud.SamplePanels.xp().size() == 3);
+        var mine = new ExtrasHud.Mining("Shale", OptionalLong.of(36_420_000_000L), 1_250_000_000.0,
+                4_510_000_000.0, 3L * 3_600_000L, List.of());
+        yes("xp panel: no EXP row unless asked", ExtrasHud.miningPanel(mine).size() == ExtrasHud.miningPanel(mine, null).size());
+        var plain = ExtrasHud.miningPanel(mine, null);
+        var withXp = ExtrasHud.miningPanel(mine, new ExtrasHud.Xp(1_200_000.0, 4_100_000.0));
+        yes("xp panel: one row more", withXp.size() == plain.size() + 1);
+        var row = withXp.get(withXp.size() - 1);
+        yes("xp panel: EXP row has the session and the rate", row.text().startsWith("EXP") && row.text().contains("+4.1m")
+                && row.text().contains("1.2m/h"));
+        yes("xp panel: sits under the session row", withXp.get(withXp.size() - 2).text().startsWith("Session"));
+        var measuring = ExtrasHud.miningPanel(mine, new ExtrasHud.Xp(Double.NaN, 1_500.0));
+        yes("xp panel: no rate yet", measuring.get(measuring.size() - 1).text().contains("\u2026/h"));
+        yes("xp panel: nothing earned yet adds no row",
+                ExtrasHud.miningPanel(mine, new ExtrasHud.Xp(Double.NaN, 0.0)).size() == plain.size());
+        yes("xp panel: the sample has the row", minerefinehud.hud.SamplePanels.mining().stream()
+                .anyMatch(l -> l.text().startsWith("EXP")));
     }
 
     private static void outposts() {

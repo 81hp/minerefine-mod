@@ -112,14 +112,6 @@ final class ExtrasClient {
         minerefinehud.mine.XpRate.parse(line).ifPresent(gain -> xpRate.observe(gain, balance, now));
     }
 
-    List<HudModel.Line> xpPanel() {
-        if (!config.showXp) {
-            return List.of();
-        }
-        return ExtrasHud.xpPanel(new ExtrasHud.Xp(xpRate.perHour(config.mineRateBlocks), xpRate.session(),
-                xpRate.miningMs()));
-    }
-
     /** The action bar's balance of the mine being mined. */
     void onBalance(String mine, long amount, long now) {
         miningRate.observe(mine, amount, now);
@@ -233,8 +225,10 @@ final class ExtrasClient {
         }
         String mine = miningRate.mine();
         double perHour = miningRate.perHour(mine, config.mineRateBlocks);
+        ExtrasHud.Xp xp = config.showXp && xpRate.any()
+                ? new ExtrasHud.Xp(xpRate.perHour(config.mineRateBlocks), xpRate.session()) : null;
         return ExtrasHud.miningPanel(new ExtrasHud.Mining(mine, balance, perHour, miningRate.session(mine),
-                miningRate.miningMs(), ExtrasHud.etas(progress, mine, perHour)));
+                miningRate.miningMs(), ExtrasHud.etas(progress, mine, perHour)), xp);
     }
 
     /** The mine being measured, to look its balance up. */

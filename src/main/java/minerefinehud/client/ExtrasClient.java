@@ -39,6 +39,7 @@ final class ExtrasClient {
     private long lastOutpostSave;
 
     private final MiningRate miningRate = new MiningRate();
+    private final minerefinehud.mine.XpRate xpRate = new minerefinehud.mine.XpRate();
     private final RareDrops.Counter drops;
     private final StatsPoller statsPoller;
 
@@ -59,6 +60,7 @@ final class ExtrasClient {
         ClientTickEvents.END_CLIENT_TICK.register(client -> {
             long now = System.currentTimeMillis();
             miningRate.tick(now);
+            xpRate.tick(now);
             // Items taken out of a vault or chest raise the total too; they are not mined.
             if (client != null && Compat.screen(client)
                     instanceof net.minecraft.client.gui.screens.inventory.AbstractContainerScreen<?>) {
@@ -103,6 +105,19 @@ final class ExtrasClient {
             config.dropData = drops.saved();
             save.run();
         });
+    }
+
+    /** A mining line from the action bar, with the EXP it shows and the balance beside it. */
+    void onXp(String line, long balance, long now) {
+        minerefinehud.mine.XpRate.parse(line).ifPresent(gain -> xpRate.observe(gain, balance, now));
+    }
+
+    List<HudModel.Line> xpPanel() {
+        if (!config.showXp) {
+            return List.of();
+        }
+        return ExtrasHud.xpPanel(new ExtrasHud.Xp(xpRate.perHour(config.mineRateBlocks), xpRate.session(),
+                xpRate.miningMs()));
     }
 
     /** The action bar's balance of the mine being mined. */
@@ -273,6 +288,7 @@ final class ExtrasClient {
 
     void resetMiningRate() {
         miningRate.reset();
+        xpRate.reset();
     }
 
     void resetDropSession() {
@@ -293,6 +309,9 @@ final class ExtrasClient {
                 + Math.round(miningRate.perHour(mine, config.mineRateBlocks)) + "/h, mining "
                 + (miningRate.mining(now) ? "now" : "stopped") + ", "
                 + ExtrasHud.eta(miningRate.miningMs()) + " measured"));
+        out.add("exp rate: " + (xpRate.any() ? Math.round(xpRate.perHour(config.mineRateBlocks)) + "/h, +"
+                + Math.round(xpRate.session()) + " this session, mining "
+                + (xpRate.mining(now) ? "now" : "stopped") : "no EXP line read yet"));
         out.add("stats: " + config.statsData.stats.size() + " read "
                 + (config.statsData.readAt > 0 ? ExtrasHud.ago(now - config.statsData.readAt) : "never")
                 + ", auto " + statsPoller.describe() + ", title \"" + config.statsTitle + "\"");

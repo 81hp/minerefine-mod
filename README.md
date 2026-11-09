@@ -19,6 +19,9 @@ What it does:
 7. **Outpost timers.** Reads `/outpost` by itself, without opening it on your screen, and counts down
    to each outpost opening, through its five minute battle and the four hours after it. Optional,
    by Arreba.
+8. **EXP per hour.** Reads the `+EXP` on the mining action bar and shows EXP per hour and what you
+   earned this session, averaged over the same number of blocks as Mining per hour. Optional,
+   by Arreba.
 
 Everything is movable, resizable and configurable in game.
 
@@ -113,7 +116,7 @@ or the GUI scale changes. A panel is clamped so it can never be lost off screen.
 | Bosses | Only this dimension, rows for alive and still-learning bosses, how many, the reminder, its timing, sound and volume, the Reforger timer, and Reset learned bosses (forgets every boss and timer, then reads /bossindex once to learn them again) |
 | Progress | The bars (item, amount, remove, add), the text line and the "still needed" line, and next tier or to max |
 | Halloween | The Halloween panels and their rows, the rate window, the caravan alert, ability timers, pumpkin set bars, the refine cost |
-| Timers | The Beacon Mine and outpost timers on or off, how long before to warn, how often `/outpost` is checked, and a button to check it now |
+| Timers | The Beacon Mine and outpost timers and the EXP per hour panel on or off, how long before to warn, how often `/outpost` is checked, and a button to check it now |
 | Panels | Each panel on its own: background, opacity and size, with that panel previewed |
 | Colours | Every colour with a colour picker (a strength and brightness square, a hue slider, a hex box and quick swatches) and a live preview, with Reset |
 
@@ -313,7 +316,7 @@ plain Java and covered by the tests, so an API change never touches the logic.
 
 ```
 boss/     BossMessageParser, BossTracker, BossWorlds, BossAlerts   pure logic, tested
-mine/     Mine, MineCatalog, MineDetector, MiningBlocks, pickups   pure logic, tested
+mine/     Mine, MineCatalog, MineDetector, MiningBlocks, XpRate, pickups  pure logic, tested
 shop/     ShopItemParser, PriceLedger, Amounts, ...                pure logic, tested
 progress/ ProgressPlanner, MineCosts, ProgressionLinks, ...        pure logic, tested
 hud/      HudModel, HudLayout, Theme, Formatting                   pure logic, tested

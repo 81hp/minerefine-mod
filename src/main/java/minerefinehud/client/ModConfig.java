@@ -298,7 +298,7 @@ public final class ModConfig {
     /** Every panel's look, for settings that change them all at once. */
     public java.util.List<Look> allLooks() {
         return java.util.List.of(mineLook, bossLook, progressLook, alertLook, hwStatsLook, hwPumpkinLook, hwAbilityLook,
-                miningLook, statsLook, dropsLook, beaconLook, outpostLook);
+                miningLook, statsLook, dropsLook, beaconLook, outpostLook, xpLook);
     }
 
     /** Size a panel is drawn at: its own size times the whole HUD's. */
@@ -509,6 +509,9 @@ public final class ModConfig {
     /** Seconds before the reset the title and ping come; 0 for neither. */
     public int beaconWarnSeconds = 15;
 
+    /** EXP per hour, from the EXP on the mining action bar. */
+    public boolean showXp = false;
+
     /** When each outpost opens, read from /outpost. */
     public boolean showOutposts = false;
     /** Runs /outpost by itself every so often while the panel is on, and reads it unseen. */
@@ -537,6 +540,14 @@ public final class ModConfig {
 
     public static final HudLayout.Placement DEFAULT_OUTPOST_PLACEMENT =
             new HudLayout.Placement(Anchor.TOP_RIGHT, -4, 150);
+
+    public static final HudLayout.Placement DEFAULT_XP_PLACEMENT =
+            new HudLayout.Placement(Anchor.TOP_RIGHT, -4, 200);
+
+    public String xpAnchor = DEFAULT_XP_PLACEMENT.anchor().name();
+    public int xpX = DEFAULT_XP_PLACEMENT.offsetX();
+    public int xpY = DEFAULT_XP_PLACEMENT.offsetY();
+    public Look xpLook = new Look();
 
     public String outpostAnchor = DEFAULT_OUTPOST_PLACEMENT.anchor().name();
     public int outpostX = DEFAULT_OUTPOST_PLACEMENT.offsetX();
@@ -598,6 +609,17 @@ public final class ModConfig {
     public HudLayout.Placement outpostPlacement() {
         return new HudLayout.Placement(
                 Anchor.parse(outpostAnchor).orElse(DEFAULT_OUTPOST_PLACEMENT.anchor()), outpostX, outpostY);
+    }
+
+    public HudLayout.Placement xpPlacement() {
+        return new HudLayout.Placement(
+                Anchor.parse(xpAnchor).orElse(DEFAULT_XP_PLACEMENT.anchor()), xpX, xpY);
+    }
+
+    public void setXpPlacement(HudLayout.Placement p) {
+        xpAnchor = p.anchor().name();
+        xpX = p.offsetX();
+        xpY = p.offsetY();
     }
 
     public void setOutpostPlacement(HudLayout.Placement p) {
@@ -876,6 +898,7 @@ public final class ModConfig {
         beaconLook = fix(beaconLook, 1.0);
         beaconWarnSeconds = Math.max(0, Math.min(60, beaconWarnSeconds));
         outpostLook = fix(outpostLook, 1.0);
+        xpLook = fix(xpLook, 1.0);
         outpostWarnSeconds = Math.max(0, Math.min(600, outpostWarnSeconds));
         outpostEveryMs = Math.max(OutpostPoller.MIN_INTERVAL_MS, outpostEveryMs);
         outpostData = minerefinehud.outpost.OutpostTimers.repair(outpostData);

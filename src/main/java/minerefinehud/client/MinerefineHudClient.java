@@ -368,7 +368,8 @@ public final class MinerefineHudClient implements ClientModInitializer {
                 minerefinehud.hud.SamplePanels.stats(),
                 minerefinehud.hud.SamplePanels.drops(),
                 minerefinehud.hud.SamplePanels.beacon(),
-                minerefinehud.hud.SamplePanels.outposts());
+                minerefinehud.hud.SamplePanels.outposts(),
+                minerefinehud.hud.SamplePanels.xp());
     }
 
     /**
@@ -451,6 +452,11 @@ public final class MinerefineHudClient implements ClientModInitializer {
             movables.add(new Movable(new HudPositionScreen.Panel("Beacon Mine", beaconPreview,
                     config.beaconPlacement(), ModConfig.DEFAULT_BEACON_PLACEMENT, config.beaconLook.scale, 1.0, HudRenderer.Look.of(config, config.beaconLook)),
                     config::setBeaconPlacement, config.beaconLook));
+        }
+        if (config.showXp) {
+            movables.add(new Movable(new HudPositionScreen.Panel("EXP", extras.xpPanel(),
+                    config.xpPlacement(), ModConfig.DEFAULT_XP_PLACEMENT, config.xpLook.scale, 1.0, HudRenderer.Look.of(config, config.xpLook)),
+                    config::setXpPlacement, config.xpLook));
         }
         if (config.showOutposts) {
             movables.add(new Movable(new HudPositionScreen.Panel("Outposts", extras.outpostPanel(now),
@@ -803,6 +809,7 @@ public final class MinerefineHudClient implements ClientModInitializer {
         drawPanel(context, client, extras.dropsPanel(now), config.dropsPlacement(), config.dropsLook, style, theme);
         drawPanel(context, client, extras.beaconPanel(now), config.beaconPlacement(), config.beaconLook, style, theme);
         drawPanel(context, client, extras.outpostPanel(now), config.outpostPlacement(), config.outpostLook, style, theme);
+        drawPanel(context, client, extras.xpPanel(), config.xpPlacement(), config.xpLook, style, theme);
         drawPanel(context, client, HudModel.bossPanel(bosses, options, halloween.reforgerRows(now)),
                 config.bossPlacement(), config.bossLook, style, theme);
 
@@ -1143,6 +1150,7 @@ public final class MinerefineHudClient implements ClientModInitializer {
             config.save(configFile);
         }
 
+        extras.onXp(text, r.amount(), now);
         lastActionBarReading = reading;
         lastActionBarCurrency = currency;
         balanceBeforeLastReading = currency.flatMap(balances::get);

@@ -124,6 +124,11 @@ public final class SamplePanels {
         return ExtrasHud.beaconPanel(160_000L, false);
     }
 
+    /** 1.2m EXP an hour, 4.1m earned in three and a half hours. */
+    public static List<Line> xp() {
+        return ExtrasHud.xpPanel(new ExtrasHud.Xp(1_200_000.0, 4_100_000.0, 3L * 3_600_000L + 30L * 60_000L));
+    }
+
     /** The two outposts from the /outpost screenshots. */
     public static List<Line> outposts() {
         long hour = 3_600_000L;

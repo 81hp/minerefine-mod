@@ -5,6 +5,7 @@ import minerefinehud.drops.RareDrops;
 import minerefinehud.hud.ExtrasHud;
 import minerefinehud.hud.HudModel;
 import minerefinehud.mine.MiningRate;
+import minerefinehud.mine.XpRate;
 import minerefinehud.outpost.OutpostTimers;
 import minerefinehud.stats.PlayerStats;
 
@@ -33,6 +34,7 @@ public final class ExtrasTests {
         panels();
         beacon();
         outposts();
+        xp();
 
         System.out.println();
         System.out.println("passed: " + passed + "   failed: " + failed);
@@ -300,6 +302,69 @@ public final class ExtrasTests {
     }
 
     /** From the /outpost screenshots, 2026-11-09. */
+    private static void xp() {
+        yes("xp: read from the mining line",
+                XpRate.parse("+140,732 EXP   +34.20 Coins   +0.135 Tokens  |  1.55B[block/cobblestone]")
+                        .orElse(-1) == 140_732.0);
+        yes("xp: colour codes", XpRate.parse("§b+1,200 EXP §7| §f1.55B[block/cobblestone]").orElse(-1) == 1_200.0);
+        yes("xp: a decimal", XpRate.parse("+734.5 EXP  +2.04 Coins").orElse(-1) == 734.5);
+        yes("xp: a suffix", XpRate.parse("+1.5M EXP | 3B[block/sponge]").orElse(-1) == 1_500_000.0);
+        yes("xp: coins are not exp", XpRate.parse("+34.20 Coins  +0.135 Tokens").isEmpty());
+        yes("xp: the idle line has none", XpRate.parse("267.1/267.1 \u2764   24,290 \u26e8").isEmpty());
+        yes("xp: hunting exp is its own line", XpRate.parse("Hunting EXP").isEmpty());
+        yes("xp: nothing", XpRate.parse("").isEmpty() && XpRate.parse(null).isEmpty());
+
+        XpRate x = new XpRate();
+        long t = 1_000_000L;
+        yes("xp: no rate before a block", Double.isNaN(x.perHour(10)));
+        x.observe(1_000, 100, t);
+        yes("xp: the first line counts for the session", x.session() == 1_000.0);
+        yes("xp: but gives no rate", Double.isNaN(x.perHour(10)));
+        x.observe(1_000, 101, t + 2_000L);
+        yes("xp: 1000 in 2s is 1.8m an hour", Math.abs(x.perHour(10) - 1_800_000.0) < 1.0);
+        x.observe(1_000, 101, t + 3_000L);
+        yes("xp: the same line again is not counted", x.session() == 2_000.0);
+        x.observe(2_000, 102, t + 6_000L);
+        // blocks: 1000 in 2s, 2000 in 4s -> 3000 / 6s = 1.8m
+        yes("xp: two blocks together", Math.abs(x.perHour(10) - 1_800_000.0) < 1.0);
+        yes("xp: last block alone", Math.abs(x.perHour(1) - 1_800_000.0) < 1.0);
+        yes("xp: session adds up", x.session() == 4_000.0);
+
+        x.observe(500, 103, t + 6_000L + 5 * 60_000L);
+        yes("xp: after a break the first line is a baseline, rate restarts", Double.isNaN(x.perHour(10)));
+        yes("xp: and is still in the session", x.session() == 4_500.0);
+        x.observe(500, 104, t + 6_000L + 5 * 60_000L + 1_000L);
+        yes("xp: 500 in 1s", Math.abs(x.perHour(10) - 1_800_000.0) < 1.0);
+
+        XpRate slow = new XpRate();
+        slow.observe(100, 1, t);
+        slow.observe(100, 2, t + 20_000L);
+        yes("xp: a long gap counts as 10s, not 20s", Math.abs(slow.perHour(10) - 36_000.0) < 1.0);
+
+        XpRate timed = new XpRate();
+        timed.tick(t);
+        timed.observe(10, 1, t);
+        for (int i = 1; i <= 120; i++) {
+            timed.tick(t + i * 1_000L);
+            if (i % 5 == 0) {
+                timed.observe(10, 1 + i, t + i * 1_000L);
+            }
+        }
+        yes("xp: mining time runs while lines come", timed.miningMs() >= 110_000L);
+        timed.reset();
+        yes("xp: reset empties it", !timed.any() && timed.session() == 0.0 && timed.miningMs() == 0L
+                && Double.isNaN(timed.perHour(10)));
+
+        var none = ExtrasHud.xpPanel(new ExtrasHud.Xp(Double.NaN, 0.0, 0L));
+        yes("xp panel: nothing yet says so", none.size() == 2 && none.get(1).text().contains("start mining"));
+        var measuring = ExtrasHud.xpPanel(new ExtrasHud.Xp(Double.NaN, 1_500.0, 0L));
+        yes("xp panel: no rate yet", measuring.get(1).text().contains("\u2026/h"));
+        var full = ExtrasHud.xpPanel(new ExtrasHud.Xp(1_200_000.0, 4_100_000.0, 3L * 3_600_000L));
+        yes("xp panel: rate and session", full.size() == 3 && full.get(1).text().contains("1.2m/h")
+                && full.get(2).text().contains("+4.1m"));
+        yes("xp panel: sample is the same panel", minerefinehud.hud.SamplePanels.xp().size() == 3);
+    }
+
     private static void outposts() {
         List<String> lore = List.of("", "♝ King - Arreba__", "♗ Prince VACANT", "", "ᴏᴘᴇɴs ɪɴ: 3h 58m 40s", "",
                 "YOU HOLD SEAT #1", "", "CLICK FOR MORE INFO");

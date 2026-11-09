@@ -67,6 +67,27 @@ public final class ExtrasHud {
     }
 
     /**
+     * @param perHour  EXP per hour, NaN while too little is measured
+     * @param session  EXP since joining
+     * @param miningMs time spent mining since joining
+     */
+    public record Xp(double perHour, double session, long miningMs) {}
+
+    public static List<Line> xpPanel(Xp x) {
+        List<Line> lines = new ArrayList<>();
+        lines.add(Line.header("EXP", "item:experience_bottle"));
+        if (x == null || x.session() <= 0.0) {
+            lines.add(Line.of("start mining to measure", Style.DIM));
+            return lines;
+        }
+        String rate = Double.isNaN(x.perHour()) ? "…/h" : HalloweenHud.compact(Math.max(0.0, x.perHour())) + "/h";
+        lines.add(HalloweenHud.figures(HudModel.Kind.ROW, "EXP", "", "", rate));
+        lines.add(HalloweenHud.figures(HudModel.Kind.ROW, "Session", "", "+" + HalloweenHud.compact(x.session()),
+                x.miningMs() >= 60_000L ? eta(x.miningMs()) : ""));
+        return lines;
+    }
+
+    /**
      * Every progress bar paid in {@code currency} that is still short, with how long the rest takes
      * at {@code perHour}. A bar whose time cannot be told (no rate yet) is left out.
      */

@@ -59,7 +59,8 @@ public final class SettingsScreen extends Screen {
                            List<HudModel.Line> alert, List<HudModel.Line> halloween,
                            List<HudModel.Line> pumpkin, List<HudModel.Line> abilities,
                            List<HudModel.Line> mining, List<HudModel.Line> stats, List<HudModel.Line> drops,
-                           List<HudModel.Line> beacon, List<HudModel.Line> outposts) {}
+                           List<HudModel.Line> beacon, List<HudModel.Line> outposts,
+                           List<HudModel.Line> xp) {}
 
     private static final int COLUMN_WIDTH = 150;
     private static final int ROW_HEIGHT = 22;
@@ -521,11 +522,16 @@ public final class SettingsScreen extends Screen {
         now.setTooltip(Tooltip.create(Component.literal("Reads /outpost as soon as it is allowed, "
                 + "with the outpost panel on.")));
 
+        Button xp = toggleAt(x(0), y(4), "EXP per hour", () -> config.showXp, v -> config.showXp = v);
+        xp.setTooltip(Tooltip.create(Component.literal("A panel with the EXP you get per hour while mining, "
+                + "read from the +EXP on the action bar, and what you earned this session. It averages the "
+                + "same number of blocks as Mining per hour (Extras, Rate from).")));
+
         addRenderableWidget(Button.builder(Component.literal("Move and resize panels..."), b -> {
                     onChange.run();
                     openPositions.run();
                 })
-                .bounds(x(0), y(4), COLUMN_WIDTH * 2 + 10, 20).build());
+                .bounds(x(0), y(5), COLUMN_WIDTH * 2 + 10, 20).build());
     }
 
     private String statsLabel(List<String> known) {
@@ -1160,7 +1166,8 @@ public final class SettingsScreen extends Screen {
                 new PanelEntry("Stats", config.statsLook, 1.0, Previews::stats),
                 new PanelEntry("Rare drops", config.dropsLook, 1.0, Previews::drops),
                 new PanelEntry("Beacon Mine", config.beaconLook, 1.0, Previews::beacon),
-                new PanelEntry("Outposts", config.outpostLook, 1.0, Previews::outposts));
+                new PanelEntry("Outposts", config.outpostLook, 1.0, Previews::outposts),
+                new PanelEntry("EXP", config.xpLook, 1.0, Previews::xp));
     }
 
     /** Each panel's own background and size, with that panel drawn as it will look. */

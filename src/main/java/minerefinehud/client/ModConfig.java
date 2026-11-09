@@ -298,7 +298,7 @@ public final class ModConfig {
     /** Every panel's look, for settings that change them all at once. */
     public java.util.List<Look> allLooks() {
         return java.util.List.of(mineLook, bossLook, progressLook, alertLook, hwStatsLook, hwPumpkinLook, hwAbilityLook,
-                miningLook, statsLook, dropsLook);
+                miningLook, statsLook, dropsLook, beaconLook);
     }
 
     /** Size a panel is drawn at: its own size times the whole HUD's. */
@@ -504,6 +504,11 @@ public final class ModConfig {
     /** Every item's all-time count and the latest drops. Written by the mod. */
     public minerefinehud.drops.RareDrops.Saved dropData = new minerefinehud.drops.RareDrops.Saved();
 
+    /** The Beacon Mine reset timer, by Arreba. */
+    public boolean showBeacon = false;
+    /** Seconds before the reset the title and ping come; 0 for neither. */
+    public int beaconWarnSeconds = 15;
+
     /** Clear of the other panels' default spots: under the mine panel, and both right corners are taken. */
     public static final HudLayout.Placement DEFAULT_MINING_PLACEMENT =
             new HudLayout.Placement(Anchor.TOP_CENTER, 0, 24);
@@ -511,6 +516,14 @@ public final class ModConfig {
             new HudLayout.Placement(Anchor.TOP_RIGHT, -4, 4);
     public static final HudLayout.Placement DEFAULT_DROPS_PLACEMENT =
             new HudLayout.Placement(Anchor.BOTTOM_LEFT, 4, -48);
+
+    public static final HudLayout.Placement DEFAULT_BEACON_PLACEMENT =
+            new HudLayout.Placement(Anchor.TOP_RIGHT, -4, 100);
+
+    public String beaconAnchor = DEFAULT_BEACON_PLACEMENT.anchor().name();
+    public int beaconX = DEFAULT_BEACON_PLACEMENT.offsetX();
+    public int beaconY = DEFAULT_BEACON_PLACEMENT.offsetY();
+    public Look beaconLook = new Look();
 
     public String miningAnchor = DEFAULT_MINING_PLACEMENT.anchor().name();
     public int miningX = DEFAULT_MINING_PLACEMENT.offsetX();
@@ -557,6 +570,17 @@ public final class ModConfig {
         dropsAnchor = p.anchor().name();
         dropsX = p.offsetX();
         dropsY = p.offsetY();
+    }
+
+    public HudLayout.Placement beaconPlacement() {
+        return new HudLayout.Placement(
+                Anchor.parse(beaconAnchor).orElse(DEFAULT_BEACON_PLACEMENT.anchor()), beaconX, beaconY);
+    }
+
+    public void setBeaconPlacement(HudLayout.Placement p) {
+        beaconAnchor = p.anchor().name();
+        beaconX = p.offsetX();
+        beaconY = p.offsetY();
     }
 
     public java.util.Set<String> statsHiddenSet() {
@@ -820,6 +844,8 @@ public final class ModConfig {
         miningLook = fix(miningLook, 1.0);
         statsLook = fix(statsLook, 1.0);
         dropsLook = fix(dropsLook, 1.0);
+        beaconLook = fix(beaconLook, 1.0);
+        beaconWarnSeconds = Math.max(0, Math.min(60, beaconWarnSeconds));
     }
 
     public static final int MAX_BOSSES = 15;

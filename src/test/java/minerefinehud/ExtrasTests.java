@@ -1,5 +1,6 @@
 package minerefinehud;
 
+import minerefinehud.beacon.BeaconTimer;
 import minerefinehud.drops.RareDrops;
 import minerefinehud.hud.ExtrasHud;
 import minerefinehud.hud.HudModel;
@@ -29,6 +30,7 @@ public final class ExtrasTests {
         miningRate();
         vaultIsNotMining();
         panels();
+        beacon();
 
         System.out.println();
         System.out.println("passed: " + passed + "   failed: " + failed);
@@ -293,6 +295,51 @@ public final class ExtrasTests {
         t += 1_000L;
         r.observe("Rosewood", 2_160.0, t);
         eq("and keeps counting", 67.0, r.session("Rosewood"));
+    }
+
+    private static void beacon() {
+        yes("beacon: server line", BeaconTimer.isReset("Beacon Mine has reset!"));
+        yes("beacon: any case, with a prefix", BeaconTimer.isReset("[Mines] BEACON MINE HAS RESET!"));
+        yes("beacon: another line", !BeaconTimer.isReset("Rubble Mine has reset!"));
+        yes("beacon: player chat does not count", !BeaconTimer.isReset("Steve: beacon mine has reset"));
+        yes("beacon: angle bracket chat does not count", !BeaconTimer.isReset("<Steve> beacon mine has reset"));
+        yes("beacon: null", !BeaconTimer.isReset(null));
+
+        BeaconTimer t = new BeaconTimer();
+        eq("beacon: unknown", -1L, t.remaining(1_000L));
+        yes("beacon: unknown never warns", !t.warnNow(1_000L, 15_000L));
+        t.onReset(10_000L);
+        eq("beacon: right after", BeaconTimer.CYCLE_MS, t.remaining(10_000L));
+        eq("beacon: a minute in", 240_000L, t.remaining(70_000L));
+        eq("beacon: a missed reset keeps cycling", 240_000L, t.remaining(70_000L + BeaconTimer.CYCLE_MS));
+        eq("beacon: clock behind the reset", BeaconTimer.CYCLE_MS, t.remaining(5_000L));
+        yes("beacon: notice just after", t.justReset(11_000L));
+        yes("beacon: notice gone", !t.justReset(10_000L + BeaconTimer.NOTICE_MS));
+
+        long warnAt = 10_000L + BeaconTimer.CYCLE_MS - 15_000L;
+        yes("beacon: quiet before the warning", !t.warnNow(warnAt - 1L, 15_000L));
+        yes("beacon: warns at 15s", t.warnNow(warnAt, 15_000L));
+        yes("beacon: warns only once", !t.warnNow(warnAt + 5_000L, 15_000L));
+        yes("beacon: warns again next cycle", !t.warnNow(warnAt + 20_000L, 15_000L)
+                && t.warnNow(warnAt + BeaconTimer.CYCLE_MS, 15_000L));
+        BeaconTimer quiet = new BeaconTimer();
+        quiet.onReset(0L);
+        yes("beacon: warning off", !quiet.warnNow(BeaconTimer.CYCLE_MS - 1_000L, 0L));
+        t.clear();
+        yes("beacon: cleared", !t.known() && t.remaining(99_000L) == -1L);
+
+        List<HudModel.Line> waiting = ExtrasHud.beaconPanel(-1L, false);
+        yes("beacon panel: waiting", waiting.stream().anyMatch(l -> l.text().contains("waiting for a reset")));
+        List<HudModel.Line> running = ExtrasHud.beaconPanel(160_000L, false);
+        yes("beacon panel: time", running.stream().anyMatch(l -> l.text().contains("Next reset") && l.text().contains("2:40")));
+        yes("beacon panel: bar", running.stream().anyMatch(l -> l.style() == HudModel.Style.BAR
+                && Math.abs(l.progress() - 160_000.0 / BeaconTimer.CYCLE_MS) < 1e-9));
+        yes("beacon panel: urgent is a warning", ExtrasHud.beaconPanel(9_000L, true).stream()
+                .anyMatch(l -> l.text().contains("0:09") && l.style() == HudModel.Style.WARN));
+        eq("beacon alert: nothing", List.of(), ExtrasHud.beaconAlerts(100_000L, false, 15_000L));
+        eq("beacon alert: soon", List.of("Beacon Mine resets in 12s"), ExtrasHud.beaconAlerts(11_200L, false, 15_000L));
+        eq("beacon alert: reset", List.of("Beacon Mine has reset!"), ExtrasHud.beaconAlerts(300_000L, true, 15_000L));
+        eq("beacon alert: warning off", List.of(), ExtrasHud.beaconAlerts(5_000L, false, 0L));
     }
 
     private static void panels() {

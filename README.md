@@ -14,6 +14,8 @@ What it does:
 4. **Shop price learning.** Reads every price in a shop you open and remembers it forever.
 5. **Turret size calculator.** What two turrets merge into, or what size merger you need to reach a
    target size, filled in from the turrets in your inventory.
+6. **Beacon Mine timer.** Counts down to the mine's five-minute reset from the server's
+   "Beacon Mine has reset!" line, with a title and a ping shortly before it. Optional, by Arreba.
 
 Everything is movable, resizable and configurable in game.
 
@@ -312,6 +314,7 @@ shop/     ShopItemParser, PriceLedger, Amounts, ...                pure logic, t
 progress/ ProgressPlanner, MineCosts, ProgressionLinks, ...        pure logic, tested
 hud/      HudModel, HudLayout, Theme, Formatting                   pure logic, tested
 turret/   TurretCalculator, TurretItem                             pure logic, tested
+beacon/   BeaconTimer                                             pure logic, tested
 data/     ProgressionData                                          bundled data, config override
 client/   entry point, screens, renderer, readers                  touches Minecraft
           Compat: every call that differs between Minecraft versions

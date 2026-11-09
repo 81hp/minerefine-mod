@@ -1,5 +1,6 @@
 package minerefinehud.hud;
 
+import minerefinehud.beacon.BeaconTimer;
 import minerefinehud.drops.RareDrops;
 import minerefinehud.halloween.HalloweenHud;
 import minerefinehud.hud.HudModel.Cell;
@@ -157,6 +158,38 @@ public final class ExtrasHud {
             lines.add(Line.of("every stat is hidden in Settings", Style.DIM));
         }
         return lines;
+    }
+
+    // ------------------------------------------------------------ beacon
+
+    /**
+     * The Beacon Mine timer. {@code remainingMs} is -1 until the first reset has been seen;
+     * {@code urgent} turns the time red.
+     */
+    public static List<Line> beaconPanel(long remainingMs, boolean urgent) {
+        List<Line> lines = new ArrayList<>();
+        lines.add(Line.header("Beacon Mine", "item:beacon"));
+        if (remainingMs < 0L) {
+            lines.add(Line.of("waiting for a reset", Style.DIM));
+            return lines;
+        }
+        long secs = remainingMs / 1000L;
+        String time = String.format(Locale.ROOT, "%d:%02d", secs / 60L, secs % 60L);
+        Style style = urgent ? Style.WARN : Style.VALUE;
+        lines.add(Line.row("Next reset", "", style, Cell.of(time, style)));
+        lines.add(Line.bar(remainingMs / (double) BeaconTimer.CYCLE_MS));
+        return lines;
+    }
+
+    /** The reminder text for the title: the mine just reset, or is about to. */
+    public static List<String> beaconAlerts(long remainingMs, boolean justReset, long warnMs) {
+        List<String> out = new ArrayList<>();
+        if (justReset) {
+            out.add("Beacon Mine has reset!");
+        } else if (remainingMs >= 0L && warnMs > 0L && remainingMs <= warnMs) {
+            out.add("Beacon Mine resets in " + Math.max(1L, (remainingMs + 999L) / 1000L) + "s");
+        }
+        return out;
     }
 
     // ------------------------------------------------------------- drops

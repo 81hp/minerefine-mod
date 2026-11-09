@@ -119,6 +119,11 @@ public final class SamplePanels {
                         new ExtrasHud.Eta("Pickaxe IV", 41L * 60_000L))));
     }
 
+    /** Two minutes forty to the next Beacon Mine reset. */
+    public static List<Line> beacon() {
+        return ExtrasHud.beaconPanel(160_000L, false);
+    }
+
     /** The stats from the /stats screenshot, Fortune just gone up. */
     public static List<Line> stats() {
         minerefinehud.stats.PlayerStats.Saved before = minerefinehud.stats.PlayerStats.update(null, List.of(

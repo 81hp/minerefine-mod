@@ -58,7 +58,8 @@ public final class SettingsScreen extends Screen {
     public record Previews(List<HudModel.Line> mine, List<HudModel.Line> bosses, List<HudModel.Line> progress,
                            List<HudModel.Line> alert, List<HudModel.Line> halloween,
                            List<HudModel.Line> pumpkin, List<HudModel.Line> abilities,
-                           List<HudModel.Line> mining, List<HudModel.Line> stats, List<HudModel.Line> drops) {}
+                           List<HudModel.Line> mining, List<HudModel.Line> stats, List<HudModel.Line> drops,
+                           List<HudModel.Line> beacon) {}
 
     private static final int COLUMN_WIDTH = 150;
     private static final int ROW_HEIGHT = 22;
@@ -471,11 +472,18 @@ public final class SettingsScreen extends Screen {
                 .bounds(x(1), y(5), COLUMN_WIDTH, 20).build());
         wipe.setTooltip(Tooltip.create(Component.literal("Forgets every drop ever counted. Asks twice.")));
 
+        Button beacon = toggleAt(x(0), y(6), "Beacon Mine timer", () -> config.showBeacon, v -> config.showBeacon = v);
+        beacon.setTooltip(Tooltip.create(Component.literal("Counts down to the Beacon Mine reset, started by the "
+                + "server's \"Beacon Mine has reset!\" line in chat. Shows \"waiting for a reset\" until the first "
+                + "one. By Arreba.")));
+        cycle(1, 6, "Warn", () -> config.beaconWarnSeconds, v -> config.beaconWarnSeconds = v,
+                new int[] { 0, 10, 15, 20, 30 }, v -> v == 0 ? "off" : v + "s before");
+
         addRenderableWidget(Button.builder(Component.literal("Move and resize panels..."), b -> {
                     onChange.run();
                     openPositions.run();
                 })
-                .bounds(x(0), y(6), COLUMN_WIDTH * 2 + 10, 20).build());
+                .bounds(x(0), y(7), COLUMN_WIDTH * 2 + 10, 20).build());
     }
 
     private String statsLabel(List<String> known) {
@@ -1108,7 +1116,8 @@ public final class SettingsScreen extends Screen {
                 new PanelEntry("Abilities", config.hwAbilityLook, 1.0, Previews::abilities),
                 new PanelEntry("Mining", config.miningLook, 1.0, Previews::mining),
                 new PanelEntry("Stats", config.statsLook, 1.0, Previews::stats),
-                new PanelEntry("Rare drops", config.dropsLook, 1.0, Previews::drops));
+                new PanelEntry("Rare drops", config.dropsLook, 1.0, Previews::drops),
+                new PanelEntry("Beacon Mine", config.beaconLook, 1.0, Previews::beacon));
     }
 
     /** Each panel's own background and size, with that panel drawn as it will look. */

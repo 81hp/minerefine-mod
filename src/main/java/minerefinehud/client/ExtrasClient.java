@@ -1,5 +1,6 @@
 package minerefinehud.client;
 
+import minerefinehud.beacon.BeaconTimer;
 import minerefinehud.drops.RareDrops;
 import minerefinehud.hud.ExtrasHud;
 import minerefinehud.hud.HudModel;
@@ -29,12 +30,17 @@ final class ExtrasClient {
     /** Drops count once MineRefine was seen since joining, so a sidebar swapped out never loses one. */
     private final BooleanSupplier seenMineRefine;
 
+    private final BeaconTimer beacon = new BeaconTimer();
+    private final Runnable beaconPing;
+
     private final MiningRate miningRate = new MiningRate();
     private final RareDrops.Counter drops;
     private final StatsPoller statsPoller;
 
-    ExtrasClient(ModConfig config, Runnable save, BooleanSupplier onMineRefine, BooleanSupplier seenMineRefine) {
+    ExtrasClient(ModConfig config, Runnable save, BooleanSupplier onMineRefine, BooleanSupplier seenMineRefine,
+                 Runnable beaconPing) {
         this.config = config;
+        this.beaconPing = beaconPing;
         this.save = save;
         this.seenMineRefine = seenMineRefine;
         this.drops = new RareDrops.Counter(config.dropData);
@@ -53,6 +59,9 @@ final class ExtrasClient {
             }
             if (client != null && client.player != null) {
                 statsPoller.tick(client, now);
+                if (config.showBeacon && beacon.warnNow(now, config.beaconWarnSeconds * 1000L)) {
+                    beaconPing.run();
+                }
             }
         });
         // Drops are the server's own lines. SecondChat moves them to its window after this event,
@@ -66,11 +75,15 @@ final class ExtrasClient {
 
     void onJoin() {
         statsPoller.onJoin();
+        beacon.clear();
     }
 
     void onChat(String text, long now) {
         if (!seenMineRefine.getAsBoolean()) {
             return;
+        }
+        if (BeaconTimer.isReset(text)) {
+            beacon.onReset(now);
         }
         RareDrops.parse(text).ifPresent(drop -> {
             drops.add(drop, now);
@@ -137,6 +150,23 @@ final class ExtrasClient {
         return miningRate.mine();
     }
 
+    List<HudModel.Line> beaconPanel(long now) {
+        if (!config.showBeacon) {
+            return List.of();
+        }
+        long rem = beacon.remaining(now);
+        long warn = config.beaconWarnSeconds * 1000L;
+        return ExtrasHud.beaconPanel(rem, warn > 0L && rem >= 0L && rem <= warn);
+    }
+
+    /** The title text for the alert panel: the mine just reset, or is about to. */
+    List<String> beaconAlerts(long now) {
+        if (!config.showBeacon) {
+            return List.of();
+        }
+        return ExtrasHud.beaconAlerts(beacon.remaining(now), beacon.justReset(now), config.beaconWarnSeconds * 1000L);
+    }
+
     List<HudModel.Line> statsPanel() {
         return config.showStats ? ExtrasHud.statsPanel(config.statsData, config.statsHiddenSet()) : List.of();
     }
@@ -189,6 +219,9 @@ final class ExtrasClient {
         out.add("stats: " + config.statsData.stats.size() + " read "
                 + (config.statsData.readAt > 0 ? ExtrasHud.ago(now - config.statsData.readAt) : "never")
                 + ", auto " + statsPoller.describe() + ", title \"" + config.statsTitle + "\"");
+        out.add("beacon mine: " + (beacon.known()
+                ? ExtrasHud.eta(beacon.remaining(now)) + " to the next reset" : "no reset seen yet")
+                + (config.showBeacon ? "" : " (panel off)"));
         out.add("rare drops: " + config.dropData.items.size() + " items, " + config.dropData.recent.size() + " recent");
         return out;
     }

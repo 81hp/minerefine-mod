@@ -298,7 +298,7 @@ public final class ModConfig {
     /** Every panel's look, for settings that change them all at once. */
     public java.util.List<Look> allLooks() {
         return java.util.List.of(mineLook, bossLook, progressLook, alertLook, hwStatsLook, hwPumpkinLook, hwAbilityLook,
-                miningLook, statsLook, dropsLook, beaconLook);
+                miningLook, statsLook, dropsLook, beaconLook, outpostLook);
     }
 
     /** Size a panel is drawn at: its own size times the whole HUD's. */
@@ -509,6 +509,16 @@ public final class ModConfig {
     /** Seconds before the reset the title and ping come; 0 for neither. */
     public int beaconWarnSeconds = 15;
 
+    /** When each outpost opens, read from /outpost. */
+    public boolean showOutposts = false;
+    /** Runs /outpost by itself every so often while the panel is on, and reads it unseen. */
+    public boolean outpostAuto = true;
+    public long outpostEveryMs = 15L * 60_000L;
+    /** Seconds before an outpost opens that the title and ping come; 0 for neither. */
+    public int outpostWarnSeconds = 60;
+    /** The last readings, counted forward from. Written by the mod. */
+    public minerefinehud.outpost.OutpostTimers.Saved outpostData = new minerefinehud.outpost.OutpostTimers.Saved();
+
     /** Clear of the other panels' default spots: under the mine panel, and both right corners are taken. */
     public static final HudLayout.Placement DEFAULT_MINING_PLACEMENT =
             new HudLayout.Placement(Anchor.TOP_CENTER, 0, 24);
@@ -524,6 +534,14 @@ public final class ModConfig {
     public int beaconX = DEFAULT_BEACON_PLACEMENT.offsetX();
     public int beaconY = DEFAULT_BEACON_PLACEMENT.offsetY();
     public Look beaconLook = new Look();
+
+    public static final HudLayout.Placement DEFAULT_OUTPOST_PLACEMENT =
+            new HudLayout.Placement(Anchor.TOP_RIGHT, -4, 150);
+
+    public String outpostAnchor = DEFAULT_OUTPOST_PLACEMENT.anchor().name();
+    public int outpostX = DEFAULT_OUTPOST_PLACEMENT.offsetX();
+    public int outpostY = DEFAULT_OUTPOST_PLACEMENT.offsetY();
+    public Look outpostLook = new Look();
 
     public String miningAnchor = DEFAULT_MINING_PLACEMENT.anchor().name();
     public int miningX = DEFAULT_MINING_PLACEMENT.offsetX();
@@ -575,6 +593,17 @@ public final class ModConfig {
     public HudLayout.Placement beaconPlacement() {
         return new HudLayout.Placement(
                 Anchor.parse(beaconAnchor).orElse(DEFAULT_BEACON_PLACEMENT.anchor()), beaconX, beaconY);
+    }
+
+    public HudLayout.Placement outpostPlacement() {
+        return new HudLayout.Placement(
+                Anchor.parse(outpostAnchor).orElse(DEFAULT_OUTPOST_PLACEMENT.anchor()), outpostX, outpostY);
+    }
+
+    public void setOutpostPlacement(HudLayout.Placement p) {
+        outpostAnchor = p.anchor().name();
+        outpostX = p.offsetX();
+        outpostY = p.offsetY();
     }
 
     public void setBeaconPlacement(HudLayout.Placement p) {
@@ -846,6 +875,10 @@ public final class ModConfig {
         dropsLook = fix(dropsLook, 1.0);
         beaconLook = fix(beaconLook, 1.0);
         beaconWarnSeconds = Math.max(0, Math.min(60, beaconWarnSeconds));
+        outpostLook = fix(outpostLook, 1.0);
+        outpostWarnSeconds = Math.max(0, Math.min(600, outpostWarnSeconds));
+        outpostEveryMs = Math.max(OutpostPoller.MIN_INTERVAL_MS, outpostEveryMs);
+        outpostData = minerefinehud.outpost.OutpostTimers.repair(outpostData);
     }
 
     public static final int MAX_BOSSES = 15;

@@ -5,6 +5,7 @@ import minerefinehud.drops.RareDrops;
 import minerefinehud.hud.ExtrasHud;
 import minerefinehud.hud.HudModel;
 import minerefinehud.mine.MiningRate;
+import minerefinehud.outpost.OutpostTimers;
 import minerefinehud.stats.PlayerStats;
 
 import java.util.List;
@@ -31,6 +32,7 @@ public final class ExtrasTests {
         vaultIsNotMining();
         panels();
         beacon();
+        outposts();
 
         System.out.println();
         System.out.println("passed: " + passed + "   failed: " + failed);
@@ -295,6 +297,98 @@ public final class ExtrasTests {
         t += 1_000L;
         r.observe("Rosewood", 2_160.0, t);
         eq("and keeps counting", 67.0, r.session("Rosewood"));
+    }
+
+    /** From the /outpost screenshots, 2026-11-09. */
+    private static void outposts() {
+        List<String> lore = List.of("", "♝ King - Arreba__", "♗ Prince VACANT", "", "ᴏᴘᴇɴs ɪɴ: 3h 58m 40s", "",
+                "YOU HOLD SEAT #1", "", "CLICK FOR MORE INFO");
+        Optional<OutpostTimers.Reading> r = OutpostTimers.read("Ruins Outpost", lore);
+        yes("outpost: read from the menu", r.isPresent() && r.get().name().equals("Ruins")
+                && r.get().opensInMs() == (3 * 3600 + 58 * 60 + 40) * 1000L);
+        yes("outpost: plain capitals too", OutpostTimers.read("Sift Outpost", List.of("OPENS IN: 1h 17m 55s"))
+                .map(x -> x.opensInMs() == (3600 + 17 * 60 + 55) * 1000L).orElse(false));
+        yes("outpost: colour codes in the name", OutpostTimers.read("§6§lSift Outpost", List.of("opens in: 5m"))
+                .map(x -> x.name().equals("Sift")).orElse(false));
+        yes("outpost: not an outpost", OutpostTimers.read("Gold Block", lore).isEmpty());
+        yes("outpost: no time line", OutpostTimers.read("Ruins Outpost", List.of("CLICK FOR MORE INFO")).isEmpty());
+        yes("outpost: unreadable time", OutpostTimers.read("Ruins Outpost", List.of("OPENS IN: soon")).isEmpty());
+        yes("outpost: null", OutpostTimers.read(null, null).isEmpty());
+        eq("outpost: a menu with two", 2, OutpostTimers.readAll(
+                List.of("Ruins Outpost", "Glass Pane", "Sift Outpost", "Ruins Outpost"),
+                List.of(lore, List.of(), List.of("OPENS IN: 1h"), lore)).size());
+
+        long h = 3_600_000L;
+        OutpostTimers.Saved saved = OutpostTimers.update(null, List.of(
+                new OutpostTimers.Reading("Ruins", 4 * h), new OutpostTimers.Reading("Sift", h)), 1_000L);
+        List<OutpostTimers.View> v0 = OutpostTimers.views(saved, 1_000L);
+        eq("outpost: soonest first", "Sift", v0.get(0).name());
+        eq("outpost: counts down", OutpostTimers.Phase.WAITING, v0.get(0).phase());
+        eq("outpost: time left", h, v0.get(0).ms());
+        yes("outpost: read, not guessed", !v0.get(0).estimated());
+
+        long opens = 1_000L + h;
+        OutpostTimers.View open = OutpostTimers.views(saved, opens + 60_000L).get(0);
+        eq("outpost: open for the battle", OutpostTimers.Phase.BATTLE, open.phase());
+        eq("outpost: battle time left", 4 * 60_000L, open.ms());
+        yes("outpost: battle start is still read", !open.estimated());
+
+        long afterBattle = opens + OutpostTimers.BATTLE_MS;
+        OutpostTimers.View waiting = named(OutpostTimers.views(saved, afterBattle + 1_000L), "Sift");
+        eq("outpost: four hours after the battle", OutpostTimers.Phase.WAITING, waiting.phase());
+        eq("outpost: time to the next", OutpostTimers.WAIT_MS - 1_000L, waiting.ms());
+        yes("outpost: next one is a guess", waiting.estimated());
+        OutpostTimers.View second = named(OutpostTimers.views(saved,
+                opens + OutpostTimers.BATTLE_MS + OutpostTimers.WAIT_MS + 30_000L), "Sift");
+        eq("outpost: second battle", OutpostTimers.Phase.BATTLE, second.phase());
+        eq("outpost: second battle time", OutpostTimers.BATTLE_MS - 30_000L, second.ms());
+
+        yes("outpost: no recheck before it opens", !OutpostTimers.needsRecheck(saved, opens));
+        yes("outpost: no recheck during the battle", !OutpostTimers.needsRecheck(saved, opens + 60_000L));
+        yes("outpost: recheck after the battle", OutpostTimers.needsRecheck(saved, afterBattle));
+        OutpostTimers.Saved reread = OutpostTimers.update(saved,
+                List.of(new OutpostTimers.Reading("Sift", 4 * h - 30_000L)), afterBattle + 5_000L);
+        yes("outpost: reading again settles it", !OutpostTimers.needsRecheck(
+                OutpostTimers.update(reread, List.of(new OutpostTimers.Reading("Ruins", h)), afterBattle + 5_000L),
+                afterBattle + 6_000L));
+        eq("outpost: other outposts kept", 2, reread.outposts.size());
+        eq("outpost: the old reading is not changed", 1_000L + h, saved.outposts.get(1).opensAt);
+        eq("outpost: repaired nothing", 0, OutpostTimers.repair(null).outposts.size());
+
+        eq("outpost: clock hours", "3:58:40", OutpostTimers.clock((3 * 3600 + 58 * 60 + 40) * 1000L));
+        eq("outpost: clock minutes", "4:12", OutpostTimers.clock(4 * 60_000L + 12_000L));
+        eq("outpost: short name", "Ruins", OutpostTimers.shortName("Ruins Outpost"));
+        eq("outpost: short name without the word", "Ruins", OutpostTimers.shortName("Ruins"));
+
+        eq("outpost alert: nothing yet", List.of(), OutpostTimers.alerts(v0, 60_000L));
+        eq("outpost alert: opens soon", List.of("Sift Outpost opens in 0:45"),
+                OutpostTimers.alerts(OutpostTimers.views(saved, opens - 45_000L).subList(0, 1), 60_000L));
+        eq("outpost alert: just open", List.of("Sift Outpost is open!"),
+                OutpostTimers.alerts(OutpostTimers.views(saved, opens + 2_000L).subList(0, 1), 60_000L));
+        eq("outpost alert: open a while", List.of(),
+                OutpostTimers.alerts(OutpostTimers.views(saved, opens + 60_000L).subList(0, 1), 60_000L));
+
+        OutpostTimers.Pings pings = new OutpostTimers.Pings();
+        yes("outpost ping: quiet", !pings.due(OutpostTimers.views(saved, 2_000L), 60_000L));
+        yes("outpost ping: warning", pings.due(OutpostTimers.views(saved, opens - 50_000L), 60_000L));
+        yes("outpost ping: once", !pings.due(OutpostTimers.views(saved, opens - 40_000L), 60_000L));
+        yes("outpost ping: opening", pings.due(OutpostTimers.views(saved, opens + 1_000L), 60_000L));
+        yes("outpost ping: once open", !pings.due(OutpostTimers.views(saved, opens + 3_000L), 60_000L));
+        yes("outpost ping: off", !new OutpostTimers.Pings().due(OutpostTimers.views(saved, opens - 10_000L), 0L));
+
+        List<HudModel.Line> panel = ExtrasHud.outpostPanel(OutpostTimers.views(saved, 1_000L), 60_000L);
+        yes("outpost panel: header", panel.get(0).text().equals("Outposts"));
+        yes("outpost panel: soonest row", panel.get(1).text().contains("Sift") && panel.get(1).text().contains("1:00:00"));
+        yes("outpost panel: empty says how", ExtrasHud.outpostPanel(List.of(), 0L).stream()
+                .anyMatch(l -> l.text().contains("/outpost")));
+        yes("outpost panel: battle", ExtrasHud.outpostPanel(OutpostTimers.views(saved, opens + 60_000L), 0L).stream()
+                .anyMatch(l -> l.text().contains("OPEN 4:00")));
+        yes("outpost panel: guess marked", ExtrasHud.outpostPanel(OutpostTimers.views(saved, afterBattle + 1_000L), 0L)
+                .stream().anyMatch(l -> l.text().contains("~")));
+    }
+
+    private static OutpostTimers.View named(List<OutpostTimers.View> views, String name) {
+        return views.stream().filter(v -> v.name().equals(name)).findFirst().orElseThrow();
     }
 
     private static void beacon() {

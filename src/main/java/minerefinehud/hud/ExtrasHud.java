@@ -3,6 +3,7 @@ package minerefinehud.hud;
 import minerefinehud.beacon.BeaconTimer;
 import minerefinehud.drops.RareDrops;
 import minerefinehud.halloween.HalloweenHud;
+import minerefinehud.outpost.OutpostTimers;
 import minerefinehud.hud.HudModel.Cell;
 import minerefinehud.hud.HudModel.Line;
 import minerefinehud.hud.HudModel.Style;
@@ -190,6 +191,31 @@ public final class ExtrasHud {
             out.add("Beacon Mine resets in " + Math.max(1L, (remainingMs + 999L) / 1000L) + "s");
         }
         return out;
+    }
+
+    // ---------------------------------------------------------- outposts
+
+    /** Each outpost and when it opens, or how long its battle has left. */
+    public static List<Line> outpostPanel(List<OutpostTimers.View> views, long warnMs) {
+        List<Line> lines = new ArrayList<>();
+        lines.add(Line.header("Outposts", "item:nether_star"));
+        if (views.isEmpty()) {
+            lines.add(Line.of("open /outpost once to read the times", Style.DIM));
+            return lines;
+        }
+        for (OutpostTimers.View v : views) {
+            String name = OutpostTimers.shortName(v.name());
+            String guess = v.estimated() ? "~" : "";
+            if (v.phase() == OutpostTimers.Phase.BATTLE) {
+                String text = "OPEN " + guess + OutpostTimers.clock(v.ms());
+                lines.add(Line.status(name, Style.LABEL, new Cell(text, Style.GOOD, text)));
+            } else {
+                Style style = warnMs > 0L && v.ms() <= warnMs ? Style.WARN : Style.VALUE;
+                String text = guess + OutpostTimers.clock(v.ms());
+                lines.add(Line.status(name, Style.LABEL, new Cell(text, style, text)));
+            }
+        }
+        return lines;
     }
 
     // ------------------------------------------------------------- drops

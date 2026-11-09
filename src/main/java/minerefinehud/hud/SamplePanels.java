@@ -124,6 +124,15 @@ public final class SamplePanels {
         return ExtrasHud.beaconPanel(160_000L, false);
     }
 
+    /** The two outposts from the /outpost screenshots. */
+    public static List<Line> outposts() {
+        long hour = 3_600_000L;
+        minerefinehud.outpost.OutpostTimers.Saved saved = minerefinehud.outpost.OutpostTimers.update(null, List.of(
+                new minerefinehud.outpost.OutpostTimers.Reading("Ruins", 3 * hour + 58 * 60_000L + 40_000L),
+                new minerefinehud.outpost.OutpostTimers.Reading("Sift", hour + 17 * 60_000L + 55_000L)), 0L);
+        return ExtrasHud.outpostPanel(minerefinehud.outpost.OutpostTimers.views(saved, 0L), 60_000L);
+    }
+
     /** The stats from the /stats screenshot, Fortune just gone up. */
     public static List<Line> stats() {
         minerefinehud.stats.PlayerStats.Saved before = minerefinehud.stats.PlayerStats.update(null, List.of(

@@ -5,6 +5,7 @@ import minerefinehud.drops.RareDrops;
 import minerefinehud.hud.ExtrasHud;
 import minerefinehud.hud.HudModel;
 import minerefinehud.mine.MiningRate;
+import minerefinehud.outpost.OutpostTimers;
 import minerefinehud.progress.ProgressPlanner;
 import minerefinehud.shop.ShopItemParser;
 import minerefinehud.stats.PlayerStats;
@@ -31,24 +32,30 @@ final class ExtrasClient {
     private final BooleanSupplier seenMineRefine;
 
     private final BeaconTimer beacon = new BeaconTimer();
-    private final Runnable beaconPing;
+    private final Runnable ping;
+    private final OutpostPoller outpostPoller;
+    private final OutpostTimers.Pings outpostPings = new OutpostTimers.Pings();
+    private long lastRecheckAt;
+    private long lastOutpostSave;
 
     private final MiningRate miningRate = new MiningRate();
     private final RareDrops.Counter drops;
     private final StatsPoller statsPoller;
 
     ExtrasClient(ModConfig config, Runnable save, BooleanSupplier onMineRefine, BooleanSupplier seenMineRefine,
-                 Runnable beaconPing) {
+                 Runnable ping) {
         this.config = config;
-        this.beaconPing = beaconPing;
+        this.ping = ping;
         this.save = save;
         this.seenMineRefine = seenMineRefine;
         this.drops = new RareDrops.Counter(config.dropData);
         this.statsPoller = new StatsPoller(config, save, onMineRefine, this::readStats);
+        this.outpostPoller = new OutpostPoller(config, save, onMineRefine, this::readOutposts);
     }
 
     void register() {
         statsPoller.register();
+        outpostPoller.register();
         ClientTickEvents.END_CLIENT_TICK.register(client -> {
             long now = System.currentTimeMillis();
             miningRate.tick(now);
@@ -59,8 +66,12 @@ final class ExtrasClient {
             }
             if (client != null && client.player != null) {
                 statsPoller.tick(client, now);
+                outpostPoller.tick(client, now);
                 if (config.showBeacon && beacon.warnNow(now, config.beaconWarnSeconds * 1000L)) {
-                    beaconPing.run();
+                    ping.run();
+                }
+                if (config.showOutposts) {
+                    outpostTick(now);
                 }
             }
         });
@@ -75,6 +86,8 @@ final class ExtrasClient {
 
     void onJoin() {
         statsPoller.onJoin();
+        outpostPoller.onJoin();
+        outpostPings.clear();
         beacon.clear();
     }
 
@@ -126,8 +139,72 @@ final class ExtrasClient {
         return true;
     }
 
+    // --------------------------------------------------------- outposts
+
+    /** Every tick while the panel is on: ping before an outpost opens, and read the menu again after a battle. */
+    private void outpostTick(long now) {
+        List<OutpostTimers.View> views = OutpostTimers.views(config.outpostData, now);
+        if (outpostPings.due(views, config.outpostWarnSeconds * 1000L)) {
+            ping.run();
+        }
+        // The countdown after a battle is only a guess until the menu says: ask, but not every tick.
+        if (OutpostTimers.needsRecheck(config.outpostData, now) && now - lastRecheckAt >= RECHECK_EVERY_MS) {
+            lastRecheckAt = now;
+            outpostPoller.requestNow();
+        }
+    }
+
+    private static final long RECHECK_EVERY_MS = 60_000L;
+    private static final long OUTPOST_SAVE_EVERY_MS = 10_000L;
+
+    /** A menu's items, from the hidden check or a screen the player opened. True if it held outposts. */
+    boolean readOutposts(List<ShopItemParser.ItemView> items, long now) {
+        List<String> titles = new ArrayList<>();
+        List<List<String>> lores = new ArrayList<>();
+        for (ShopItemParser.ItemView item : items) {
+            titles.add(item.title());
+            lores.add(item.lore());
+        }
+        List<OutpostTimers.Reading> readings = OutpostTimers.readAll(titles, lores);
+        if (readings.isEmpty()) {
+            return false;
+        }
+        config.outpostData = OutpostTimers.update(config.outpostData, readings, now);
+        // An open /outpost screen is read twice a second: the config is not written each time.
+        if (now - lastOutpostSave >= OUTPOST_SAVE_EVERY_MS) {
+            lastOutpostSave = now;
+            save.run();
+        }
+        return true;
+    }
+
+    List<HudModel.Line> outpostPanel(long now) {
+        if (!config.showOutposts) {
+            return List.of();
+        }
+        return ExtrasHud.outpostPanel(OutpostTimers.views(config.outpostData, now), config.outpostWarnSeconds * 1000L);
+    }
+
+    /** The title text for the alert panel: an outpost about to open, or just open. */
+    List<String> outpostAlerts(long now) {
+        if (!config.showOutposts) {
+            return List.of();
+        }
+        return OutpostTimers.alerts(OutpostTimers.views(config.outpostData, now), config.outpostWarnSeconds * 1000L);
+    }
+
+    /** For the settings button: reads /outpost as soon as it may. */
+    void checkOutpostsNow() {
+        if (config.showOutposts) {
+            outpostPoller.requestNow();
+        }
+    }
+
     /** A /stats menu the player opened: read it, and know its title from now on. */
     void onVisibleMenu(String title, List<ShopItemParser.ItemView> items, long now) {
+        if (config.showOutposts) {
+            readOutposts(items, now);
+        }
         if (readStats(items, now)) {
             statsPoller.learnTitle(title);
         }
@@ -222,6 +299,12 @@ final class ExtrasClient {
         out.add("beacon mine: " + (beacon.known()
                 ? ExtrasHud.eta(beacon.remaining(now)) + " to the next reset" : "no reset seen yet")
                 + (config.showBeacon ? "" : " (panel off)"));
+        out.add("outposts: " + config.outpostData.outposts.size() + " known, auto " + outpostPoller.describe()
+                + (config.showOutposts ? "" : " (panel off)"));
+        for (OutpostTimers.View v : OutpostTimers.views(config.outpostData, now)) {
+            out.add("  " + v.name() + ": " + v.phase().name().toLowerCase(java.util.Locale.ROOT) + " "
+                    + OutpostTimers.clock(v.ms()) + (v.estimated() ? " (counted forward)" : ""));
+        }
         out.add("rare drops: " + config.dropData.items.size() + " items, " + config.dropData.recent.size() + " recent");
         return out;
     }

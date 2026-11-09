@@ -16,6 +16,9 @@ What it does:
    target size, filled in from the turrets in your inventory.
 6. **Beacon Mine timer.** Counts down to the mine's five-minute reset from the server's
    "Beacon Mine has reset!" line, with a title and a ping shortly before it. Optional, by Arreba.
+7. **Outpost timers.** Reads `/outpost` by itself, without opening it on your screen, and counts down
+   to each outpost opening, through its five minute battle and the four hours after it. Optional,
+   by Arreba.
 
 Everything is movable, resizable and configurable in game.
 
@@ -110,6 +113,7 @@ or the GUI scale changes. A panel is clamped so it can never be lost off screen.
 | Bosses | Only this dimension, rows for alive and still-learning bosses, how many, the reminder, its timing, sound and volume, the Reforger timer, and Reset learned bosses (forgets every boss and timer, then reads /bossindex once to learn them again) |
 | Progress | The bars (item, amount, remove, add), the text line and the "still needed" line, and next tier or to max |
 | Halloween | The Halloween panels and their rows, the rate window, the caravan alert, ability timers, pumpkin set bars, the refine cost |
+| Timers | The Beacon Mine and outpost timers on or off, how long before to warn, how often `/outpost` is checked, and a button to check it now |
 | Panels | Each panel on its own: background, opacity and size, with that panel previewed |
 | Colours | Every colour with a colour picker (a strength and brightness square, a hue slider, a hex box and quick swatches) and a live preview, with Reset |
 
@@ -315,6 +319,7 @@ progress/ ProgressPlanner, MineCosts, ProgressionLinks, ...        pure logic, t
 hud/      HudModel, HudLayout, Theme, Formatting                   pure logic, tested
 turret/   TurretCalculator, TurretItem                             pure logic, tested
 beacon/   BeaconTimer                                             pure logic, tested
+outpost/  OutpostTimers                                          pure logic, tested
 data/     ProgressionData                                          bundled data, config override
 client/   entry point, screens, renderer, readers                  touches Minecraft
           Compat: every call that differs between Minecraft versions

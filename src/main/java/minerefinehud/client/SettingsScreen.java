@@ -45,7 +45,7 @@ public final class SettingsScreen extends Screen {
 
     private enum Tab {
         GENERAL("General"), STYLE("Style"), COLOURS("Colours"), PANELS("Panels"), MINE("Mine"),
-        BOSSES("Bosses"), PROGRESS("Progress"), HALLOWEEN("Halloween"), EXTRAS("Extras");
+        BOSSES("Bosses"), PROGRESS("Progress"), HALLOWEEN("Halloween"), EXTRAS("Extras"), TIMERS("Timers");
 
         final String label;
 
@@ -59,7 +59,7 @@ public final class SettingsScreen extends Screen {
                            List<HudModel.Line> alert, List<HudModel.Line> halloween,
                            List<HudModel.Line> pumpkin, List<HudModel.Line> abilities,
                            List<HudModel.Line> mining, List<HudModel.Line> stats, List<HudModel.Line> drops,
-                           List<HudModel.Line> beacon) {}
+                           List<HudModel.Line> beacon, List<HudModel.Line> outposts) {}
 
     private static final int COLUMN_WIDTH = 150;
     private static final int ROW_HEIGHT = 22;
@@ -236,6 +236,7 @@ public final class SettingsScreen extends Screen {
             case PROGRESS -> progress();
             case HALLOWEEN -> halloween();
             case EXTRAS -> extras();
+            case TIMERS -> timers();
         }
 
         addRenderableWidget(Button.builder(Component.literal("Done"), b -> onClose())
@@ -472,18 +473,59 @@ public final class SettingsScreen extends Screen {
                 .bounds(x(1), y(5), COLUMN_WIDTH, 20).build());
         wipe.setTooltip(Tooltip.create(Component.literal("Forgets every drop ever counted. Asks twice.")));
 
-        Button beacon = toggleAt(x(0), y(6), "Beacon Mine timer", () -> config.showBeacon, v -> config.showBeacon = v);
+        addRenderableWidget(Button.builder(Component.literal("Move and resize panels..."), b -> {
+                    onChange.run();
+                    openPositions.run();
+                })
+                .bounds(x(0), y(6), COLUMN_WIDTH * 2 + 10, 20).build());
+    }
+
+    /** The two countdown panels, Beacon Mine and the outposts. By Arreba. */
+    private void timers() {
+        Button beacon = toggleAt(x(0), y(0), "Beacon Mine timer", () -> config.showBeacon, v -> config.showBeacon = v);
         beacon.setTooltip(Tooltip.create(Component.literal("Counts down to the Beacon Mine reset, started by the "
                 + "server's \"Beacon Mine has reset!\" line in chat. Shows \"waiting for a reset\" until the first "
-                + "one. By Arreba.")));
-        cycle(1, 6, "Warn", () -> config.beaconWarnSeconds, v -> config.beaconWarnSeconds = v,
+                + "one.")));
+        cycle(1, 0, "Warn", () -> config.beaconWarnSeconds, v -> config.beaconWarnSeconds = v,
                 new int[] { 0, 10, 15, 20, 30 }, v -> v == 0 ? "off" : v + "s before");
+
+        Button outposts = toggleAt(x(0), y(1), "Outpost timers", () -> config.showOutposts, v -> config.showOutposts = v);
+        outposts.setTooltip(Tooltip.create(Component.literal("When each outpost opens, read from /outpost without "
+                + "opening it on your screen. An outpost is open for a five minute battle, then closed for four "
+                + "hours; the times are counted on from the last reading and checked again after each battle.")));
+        cycle(1, 1, "Warn", () -> config.outpostWarnSeconds, v -> config.outpostWarnSeconds = v,
+                new int[] { 0, 30, 60, 120, 300 },
+                v -> v == 0 ? "off" : v >= 60 ? (v / 60) + "m before" : v + "s before");
+
+        Button auto = toggleAt(x(0), y(2), "Auto /outpost", () -> config.outpostAuto, v -> config.outpostAuto = v);
+        auto.setTooltip(Tooltip.create(Component.literal("While the outpost panel is on, runs /outpost by itself "
+                + "every so often and reads it without opening it on your screen. It waits while you have a menu "
+                + "or chat open, right after any other command, and on an Expedition.")));
+        labels.add(new Label("Every", x(1), y(2) + 6));
+        int labelWidth = this.font.width("Every") + 6;
+        EditBox every = field(x(1) + labelWidth, y(2), COLUMN_WIDTH - labelWidth,
+                minerefinehud.boss.Interval.format(config.outpostEveryMs), 24, s -> true, s ->
+                        minerefinehud.boss.Interval.parse(s).ifPresent(ms -> {
+                            config.outpostEveryMs = Math.max(OutpostPoller.MIN_INTERVAL_MS, ms);
+                            onChange.run();
+                        }));
+        every.setTooltip(Tooltip.create(Component.literal("How often /outpost is checked: 15m, 1 hour... "
+                + "Shortest 1 minute.")));
+        addRenderableWidget(every);
+
+        Button now = addRenderableWidget(Button.builder(Component.literal("Check /outpost now"), b -> {
+                    onChange.run();
+                    extras.checkOutpostsNow();
+                })
+                .bounds(x(0), y(3), COLUMN_WIDTH, 20).build());
+        now.setTooltip(Tooltip.create(Component.literal("Reads /outpost as soon as it is allowed, "
+                + "with the outpost panel on.")));
 
         addRenderableWidget(Button.builder(Component.literal("Move and resize panels..."), b -> {
                     onChange.run();
                     openPositions.run();
                 })
-                .bounds(x(0), y(7), COLUMN_WIDTH * 2 + 10, 20).build());
+                .bounds(x(0), y(4), COLUMN_WIDTH * 2 + 10, 20).build());
     }
 
     private String statsLabel(List<String> known) {
@@ -1117,7 +1159,8 @@ public final class SettingsScreen extends Screen {
                 new PanelEntry("Mining", config.miningLook, 1.0, Previews::mining),
                 new PanelEntry("Stats", config.statsLook, 1.0, Previews::stats),
                 new PanelEntry("Rare drops", config.dropsLook, 1.0, Previews::drops),
-                new PanelEntry("Beacon Mine", config.beaconLook, 1.0, Previews::beacon));
+                new PanelEntry("Beacon Mine", config.beaconLook, 1.0, Previews::beacon),
+                new PanelEntry("Outposts", config.outpostLook, 1.0, Previews::outposts));
     }
 
     /** Each panel's own background and size, with that panel drawn as it will look. */

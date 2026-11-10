@@ -85,16 +85,11 @@ final class JobSource {
         return out;
     }
 
-    /** Dimensions in order, the newer ones the shop found last and "Other" at the very end. */
+    /** Dimensions in order, the data's first and the ones the shop found last. */
     static List<String> worlds(List<Item> items) {
         LinkedHashSet<String> out = new LinkedHashSet<>();
         for (Item i : items) {
-            if (!i.world().equals(JobWorlds.OTHER)) {
-                out.add(i.world());
-            }
-        }
-        if (items.stream().anyMatch(i -> i.world().equals(JobWorlds.OTHER))) {
-            out.add(JobWorlds.OTHER);
+            out.add(i.world());
         }
         return new ArrayList<>(out);
     }

@@ -16,8 +16,11 @@ public final class JobWorlds {
     private JobWorlds() {
     }
 
-    /** The group for an unlisted mine whose dimension is not known. */
-    public static final String OTHER = "Other";
+    /**
+     * Where an unlisted mine goes when no dimension was learned for it. The Sift is the one area
+     * added after the bundled data, so a mine only the shop knows is its.
+     */
+    public static final String DEFAULT = "Sift";
 
     private static final Map<String, String> KNOWN = Map.of(
             "blub", "Sift",
@@ -42,14 +45,14 @@ public final class JobWorlds {
         return Optional.of(word.charAt(0) + word.substring(1).toLowerCase(Locale.ROOT));
     }
 
-    /** The learned dimension, else the known one, else {@link #OTHER}. */
+    /** The learned dimension, else the known one, else {@link #DEFAULT}. */
     public static String of(String mine, Map<String, String> learned) {
         String key = mine == null ? "" : mine.trim().toLowerCase(Locale.ROOT);
         String l = learned == null ? null : learned.get(key);
         if (l != null && !l.isBlank()) {
             return l;
         }
-        return KNOWN.getOrDefault(key, OTHER);
+        return KNOWN.getOrDefault(key, DEFAULT);
     }
 
     /** "ancient debris" as "Ancient Debris", for a mine known only by its shop name. */

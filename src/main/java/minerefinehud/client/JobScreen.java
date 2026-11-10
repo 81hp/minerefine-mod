@@ -26,6 +26,8 @@ public final class JobScreen extends Screen {
 
     private static final int ROW = 16;
     private static final int STEP = 18;
+    /** Room for the label in front of the rate box. */
+    private static final int RATE_LABEL_W = 40;
 
     private final Screen parent;
     private final ModConfig config;
@@ -82,7 +84,7 @@ public final class JobScreen extends Screen {
         int rx = l + colW() + 12;
 
         // Rate, the one thing typed.
-        EditBox rate = new EditBox(this.font, l + 92, 33, 96, 16, Component.empty());
+        EditBox rate = new EditBox(this.font, l + RATE_LABEL_W, 31, 90, 16, Component.empty());
         rate.setMaxLength(24);
         rate.setValue(config.jobRate == null ? "" : config.jobRate);
         Compat.filter(rate, s -> s.matches("[0-9A-Za-z.,/ ]*"), s -> {
@@ -119,7 +121,7 @@ public final class JobScreen extends Screen {
         }
         listTop = y + ROW + 20;
 
-        int bottom = this.height - 38;
+        int bottom = this.height - 58;
 
         // Mines of this dimension.
         List<JobSource.Item> mines = JobSource.in(items, world);
@@ -192,7 +194,7 @@ public final class JobScreen extends Screen {
             }
         }
 
-        int by = this.height - 30;
+        int by = this.height - 26;
         chips.add(l, by, 22, ROW, "<", "", false, page == 0, () -> {
             if (page > 0) {
                 page--;
@@ -226,10 +228,10 @@ public final class JobScreen extends Screen {
         int x = l + 12;
         int rx = x + colW() + 12;
         context.text(this.font, this.title.getString(), x, 16, a, false);
-        context.text(this.font, "Rate (mats / credit)", x, 37, Chips.MUTED, false);
+        context.text(this.font, "Rate", x, 35, Chips.MUTED, false);
         OptionalDouble r = rate();
-        String parsed = r.isPresent() ? "= " + JobCalc.mats(r.getAsDouble()) + " per credit" : "try 1B or 1.25B/1c";
-        context.text(this.font, parsed, x + 198, 37, r.isPresent() ? 0xFF66CC66 : 0xFFE08080, false);
+        String parsed = r.isPresent() ? "= " + JobCalc.mats(r.getAsDouble()) + " mats per credit" : "try 1B or 1.25B/1c";
+        context.text(this.font, parsed, x + RATE_LABEL_W + 98, 35, r.isPresent() ? 0xFF66CC66 : 0xFFE08080, false);
 
         context.text(this.font, world.isBlank() ? "NO MINES FOUND" : world.toUpperCase(Locale.ROOT) + " - CLICK TO ADD",
                 x, listTop - 12, Chips.MUTED, false);
@@ -249,10 +251,11 @@ public final class JobScreen extends Screen {
         }
         JobCalc.Total t = JobCalc.total(entries, r);
         if (!config.jobMines.isEmpty()) {
-            String sum = JobCalc.mats(t.mats()) + " mats  =  " + JobCalc.credits(t.credits());
-            context.text(this.font, sum, rx + colW() - this.font.width(sum), this.height - 44, 0xFFFFFFFF, false);
+            String sum = JobCalc.mats(t.mats()) + " mats = " + JobCalc.credits(t.credits());
+            int sw = this.font.width(sum);
+            context.text(this.font, sum, rx + colW() - sw, this.height - 42, 0xFFFFFFFF, false);
             if (t.unknown() > 0) {
-                context.text(this.font, t.unknown() + " mine(s) have unpriced pieces - open their shop", rx,
+                context.text(this.font, Chips.fit(this.font, t.unknown() + " unpriced - open the shop", colW()), rx,
                         this.height - 54, 0xFFE0B060, false);
             }
         }

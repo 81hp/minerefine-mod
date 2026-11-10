@@ -141,6 +141,10 @@ public final class ModConfig {
     /** The job calculator's "block rate" field, in millions of blocks per credit. */
     public double blocksPerCreditMillions = 200.0;
 
+    /** The job calculator's rate as the player typed it, and the mines in the saved job. */
+    public String jobRate = minerefinehud.job.JobCalc.DEFAULT_RATE;
+    public java.util.List<String> jobMines = new java.util.ArrayList<>();
+
     public int maxBosses = 5;
 
     // ------------------------------------------------------------- rows shown
@@ -749,6 +753,12 @@ public final class ModConfig {
         }
         if (learnedProgression == null) {
             learnedProgression = new java.util.LinkedHashMap<>();
+        }
+        if (jobRate == null) {
+            jobRate = minerefinehud.job.JobCalc.DEFAULT_RATE;
+        }
+        if (jobMines == null) {
+            jobMines = new java.util.ArrayList<>();
         }
         if (learnedTierCounts == null) {
             learnedTierCounts = new java.util.LinkedHashMap<>();

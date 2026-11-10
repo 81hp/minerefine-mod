@@ -4,6 +4,7 @@ import minerefinehud.beacon.BeaconTimer;
 import minerefinehud.drops.RareDrops;
 import minerefinehud.hud.ExtrasHud;
 import minerefinehud.hud.HudModel;
+import minerefinehud.job.JobCalc;
 import minerefinehud.mine.MiningRate;
 import minerefinehud.mine.XpRate;
 import minerefinehud.outpost.OutpostTimers;
@@ -25,6 +26,7 @@ public final class ExtrasTests {
 
     public static void main(String[] args) {
         drops();
+        job();
         dropSpoofs();
         dropCounting();
         stats();
@@ -545,6 +547,42 @@ public final class ExtrasTests {
         yes("drops panel latest", drops.stream().anyMatch(l -> l.text().contains("2m ago")));
         yes("empty drops panel", ExtrasHud.dropsPanel(List.of(), List.of(), 0L).stream()
                 .anyMatch(l -> l.text().contains("none yet")));
+    }
+
+
+    // ------------------------------------------------------------------- job
+
+    private static void job() {
+        eq("amount 1B", 1e9, JobCalc.parseAmount("1B").getAsDouble());
+        eq("amount 1.25b", 1.25e9, JobCalc.parseAmount(" 1.25b ").getAsDouble());
+        eq("amount 250M", 2.5e8, JobCalc.parseAmount("250M").getAsDouble());
+        eq("amount plain", 5000.0, JobCalc.parseAmount("5,000").getAsDouble());
+        yes("amount junk", JobCalc.parseAmount("abc").isEmpty() && JobCalc.parseAmount("").isEmpty()
+                && JobCalc.parseAmount(null).isEmpty() && JobCalc.parseAmount("0").isEmpty());
+        eq("rate 1B", 1e9, JobCalc.parseRate("1B").getAsDouble());
+        eq("rate 1.5B", 1.5e9, JobCalc.parseRate("1.5B").getAsDouble());
+        eq("rate 1B/1c", 1e9, JobCalc.parseRate("1B/1c").getAsDouble());
+        eq("rate 1.25B/1c", 1.25e9, JobCalc.parseRate("1.25B/1c").getAsDouble());
+        eq("rate per credit", 1e9, JobCalc.parseRate("1b per credit").getAsDouble());
+        eq("rate 2B/2c", 1e9, JobCalc.parseRate("2B/2c").getAsDouble());
+        yes("rate half typed", JobCalc.parseRate("1.").isEmpty() && JobCalc.parseRate("B").isEmpty()
+                && JobCalc.parseRate("1B/0c").isEmpty());
+
+        var entries = List.of(new JobCalc.Entry("Jade", OptionalLong.of(760_340_000_000L)),
+                new JobCalc.Entry("Sift", OptionalLong.of(240_000_000_000L)),
+                new JobCalc.Entry("New", OptionalLong.empty()));
+        JobCalc.Total t = JobCalc.total(entries, java.util.OptionalDouble.of(1e9));
+        eq("total mats", 1.00034e12, t.mats());
+        eq("total credits", 1000.34, t.credits());
+        eq("total unknown", 1, t.unknown());
+        yes("no rate gives NaN", Double.isNaN(JobCalc.total(entries, java.util.OptionalDouble.empty()).credits()));
+        eq("mats text", "760.34b", JobCalc.mats(760_340_000_000.0));
+        eq("mats small", "12,345", JobCalc.mats(12_345.0));
+        eq("credits text", "1,000.34c", JobCalc.credits(1000.34));
+        eq("credits none", "?", JobCalc.credits(Double.NaN));
+        eq("counts", java.util.Map.of("a", 2, "b", 1), JobCalc.counts(List.of("a", "b", "a")));
+        eq("remove one", List.of("a", "b"), JobCalc.removeOne(List.of("a", "b", "a"), "a").stream().sorted().toList());
+        eq("remove missing", List.of("a"), JobCalc.removeOne(List.of("a"), "z"));
     }
 
     // ------------------------------------------------------------------ util

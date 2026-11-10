@@ -340,6 +340,13 @@ public final class SettingsScreen extends Screen {
                     }
                 })
                 .bounds(x(0), y(6), COLUMN_WIDTH * 2 + 10, 20).build());
+        addRenderableWidget(Button.builder(Component.literal("Job calculator..."), b -> {
+                    onChange.run();
+                    if (this.minecraft != null) {
+                        Compat.setScreen(this.minecraft, new JobScreen(this, config, onChange));
+                    }
+                })
+                .bounds(x(0), y(7), COLUMN_WIDTH * 2 + 10, 20).build());
     }
 
     private void mine() {
@@ -2063,7 +2070,7 @@ public final class SettingsScreen extends Screen {
         int[] c = cardBounds();
         int w = c[2] - c[0];
         int h = c[3] - c[1];
-        Smooth.shadow(context, c[0], c[1], w, h, 10, 6, 0x60000000);
+        Smooth.shadow(context, c[0], c[1], w, h, 10, 3, 0x60000000);
         int base = Theme.parseOr(config.menuBackground, DEFAULT_MENU_BACKGROUND);
         Smooth.rect(context, c[0], c[1], w, h, 10, Smooth.alpha(base, 0.95f),
                 Smooth.alpha(Smooth.mix(base, 0xFF000000, 0.45f), 0.95f));
@@ -2122,7 +2129,9 @@ public final class SettingsScreen extends Screen {
         }
 
         Smooth.rect(context, x, y, w, h, 6, !b.active ? 0x80141C1B : hover ? 0xFF2A3A38 : UI_RAISED);
-        Smooth.ring(context, x, y, w, h, 6, 1f, hover ? Smooth.alpha(accent(), 0.5f) : 0x18FFFFFF);
+        if (hover) {
+            Smooth.ring(context, x, y, w, h, 6, 1f, Smooth.alpha(accent(), 0.5f));
+        }
         String shown = trim(message, w - 10);
         context.text(this.font, shown, x + (w - this.font.width(shown)) / 2, y + (h - 8) / 2,
                 b.active ? UI_FG : UI_OFF, false);
@@ -2162,7 +2171,6 @@ public final class SettingsScreen extends Screen {
         int ty = my + 12 + h + 6 > this.height ? Math.max(6, my - h - 8) : my + 12;
         // Its own layer, or text drawn earlier in the frame could show through the box.
         context.nextStratum();
-        Smooth.shadow(context, tx - 5, ty - 5, w + 10, h + 9, 6, 3, 0x60000000);
         Smooth.rect(context, tx - 5, ty - 5, w + 10, h + 9, 6, 0xF8121A19);
         Smooth.ring(context, tx - 5, ty - 5, w + 10, h + 9, 6, 1f, Smooth.alpha(accent(), 0.5f));
         for (int i = 0; i < lines.size(); i++) {

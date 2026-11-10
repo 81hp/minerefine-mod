@@ -207,6 +207,7 @@ public final class MinerefineHudClient implements ClientModInitializer {
         priceStore.load(prices);
         prices.importLearnedTiers(config.learnedTierCounts);
         PriceStore.loadVerifiedPrices(prices);
+        JobSource.set(catalogSource::catalog, prices);
 
         halloween = new HalloweenClient(config, () -> config.save(configFile), () -> {
             if (config.bossReminderVolume > 0) {

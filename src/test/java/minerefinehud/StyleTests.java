@@ -321,7 +321,25 @@ public final class StyleTests {
             yes(p.label + " percentage fits its bar", HudStyle.percentFits(p.style.percent(), p.style.bar()));
             yes(p.label + " has a description", !p.description.isEmpty());
         }
-        eq("five designs", 5, HudStyle.Preset.values().length);
+        eq("six designs", 6, HudStyle.Preset.values().length);
+
+        // The smooth look, by Arreba: a rounded card and a ring, and a rounded title band.
+        var smooth = PanelPainter.paint(List.of(HudModel.Line.header("Stats", ""), HudModel.Line.of("Fortune", HudModel.Style.VALUE)),
+                new HudStyle(HudStyle.Titles.BAND, HudStyle.Numbers.COLUMNS, HudStyle.GearLabels.WORDS,
+                        HudStyle.BossStatus.CHIPS, HudStyle.BarStyle.THICK, HudStyle.Percent.AFTER,
+                        HudStyle.BarColor.ACCENT, HudStyle.Spacing.NORMAL, true),
+                HudStyle.Background.SMOOTH, 80, Theme.defaults(), FONT);
+        yes("smooth: the card comes first", smooth.ops().get(0) instanceof PanelPainter.Round r0
+                && !r0.topOnly() && r0.x2() == smooth.width() && r0.y2() == smooth.height());
+        yes("smooth: an outline after it", smooth.ops().get(1) instanceof PanelPainter.Ring);
+        yes("smooth: the title band is rounded on top only", smooth.ops().stream()
+                .anyMatch(o -> o instanceof PanelPainter.Round r && r.topOnly()));
+        yes("smooth: no square fill for the background", smooth.ops().stream()
+                .noneMatch(o -> o instanceof PanelPainter.Fill f && f.x1() == 0 && f.y1() == 0
+                        && f.x2() == smooth.width() && f.y2() == smooth.height()));
+        yes("smooth: more padding than shade, for the corners",
+                PanelPainter.padding(HudStyle.Preset.SMOOTH.style, HudStyle.Background.SMOOTH)
+                        > PanelPainter.padding(HudStyle.Preset.SMOOTH.style, HudStyle.Background.SHADE));
         eq("fork is the classic layout", HudStyle.Numbers.INLINE, HudStyle.Preset.FORK.style.numbers());
         eq("ledger goes red to green", HudStyle.BarColor.PROGRESS, HudStyle.Preset.LEDGER.style.barColor());
         eq("minimal has no panel", HudStyle.Background.NONE, HudStyle.Preset.MINIMAL.background);
@@ -370,6 +388,12 @@ public final class StyleTests {
                 }
                 case PanelPainter.Gradient g -> {
                     if (g.x1() < 0 || g.y1() < 0 || g.x2() > w || g.y2() > h) return "gradient " + g;
+                }
+                case PanelPainter.Round r -> {
+                    if (r.x1() < 0 || r.y1() < 0 || r.x2() > w || r.y2() > h) return "round " + r + " in " + w + "x" + h;
+                }
+                case PanelPainter.Ring r -> {
+                    if (r.x1() < 0 || r.y1() < 0 || r.x2() > w || r.y2() > h) return "ring " + r + " in " + w + "x" + h;
                 }
                 case PanelPainter.Text t -> {
                     if (t.x() < 0 || t.y() < 0 || t.x() + FONT.applyAsInt(t.text()) > w || t.y() + 8 > h) {

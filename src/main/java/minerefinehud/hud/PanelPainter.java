@@ -20,13 +20,23 @@ import java.util.function.ToIntFunction;
  */
 public final class PanelPainter {
 
-    public sealed interface Op permits Fill, Gradient, Text, Icon {}
+    public sealed interface Op permits Fill, Gradient, Round, Ring, Text, Icon {}
 
     /** A filled rectangle from (x1, y1) up to but not including (x2, y2). */
     public record Fill(int x1, int y1, int x2, int y2, int color) implements Op {}
 
     /** A rectangle fading from {@code top} to {@code bottom}. */
     public record Gradient(int x1, int y1, int x2, int y2, int top, int bottom) implements Op {}
+
+    /**
+     * A smooth rounded rectangle, fading from {@code top} to {@code bottom}; rounded on its top
+     * corners only when {@code topOnly}. Drawn anti-aliased by the renderer.
+     */
+    public record Round(int x1, int y1, int x2, int y2, float radius, int top, int bottom, boolean topOnly)
+            implements Op {}
+
+    /** A smooth rounded outline just inside the rectangle. */
+    public record Ring(int x1, int y1, int x2, int y2, float radius, float thickness, int color) implements Op {}
 
     public record Text(String text, int x, int y, int color, boolean shadow) implements Op {}
 
@@ -59,6 +69,8 @@ public final class PanelPainter {
     private static final int SECTION_RULE_MIN = 16;
     /** Columns of a fading bar are drawn this many pixels wide. */
     private static final int FADE_STEP = 2;
+    /** Corner radius of the smooth background, in panel pixels. */
+    private static final float SMOOTH_RADIUS = 5f;
 
     private PanelPainter() {
     }
@@ -85,6 +97,7 @@ public final class PanelPainter {
             case SHADE -> style.spacing().padding;
             case FRAMED -> style.spacing().padding + 1;
             case TOOLTIP -> style.spacing().padding + 2;
+            case SMOOTH -> style.spacing().padding + 2;
         };
     }
 
@@ -92,7 +105,7 @@ public final class PanelPainter {
     private static int frameInset(Background background) {
         return switch (background) {
             case TOOLTIP -> 2;
-            case FRAMED -> 1;
+            case FRAMED, SMOOTH -> 1;
             default -> 0;
         };
     }
@@ -350,6 +363,11 @@ public final class PanelPainter {
                 case NONE -> {
                 }
                 case SHADE -> fill(0, 0, width, height, Theme.background(opacity));
+                case SMOOTH -> {
+                    int bg = Theme.background(opacity);
+                    ops.add(new Round(0, 0, width, height, SMOOTH_RADIUS, bg, bg, false));
+                    ops.add(new Ring(0, 0, width, height, SMOOTH_RADIUS, 1f, Theme.alpha(theme.frame(), 70)));
+                }
                 case FRAMED -> {
                     fill(0, 0, width, height, Theme.background(opacity));
                     int edge = Theme.alpha(theme.frame(), 80);
@@ -401,7 +419,12 @@ public final class PanelPainter {
                 }
                 case BAND -> {
                     int inset = frameInset(background);
-                    fill(inset, y, width - inset, y + TEXT_H + 4, Theme.alpha(theme.frame(), 30));
+                    if (background == Background.SMOOTH) {
+                        ops.add(new Round(inset, y, width - inset, y + TEXT_H + 4, SMOOTH_RADIUS - 1f,
+                                Theme.alpha(theme.frame(), 55), Theme.alpha(theme.frame(), 12), true));
+                    } else {
+                        fill(inset, y, width - inset, y + TEXT_H + 4, Theme.alpha(theme.frame(), 30));
+                    }
                     titleText(l, Math.max(pad, 3), y + 2, color);
                 }
             }

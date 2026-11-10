@@ -15,7 +15,7 @@ public record HudStyle(Titles titles, Numbers numbers, GearLabels gearLabels, Bo
 
     /** Behind one panel. */
     public enum Background {
-        NONE("None"), SHADE("Shade"), TOOLTIP("Tooltip"), FRAMED("Framed");
+        NONE("None"), SHADE("Shade"), TOOLTIP("Tooltip"), FRAMED("Framed"), SMOOTH("Smooth");
 
         public final String label;
 
@@ -207,7 +207,7 @@ public record HudStyle(Titles titles, Numbers numbers, GearLabels gearLabels, Bo
     // ---------------------------------------------------------------- presets
 
     /**
-     * The five looks from the design page. Picking one sets every look setting at once, plus
+     * The looks from the design page, and a smooth one. Picking one sets every look setting at once, plus
      * the credits column and the "still needed" line, which those designs include.
      */
     public enum Preset {
@@ -235,7 +235,12 @@ public record HudStyle(Titles titles, Numbers numbers, GearLabels gearLabels, Bo
                 Background.FRAMED, 60,
                 new HudStyle(Titles.BAND, Numbers.COLUMNS, GearLabels.ICONS, BossStatus.CHIPS, BarStyle.THICK,
                         Percent.INSIDE, BarColor.PROGRESS, Spacing.ROOMY, true),
-                true, false, 0xFFFFD24A, 0xFF4FC3D9);
+                true, false, 0xFFFFD24A, 0xFF4FC3D9),
+        SMOOTH("Smooth", "Soft rounded panels with a tinted title, like the Beacon timer. By Arreba.",
+                Background.SMOOTH, 80,
+                new HudStyle(Titles.BAND, Numbers.COLUMNS, GearLabels.WORDS, BossStatus.CHIPS, BarStyle.THICK,
+                        Percent.AFTER, BarColor.ACCENT, Spacing.NORMAL, true),
+                true, false, 0xFFFFD24A, 0xFFFFD24A);
 
         public final String label;
         public final String description;

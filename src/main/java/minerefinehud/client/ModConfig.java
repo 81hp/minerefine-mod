@@ -509,6 +509,9 @@ public final class ModConfig {
     /** Seconds before the reset the title and ping come; 0 for neither. */
     public int beaconWarnSeconds = 15;
 
+    /** The settings menu's accent colour, as #RRGGBB. By Arreba. */
+    public String menuAccent = "#FFD24A";
+
     /** An EXP per hour row in the Mining panel, from the EXP on the mining action bar. */
     public boolean showXp = false;
 
@@ -879,6 +882,7 @@ public final class ModConfig {
         beaconLook = fix(beaconLook, 1.0);
         beaconWarnSeconds = Math.max(0, Math.min(60, beaconWarnSeconds));
         outpostLook = fix(outpostLook, 1.0);
+        menuAccent = Theme.format(Theme.parseOr(menuAccent, 0xFFFFD24A));
         outpostWarnSeconds = Math.max(0, Math.min(600, outpostWarnSeconds));
         outpostEveryMs = Math.max(OutpostPoller.MIN_INTERVAL_MS, outpostEveryMs);
         outpostData = minerefinehud.outpost.OutpostTimers.repair(outpostData);

@@ -72,8 +72,11 @@ public final class SettingsScreen extends Screen {
     private static final int UI_FG = 0xFFE3ECE8;
     private static final int UI_MUTED = 0xFF8FA49E;
     private static final int UI_OFF = 0xFF4A5856;
-    private static final int UI_ACCENT = 0xFFFFD24A;
-    private static final int UI_ACCENT_INK = 0xFF231A00;
+    private static final int DEFAULT_ACCENT = 0xFFFFD24A;
+    /** The menu colours to pick from. */
+    private static final String[] MENU_NAMES = { "Gold", "Cyan", "Pink", "Green", "Orange", "Violet", "Red", "White" };
+    private static final int[] MENU_COLOURS = { 0xFFFFD24A, 0xFF7FE3FF, 0xFFFF8AD8, 0xFF7CE36B, 0xFFFF9F43,
+            0xFFA06BFF, 0xFFFF6B6B, 0xFFFFFFFF };
 
     /** Quick picks, the design page's. */
     private static final int[] ACCENTS = { 0xFFFFD24A, 0xFF7FE3FF, 0xFFFF8AD8, 0xFF9BFF6B, 0xFFFF9F43, 0xFFFFFFFF };
@@ -171,6 +174,45 @@ public final class SettingsScreen extends Screen {
         this.resetBosses = resetBosses;
     }
 
+    /** The menu's accent colour, from the setting. */
+    private int accent() {
+        return Theme.parseOr(config.menuAccent, DEFAULT_ACCENT);
+    }
+
+    /** Dark or light text that reads on the accent colour. */
+    private int ink() {
+        int a = accent();
+        return Smooth.contrast(a) == 0xFFFFFFFF ? 0xFFFFFFFF : 0xFF1A1500;
+    }
+
+    private int menuColourIndex() {
+        int a = accent() & 0xFFFFFF;
+        for (int i = 0; i < MENU_COLOURS.length; i++) {
+            if ((MENU_COLOURS[i] & 0xFFFFFF) == a) {
+                return i;
+            }
+        }
+        return 0;
+    }
+
+    /** The menu is a window in the middle, not the whole screen. */
+    private int winW() {
+        return Math.min(this.width - 16, 540);
+    }
+
+    private int winX() {
+        return (this.width - winW()) / 2;
+    }
+
+    /** Inner left and right edges of the window, for the tabs that fill it. */
+    private int winLeft() {
+        return winX() + 8;
+    }
+
+    private int winRight() {
+        return winX() + winW() - 8;
+    }
+
     private int left() {
         return this.width / 2 - COLUMN_WIDTH - 5;
     }
@@ -211,7 +253,7 @@ public final class SettingsScreen extends Screen {
         // Each tab as wide as its name needs plus an even share of what is left, so every name
         // stays readable at GUI scale 4; on the narrowest screen the margins round the names shrink.
         Tab[] tabs = Tab.values();
-        int room = Math.min(this.width - 8, tabs.length * 66);
+        int room = Math.min(winW() - 16, tabs.length * 66);
         int names = 0;
         for (Tab t : tabs) {
             names += this.font.width(t.label);
@@ -296,6 +338,10 @@ public final class SettingsScreen extends Screen {
                     }
                 });
         addRenderableWidget(rate);
+
+        cycle(0, 3, "Menu colour", this::menuColourIndex,
+                v -> config.menuAccent = Theme.format(MENU_COLOURS[Math.floorMod(v, MENU_COLOURS.length)]),
+                new int[] { 0, 1, 2, 3, 4, 5, 6, 7 }, v -> MENU_NAMES[Math.floorMod(v, MENU_NAMES.length)]);
 
         addRenderableWidget(Button.builder(Component.literal("Move and resize panels..."), b -> {
                     onChange.run();
@@ -833,8 +879,8 @@ public final class SettingsScreen extends Screen {
     private void style() {
         listTop = TOP - 4;
         listBottom = contentBottom();
-        listX = 8;
-        listWidth = Math.max(180, Math.min(250, (this.width - 24) * 45 / 100));
+        listX = winLeft();
+        listWidth = Math.max(180, Math.min(250, (winW() - 24) * 45 / 100));
         int w = listWidth - 14;   // room for the scrollbar
         int[] y = { listTop + 4 };
 
@@ -955,10 +1001,10 @@ public final class SettingsScreen extends Screen {
                 i -> i == 0 ? "Preview the mine, boss and bar panels together."
                         : "Preview this panel alone, at its real size if it fits.", () -> "");
         int sx = listX + listWidth + 10;
-        pick.place(sx, listTop, Math.min(this.width - 8 - sx, 220));
+        pick.place(sx, listTop, Math.min(winRight() - sx, 220));
         pick.saves = false;
         controls.add(pick);
-        stage(sx, listTop + pick.h + 4, this.width - 8, listBottom);
+        stage(sx, listTop + pick.h + 4, winRight(), listBottom);
     }
 
     private <E extends Enum<E>> Segments styleChoice(String title, E[] values, Function<E, String> label,
@@ -981,6 +1027,7 @@ public final class SettingsScreen extends Screen {
             case SHADE -> "A dark see-through shade.";
             case TOOLTIP -> "Like Minecraft's item tooltips: notched corners and a fading edge in the frame colour.";
             case FRAMED -> "A dark shade with a thin border in the frame colour.";
+            case SMOOTH -> "A soft rounded panel with a tinted title, like the Beacon timer.";
         };
     }
 
@@ -1083,7 +1130,7 @@ public final class SettingsScreen extends Screen {
                 colourIndex = index;
                 rebuildWidgets();
             });
-            row.place(8, top + i * rowH, listW);
+            row.place(winLeft(), top + i * rowH, listW);
             row.h = rowH - 1;
             controls.add(row);
         }
@@ -1091,11 +1138,11 @@ public final class SettingsScreen extends Screen {
             config.resetColors();
             rebuildWidgets();
         });
-        resetAll.place(8, top + entries.size() * rowH + 3, listW);
+        resetAll.place(winLeft(), top + entries.size() * rowH + 3, listW);
         resetAll.tip("Every colour back to the default. The Style tab's presets set the main ones too.");
         controls.add(resetAll);
 
-        int px = 8 + listW + 12;
+        int px = winLeft() + listW + 12;
         // Square, hue strip, hex row and three rows of swatches all have to fit above Done.
         int size = Math.max(60, Math.min(110, contentBottom() - top - 102));
         Picker picker = new Picker();
@@ -1144,7 +1191,7 @@ public final class SettingsScreen extends Screen {
             controls.add(reset);
         }
 
-        stage(px + size + 12, top, this.width - 8, contentBottom());
+        stage(px + size + 12, top, winRight(), contentBottom());
     }
 
     private void loadPicker(int argb) {
@@ -1206,7 +1253,7 @@ public final class SettingsScreen extends Screen {
                 panelIndex = index;
                 rebuildWidgets();
             });
-            row.place(8, top + i * rowH, listW);
+            row.place(winLeft(), top + i * rowH, listW);
             row.h = rowH - 1;
             controls.add(row);
         }
@@ -1214,10 +1261,10 @@ public final class SettingsScreen extends Screen {
                     onChange.run();
                     openPositions.run();
                 })
-                .bounds(8, Math.min(top + entries.size() * rowH + 3, contentBottom() - 20), listW, 20).build());
+                .bounds(winLeft(), Math.min(top + entries.size() * rowH + 3, contentBottom() - 20), listW, 20).build());
 
-        int cx = 8 + listW + 12;
-        int cw = Math.max(130, Math.min(200, (this.width - cx - 8) * 45 / 100));
+        int cx = winLeft() + listW + 12;
+        int cw = Math.max(130, Math.min(200, (winRight() - cx) * 45 / 100));
         int[] y = { top };
         ModConfig.Look look = entry.look();
 
@@ -1238,7 +1285,7 @@ public final class SettingsScreen extends Screen {
         }).tip("Copies this panel's background and opacity to all the others. Sizes stay as they are."), cx, cw);
         place(y, new Action("Default size", () -> look.scale = entry.defaultScale()), cx, cw);
 
-        stage(cx + cw + 12, top, this.width - 8, contentBottom());
+        stage(cx + cw + 12, top, winRight(), contentBottom());
     }
 
     private void place(int[] y, Control c, int x, int width) {
@@ -1451,7 +1498,7 @@ public final class SettingsScreen extends Screen {
                 int noteW = n.isEmpty() ? 0 : font.width(n) + 4;
                 context.text(font, trim(title, w - noteW), x, ty + 1, UI_MUTED, false);
                 if (!n.isEmpty()) {
-                    context.text(font, n, x + w - font.width(n), ty + 1, UI_ACCENT, false);
+                    context.text(font, n, x + w - font.width(n), ty + 1, accent(), false);
                 }
             }
             int picked = current.getAsInt();
@@ -1462,9 +1509,9 @@ public final class SettingsScreen extends Screen {
                 int by = ty + b[1];
                 boolean on = i == picked;
                 boolean usable = enabled.test(i);
-                int edge = on ? UI_ACCENT : usable && i == hovered ? UI_MUTED : UI_LINE;
-                box(context, bx, by, b[2], 14, on ? UI_ACCENT : UI_RAISED, edge);
-                int ink = on ? UI_ACCENT_INK : usable ? UI_FG : UI_OFF;
+                int edge = on ? accent() : usable && i == hovered ? UI_MUTED : UI_LINE;
+                box(context, bx, by, b[2], 14, on ? accent() : UI_RAISED, edge);
+                int ink = on ? ink() : usable ? UI_FG : UI_OFF;
                 context.text(font, options[i], bx + (b[2] - font.width(options[i])) / 2, by + 3, ink, false);
             }
         }
@@ -1537,7 +1584,7 @@ public final class SettingsScreen extends Screen {
             int knob = x + 3 + (int) Math.round(f * (w - 6));
             Smooth.rect(context, x, trackY, w, 4, 2f, UI_LINE);
             if (on) {
-                Smooth.rect(context, x, trackY, Math.max(4, knob - x), 4, 2f, UI_ACCENT);
+                Smooth.rect(context, x, trackY, Math.max(4, knob - x), 4, 2f, accent());
             }
             boolean hover = on && (dragging == this || contains(mx, my));
             box(context, knob - 3, ty + 11, 6, 10, on ? (hover ? UI_FG : 0xFFCCD6D2) : UI_OFF, UI_LINE);
@@ -1583,14 +1630,14 @@ public final class SettingsScreen extends Screen {
         void draw(GuiGraphicsExtractor context, int mx, int my) {
             int ty = top();
             boolean on = get.getAsBoolean();
-            box(context, x, ty + 1, 9, 9, on ? UI_ACCENT : UI_RAISED, contains(mx, my) ? UI_MUTED : on ? UI_ACCENT : UI_LINE);
+            box(context, x, ty + 1, 9, 9, on ? accent() : UI_RAISED, contains(mx, my) ? UI_MUTED : on ? accent() : UI_LINE);
             if (on) {
                 // A small tick, in pixels.
-                context.fill(x + 2, ty + 5, x + 3, ty + 7, UI_ACCENT_INK);
-                context.fill(x + 3, ty + 6, x + 4, ty + 8, UI_ACCENT_INK);
-                context.fill(x + 4, ty + 5, x + 5, ty + 7, UI_ACCENT_INK);
-                context.fill(x + 5, ty + 4, x + 6, ty + 6, UI_ACCENT_INK);
-                context.fill(x + 6, ty + 3, x + 7, ty + 5, UI_ACCENT_INK);
+                context.fill(x + 2, ty + 5, x + 3, ty + 7, ink());
+                context.fill(x + 3, ty + 6, x + 4, ty + 8, ink());
+                context.fill(x + 4, ty + 5, x + 5, ty + 7, ink());
+                context.fill(x + 5, ty + 4, x + 6, ty + 6, ink());
+                context.fill(x + 6, ty + 3, x + 7, ty + 5, ink());
             }
             context.text(font, trim(title, w - 14), x + 14, ty + 2, UI_FG, false);
         }
@@ -1776,7 +1823,7 @@ public final class SettingsScreen extends Screen {
         void draw(GuiGraphicsExtractor context, int mx, int my) {
             boolean on = picked.getAsBoolean();
             if (on || contains(mx, my)) {
-                box(context, x, y, w, h, on ? UI_RAISED : 0x601B2726, on ? UI_ACCENT : UI_LINE);
+                box(context, x, y, w, h, on ? UI_RAISED : 0x601B2726, on ? accent() : UI_LINE);
             }
             int s = h - 4;
             Smooth.rect(context, x + 2, y + 2, s, s, 3f, 0x66000000);
@@ -1808,7 +1855,7 @@ public final class SettingsScreen extends Screen {
         void draw(GuiGraphicsExtractor context, int mx, int my) {
             boolean on = picked.getAsBoolean();
             if (on || contains(mx, my)) {
-                box(context, x, y, w, h, on ? UI_RAISED : 0x601B2726, on ? UI_ACCENT : UI_LINE);
+                box(context, x, y, w, h, on ? UI_RAISED : 0x601B2726, on ? accent() : UI_LINE);
             }
             context.text(font, trim(name, w - 8), x + 5, y + (h - 8) / 2 + 1, on ? UI_FG : UI_MUTED, false);
         }
@@ -2019,29 +2066,9 @@ public final class SettingsScreen extends Screen {
         }
     }
 
-    /** The card behind everything: wide enough for the tabs and whatever the tab holds. */
+    /** The card behind everything: the window, in the middle of the screen. */
     private int[] cardBounds() {
-        int x1 = tabsX - 12;
-        int x2 = tabsX + tabsW + 12;
-        for (var child : this.children()) {
-            if (child instanceof net.minecraft.client.gui.components.AbstractWidget w) {
-                x1 = Math.min(x1, w.getX() - 12);
-                x2 = Math.max(x2, w.getX() + w.getWidth() + 12);
-            }
-        }
-        for (Control c : controls) {
-            x1 = Math.min(x1, c.x - 12);
-            x2 = Math.max(x2, c.x + c.w + 12);
-        }
-        for (Label l : labels) {
-            x1 = Math.min(x1, l.x() - 12);
-            x2 = Math.max(x2, l.x() + this.font.width(l.text()) + 12);
-        }
-        if (stageW > 0) {
-            x1 = Math.min(x1, stageX - 12);
-            x2 = Math.max(x2, stageX + stageW + 12);
-        }
-        return new int[] { Math.max(3, x1), 6, Math.min(this.width - 3, x2), this.height - 6 };
+        return new int[] { winX(), 6, winX() + winW(), this.height - 6 };
     }
 
     /** The rounded card, its header with the title and the strip the tabs sit in. */
@@ -2051,10 +2078,10 @@ public final class SettingsScreen extends Screen {
         int h = c[3] - c[1];
         Smooth.shadow(context, c[0], c[1], w, h, 10, 6, 0x60000000);
         Smooth.rect(context, c[0], c[1], w, h, 10, 0xF2182221, 0xF20D1413);
-        Smooth.rectTop(context, c[0], c[1], w, 46, 10, Smooth.alpha(UI_ACCENT, 0.14f), Smooth.alpha(UI_ACCENT, 0f));
+        Smooth.rectTop(context, c[0], c[1], w, 46, 10, Smooth.alpha(accent(), 0.14f), Smooth.alpha(accent(), 0f));
         Smooth.ring(context, c[0], c[1], w, h, 10, 1f, UI_LINE);
 
-        Smooth.diamond(context, c[0] + 19, c[1] + 12, 4.4f, UI_ACCENT);
+        Smooth.diamond(context, c[0] + 19, c[1] + 12, 4.4f, accent());
         context.text(this.font, this.title.getString(), c[0] + 29, c[1] + 8, UI_FG, true);
         Smooth.rect(context, c[0] + 14, 51, w - 28, 1, 0, 0x14FFFFFF);
         Smooth.rect(context, c[0] + 14, c[3] - 26, w - 28, 1, 0, 0x14FFFFFF);
@@ -2073,8 +2100,8 @@ public final class SettingsScreen extends Screen {
         if (own != null) {
             boolean picked = own == tab;
             if (picked) {
-                Smooth.rect(context, x, y, w, h, 10, Smooth.alpha(UI_ACCENT, 0.2f));
-                Smooth.ring(context, x, y, w, h, 10, 1f, Smooth.alpha(UI_ACCENT, 0.55f));
+                Smooth.rect(context, x, y, w, h, 10, Smooth.alpha(accent(), 0.2f));
+                Smooth.ring(context, x, y, w, h, 10, 1f, Smooth.alpha(accent(), 0.55f));
             } else if (hover) {
                 Smooth.rect(context, x, y, w, h, 10, 0x14FFFFFF);
             }
@@ -2084,9 +2111,9 @@ public final class SettingsScreen extends Screen {
         }
 
         if (b == doneButton) {
-            Smooth.rect(context, x, y, w, h, 6, Smooth.mix(UI_ACCENT, 0xFFFFFFFF, hover ? 0.3f : 0.12f), UI_ACCENT);
+            Smooth.rect(context, x, y, w, h, 6, Smooth.mix(accent(), 0xFFFFFFFF, hover ? 0.3f : 0.12f), accent());
             context.text(this.font, message, x + (w - this.font.width(message)) / 2, y + (h - 8) / 2,
-                    UI_ACCENT_INK, false);
+                    ink(), false);
             return;
         }
 
@@ -2100,13 +2127,13 @@ public final class SettingsScreen extends Screen {
             context.text(this.font, trim(label, w - 46), x + 10, y + (h - 8) / 2, isOn ? UI_FG : UI_MUTED, false);
             int sx = x + w - 10 - 26;
             int sy = y + (h - 14) / 2;
-            Smooth.rect(context, sx, sy, 26, 14, 7, Smooth.mix(UI_OFF, UI_ACCENT, t));
+            Smooth.rect(context, sx, sy, 26, 14, 7, Smooth.mix(UI_OFF, accent(), t));
             Smooth.circle(context, sx + 7 + 12 * t, sy + 7, 5f, 0xFFFFFFFF);
             return;
         }
 
         Smooth.rect(context, x, y, w, h, 6, !b.active ? 0x80141C1B : hover ? 0xFF2A3A38 : UI_RAISED);
-        Smooth.ring(context, x, y, w, h, 6, 1f, hover ? Smooth.alpha(UI_ACCENT, 0.5f) : 0x18FFFFFF);
+        Smooth.ring(context, x, y, w, h, 6, 1f, hover ? Smooth.alpha(accent(), 0.5f) : 0x18FFFFFF);
         String shown = trim(message, w - 10);
         context.text(this.font, shown, x + (w - this.font.width(shown)) / 2, y + (h - 8) / 2,
                 b.active ? UI_FG : UI_OFF, false);
@@ -2148,7 +2175,7 @@ public final class SettingsScreen extends Screen {
         context.nextStratum();
         Smooth.shadow(context, tx - 5, ty - 5, w + 10, h + 9, 6, 3, 0x60000000);
         Smooth.rect(context, tx - 5, ty - 5, w + 10, h + 9, 6, 0xF8121A19);
-        Smooth.ring(context, tx - 5, ty - 5, w + 10, h + 9, 6, 1f, Smooth.alpha(UI_ACCENT, 0.5f));
+        Smooth.ring(context, tx - 5, ty - 5, w + 10, h + 9, 6, 1f, Smooth.alpha(accent(), 0.5f));
         for (int i = 0; i < lines.size(); i++) {
             context.text(font, lines.get(i), tx, ty + i * 10, UI_FG, false);
         }

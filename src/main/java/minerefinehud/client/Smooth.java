@@ -19,8 +19,15 @@ final class Smooth {
     private Smooth() {
     }
 
+    /** An extra scale the caller has put on the pose, so the shapes still land on whole screen pixels. */
+    private static float extra = 1f;
+
+    static void extra(float e) {
+        extra = e <= 0f ? 1f : e;
+    }
+
     private static float unit() {
-        return (float) Minecraft.getInstance().getWindow().getGuiScale();
+        return (float) Minecraft.getInstance().getWindow().getGuiScale() * extra;
     }
 
     static int alpha(int argb, float a) {

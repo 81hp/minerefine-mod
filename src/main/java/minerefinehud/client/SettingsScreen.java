@@ -1117,14 +1117,19 @@ public final class SettingsScreen extends Screen {
 
         int top = TOP - 4;
         int listW = 96;
-        int rowH = Math.max(13, Math.min(16, (contentBottom() - top - 18) / entries.size()));
+        // Rows go in a second column when one would run into the Done button on a short screen.
+        int avail = contentBottom() - top - 24;
+        int per = Math.min(entries.size(), Math.max(1, avail / 13));
+        int cols = (entries.size() + per - 1) / per;
+        per = (entries.size() + cols - 1) / cols;
+        int rowH = Math.max(13, Math.min(16, avail / per));
         for (int i = 0; i < entries.size(); i++) {
             int index = i;
             Control row = new ColourRow(entries.get(i), () -> colourIndex == index, () -> {
                 colourIndex = index;
                 rebuildWidgets();
             });
-            row.place(winLeft(), top + i * rowH, listW);
+            row.place(winLeft() + (i / per) * (listW + 4), top + (i % per) * rowH, listW);
             row.h = rowH - 1;
             controls.add(row);
         }
@@ -1132,11 +1137,11 @@ public final class SettingsScreen extends Screen {
             config.resetColors();
             rebuildWidgets();
         });
-        resetAll.place(winLeft(), top + entries.size() * rowH + 3, listW);
+        resetAll.place(winLeft(), contentBottom() - 20, listW);
         resetAll.tip("Every colour back to the default. The Style tab's presets set the main ones too.");
         controls.add(resetAll);
 
-        int px = winLeft() + listW + 12;
+        int px = winLeft() + cols * (listW + 4) + 8;
         // Square, hue strip, hex row and three rows of swatches all have to fit above Done.
         int size = Math.max(60, Math.min(110, contentBottom() - top - 102));
         Picker picker = new Picker();
@@ -1240,14 +1245,18 @@ public final class SettingsScreen extends Screen {
 
         int top = TOP - 4;
         int listW = 80;
-        int rowH = Math.max(13, Math.min(16, (contentBottom() - top - 24) / entries.size()));
+        int avail = contentBottom() - top - 24;
+        int per = Math.min(entries.size(), Math.max(1, avail / 13));
+        int cols = (entries.size() + per - 1) / per;
+        per = (entries.size() + cols - 1) / cols;
+        int rowH = Math.max(13, Math.min(16, avail / per));
         for (int i = 0; i < entries.size(); i++) {
             int index = i;
             Control row = new TextRow(entries.get(i).name(), () -> panelIndex == index, () -> {
                 panelIndex = index;
                 rebuildWidgets();
             });
-            row.place(winLeft(), top + i * rowH, listW);
+            row.place(winLeft() + (i / per) * (listW + 4), top + (i % per) * rowH, listW);
             row.h = rowH - 1;
             controls.add(row);
         }
@@ -1255,9 +1264,9 @@ public final class SettingsScreen extends Screen {
                     onChange.run();
                     openPositions.run();
                 })
-                .bounds(winLeft(), Math.min(top + entries.size() * rowH + 3, contentBottom() - 20), listW, 20).build());
+                .bounds(winLeft(), contentBottom() - 20, listW, 20).build());
 
-        int cx = winLeft() + listW + 12;
+        int cx = winLeft() + cols * (listW + 4) + 8;
         int cw = Math.max(130, Math.min(200, (winRight() - cx) * 45 / 100));
         int[] y = { top };
         ModConfig.Look look = entry.look();
@@ -2002,7 +2011,7 @@ public final class SettingsScreen extends Screen {
             if (tab == Tab.STYLE) {
                 Smooth.rect(context, listX, listTop, listWidth, listBottom - listTop, 8, 0x40000000);
             } else {
-                Smooth.rect(context, 4, TOP - 8, stageX - 10, contentBottom() + 10 - (TOP - 8), 8, 0x40000000);
+                Smooth.rect(context, winLeft() - 4, TOP - 8, stageX - 10 - (winLeft() - 4), contentBottom() + 10 - (TOP - 8), 8, 0x40000000);
             }
         }
         for (var child : this.children()) {
@@ -2120,6 +2129,12 @@ public final class SettingsScreen extends Screen {
             t += ((isOn ? 1f : 0f) - t) * 0.3f;
             slide.put(b, t);
             Smooth.rect(context, x, y, w, h, 6, hover ? 0xFF223231 : UI_RAISED);
+            if (w < 100) {
+                // Too narrow for the switch and a label: a dot says on or off.
+                context.text(this.font, trim(label, w - 22), x + 6, y + (h - 8) / 2, isOn ? UI_FG : UI_MUTED, false);
+                Smooth.circle(context, x + w - 9, y + h / 2f, 3.5f, Smooth.mix(UI_OFF, accent(), t));
+                return;
+            }
             context.text(this.font, trim(label, w - 46), x + 10, y + (h - 8) / 2, isOn ? UI_FG : UI_MUTED, false);
             int sx = x + w - 10 - 26;
             int sy = y + (h - 14) / 2;

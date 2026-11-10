@@ -48,7 +48,7 @@ final class JobSource {
         List<JobCalc.Part> parts() {
             List<JobCalc.Part> out = new ArrayList<>();
             for (MineCosts.Piece p : view().pieces()) {
-                out.add(new JobCalc.Part(p.gear(), p.cost()));
+                out.add(new JobCalc.Part(p.gear(), p.cost(), p.source() == MineCosts.Source.PARTIAL));
             }
             return out;
         }
@@ -139,7 +139,7 @@ final class JobSource {
 
     static Optional<Item> find(List<Item> items, String name) {
         for (Item i : items) {
-            if (i.name().equalsIgnoreCase(name)) {
+            if (JobWorlds.canonical(i.name()).equals(JobWorlds.canonical(name))) {
                 return Optional.of(i);
             }
         }

@@ -30,7 +30,7 @@ public final class JobCalc {
             "(?<num>[0-9][0-9,]*(?:\\.[0-9]+)?|\\.[0-9]+)\\s*(?<suffix>[KMBTQkmbtq])?");
     /** "1B", "1.25B", "1.5b/1c", "1B per credit", "2b / 2c". */
     private static final Pattern RATE = Pattern.compile(
-            "\\s*" + AMOUNT.pattern() + "(?:\\s*(?:/|per)\\s*(?<per>[0-9.]*)\\s*(?:c|cr|credits?)?)?\\s*",
+            "\\s*" + AMOUNT.pattern() + "(?:\\s*(?:/|per)\\s*(?<per>[0-9.,]*)\\s*(?:c|cr|credits?)?)?\\s*",
             Pattern.CASE_INSENSITIVE);
 
     private static double scale(String suffix) {
@@ -58,9 +58,30 @@ public final class JobCalc {
         return value(m);
     }
 
+    /**
+     * "1,000" is a thousand and "1,5" is one and a half: a comma followed by exactly three digits
+     * is a thousands separator, any other comma is a decimal one. Null for a number that is neither.
+     */
+    static String plain(String num) {
+        if (!num.contains(",")) {
+            return num;
+        }
+        if (num.matches("[0-9]{1,3}(,[0-9]{3})+(\\.[0-9]+)?")) {
+            return num.replace(",", "");
+        }
+        if (num.matches("[0-9]+,[0-9]+")) {
+            return num.replace(',', '.');
+        }
+        return null;
+    }
+
     private static OptionalDouble value(Matcher m) {
         try {
-            double v = Double.parseDouble(m.group("num").replace(",", "")) * scale(m.group("suffix"));
+            String plain = plain(m.group("num"));
+            if (plain == null) {
+                return OptionalDouble.empty();
+            }
+            double v = Double.parseDouble(plain) * scale(m.group("suffix"));
             return v > 0.0 && !Double.isInfinite(v) ? OptionalDouble.of(v) : OptionalDouble.empty();
         } catch (NumberFormatException e) {
             return OptionalDouble.empty();
@@ -86,7 +107,11 @@ public final class JobCalc {
         String per = m.group("per");
         if (per != null && !per.isBlank()) {
             try {
-                double credits = Double.parseDouble(per);
+                String plainPer = plain(per);
+                if (plainPer == null) {
+                    return OptionalDouble.empty();
+                }
+                double credits = Double.parseDouble(plainPer);
                 if (credits <= 0.0) {
                     return OptionalDouble.empty();
                 }
@@ -98,8 +123,18 @@ public final class JobCalc {
         return mats;
     }
 
-    /** One piece of gear at a mine and what it costs, empty when that is not known. */
-    public record Part(String gear, OptionalLong cost) {}
+    /**
+     * One piece of gear at a mine and what it costs, empty when that is not known.
+     *
+     * @param partial only some of the piece's tiers have been read from the shop, so {@code cost}
+     *                is a part of the price: it is counted, and the mine is marked as short
+     */
+    public record Part(String gear, OptionalLong cost, boolean partial) {
+
+        public Part(String gear, OptionalLong cost) {
+            this(gear, cost, false);
+        }
+    }
 
     /**
      * A mine in the job.
@@ -112,8 +147,30 @@ public final class JobCalc {
 
     /** The key a left-out piece is saved under: "jade|charm". */
     public static String skipKey(String mine, String gear) {
-        return (mine == null ? "" : mine.trim().toLowerCase(Locale.ROOT)) + "|"
+        return JobWorlds.canonical(mine) + "|"
                 + (gear == null ? "" : gear.trim().toLowerCase(Locale.ROOT));
+    }
+
+    /** A saved skip key under today's spelling of the mine, so an older save still matches. */
+    private static String normal(String key) {
+        int bar = key.lastIndexOf('|');
+        return bar < 0 ? key : skipKey(key.substring(0, bar), key.substring(bar + 1));
+    }
+
+    /** Whether the piece is left out of the job. */
+    public static boolean isSkipped(java.util.Collection<String> skipped, String mine, String gear) {
+        String key = skipKey(mine, gear);
+        return skipped.stream().anyMatch(k -> normal(k).equals(key));
+    }
+
+    /** The list with the piece switched: left out if it was in, back in if it was left out. */
+    public static List<String> toggleSkip(List<String> skipped, String mine, String gear) {
+        String key = skipKey(mine, gear);
+        List<String> out = new ArrayList<>(skipped);
+        if (!out.removeIf(k -> normal(k).equals(key))) {
+            out.add(key);
+        }
+        return out;
     }
 
     /** The mine with the pieces in {@code skipped} left out. */
@@ -121,12 +178,13 @@ public final class JobCalc {
         long sum = 0L;
         int missing = 0;
         for (Part p : parts) {
-            if (skipped.contains(skipKey(mine, p.gear()))) {
+            if (isSkipped(skipped, mine, p.gear())) {
                 continue;
             }
             if (p.cost().isPresent()) {
                 sum += p.cost().getAsLong();
-            } else {
+            }
+            if (p.cost().isEmpty() || p.partial()) {
                 missing++;
             }
         }
@@ -153,11 +211,16 @@ public final class JobCalc {
         return new Total(sum, credits, unknown);
     }
 
-    /** The same mine added more than once, in order of first appearance: mine to times. */
+    /**
+     * The same mine added more than once, in order of first appearance: mine to times. A mine
+     * saved under one spelling and added under another ("Sulfer", "Sulfur") is one mine.
+     */
     public static Map<String, Integer> counts(List<String> mines) {
+        Map<String, String> first = new LinkedHashMap<>();
         Map<String, Integer> out = new LinkedHashMap<>();
         for (String m : mines) {
-            out.merge(m, 1, Integer::sum);
+            String shown = first.computeIfAbsent(JobWorlds.canonical(m), k -> m);
+            out.merge(shown, 1, Integer::sum);
         }
         return out;
     }
@@ -165,9 +228,12 @@ public final class JobCalc {
     /** One copy of {@code mine} removed, the last one added; the list as it was when it is not there. */
     public static List<String> removeOne(List<String> mines, String mine) {
         List<String> out = new ArrayList<>(mines);
-        int at = out.lastIndexOf(mine);
-        if (at >= 0) {
-            out.remove(at);
+        String want = JobWorlds.canonical(mine);
+        for (int i = out.size() - 1; i >= 0; i--) {
+            if (JobWorlds.canonical(out.get(i)).equals(want)) {
+                out.remove(i);
+                break;
+            }
         }
         return out;
     }

@@ -600,6 +600,23 @@ public final class ExtrasTests {
         eq("eleven Sift mines", 11, minerefinehud.job.JobWorlds.SIFT.size());
         eq("Sift order starts with Shale", "Shale", minerefinehud.job.JobWorlds.SIFT.get(0).get(0));
         yes("either spelling is known", minerefinehud.job.JobWorlds.known("Blub", null) && minerefinehud.job.JobWorlds.known("bulb", null));
+        eq("decimal comma", 1.5e9, JobCalc.parseRate("1,5B").getAsDouble());
+        eq("decimal comma two places", 1.25e9, JobCalc.parseRate("1,25B/1c").getAsDouble());
+        eq("thousands comma", 1000.0, JobCalc.parseAmount("1,000").getAsDouble());
+        eq("thousands commas", 1_250_000.0, JobCalc.parseAmount("1,250,000").getAsDouble());
+        yes("odd commas are no number", JobCalc.parseAmount("1,5,5").isEmpty());
+        JobCalc.Entry partial = JobCalc.entry("Jade", List.of(new JobCalc.Part("sword", OptionalLong.of(100L), true),
+                new JobCalc.Part("charm", OptionalLong.of(50L))), List.of(), 1);
+        eq("a partial piece is counted", 150L, partial.mats());
+        eq("a partial piece marks the mine short", 1, partial.missing());
+        eq("same mine under two spellings", java.util.Map.of("Sulfer", 2), JobCalc.counts(List.of("Sulfer", "Sulfur")));
+        eq("remove by either spelling", List.of("Sulfer"), JobCalc.removeOne(List.of("Sulfer", "Sulfer"), "Sulfur"));
+        eq("skip key ignores spelling", JobCalc.skipKey("Sulfer", "charm"), JobCalc.skipKey("sulfur", "Charm"));
+        eq("decimal comma in the per part", 1e9 / 1.5, JobCalc.parseRate("1B/1,5c").getAsDouble());
+        yes("an old skip under the other spelling still counts", JobCalc.isSkipped(List.of("sulfur|charm"), "Sulfer", "Charm"));
+        eq("toggle puts a skipped piece back whatever the spelling", List.of(),
+                JobCalc.toggleSkip(List.of("sulfur|charm"), "Sulfer", "charm"));
+        eq("toggle leaves a piece out", List.of("jade|charm"), JobCalc.toggleSkip(List.of(), "Jade", "Charm"));
         eq("title case", "Ancient Debris", minerefinehud.job.JobWorlds.title("ancient  debris"));
         eq("mats text", "760.34b", JobCalc.mats(760_340_000_000.0));
         eq("mats small", "12,345", JobCalc.mats(12_345.0));

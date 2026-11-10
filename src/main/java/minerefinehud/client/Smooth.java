@@ -26,8 +26,17 @@ final class Smooth {
         extra = e <= 0f ? 1f : e;
     }
 
+    /**
+     * Whether the edges are faded. At two screen pixels per GUI pixel or more the steps of a curve
+     * are too small to see, so each row is one plain run, a third of the rectangles to draw and
+     * far less work for the game every frame; only at the smallest GUI scale are the ends faded.
+     */
+    private static boolean fade = true;
+
     private static float unit() {
-        return (float) Minecraft.getInstance().getWindow().getGuiScale() * extra;
+        float u = (float) Minecraft.getInstance().getWindow().getGuiScale() * extra;
+        fade = u < 2f;
+        return u;
     }
 
     static int alpha(int argb, float a) {
@@ -73,6 +82,14 @@ final class Smooth {
     /** One row of the shape, from x0 to x1 in real pixels, the ends faded by their coverage. */
     private static void span(GuiGraphicsExtractor context, int y, float x0, float x1, int color) {
         if (x1 <= x0) {
+            return;
+        }
+        if (!fade) {
+            int from = Math.round(x0);
+            int to = Math.round(x1);
+            if (to > from) {
+                context.fill(from, y, to, y + 1, color);
+            }
             return;
         }
         int a = (int) Math.floor(x0);

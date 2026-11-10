@@ -43,6 +43,19 @@ public final class JobWorlds {
         }
     }
 
+    /** One name for a mine however it is spelled: "Sulfur" and "sulfer" are the same, lower case. */
+    public static String canonical(String mine) {
+        String key = mine == null ? "" : mine.trim().toLowerCase(Locale.ROOT);
+        for (List<String> group : SIFT) {
+            for (String name : group) {
+                if (name.equalsIgnoreCase(key)) {
+                    return group.get(0).toLowerCase(Locale.ROOT);
+                }
+            }
+        }
+        return key;
+    }
+
     /** "SIFTBOUND" as "Sift"; empty for anything that is not a world tag. */
     public static Optional<String> fromTag(String tag) {
         if (tag == null) {

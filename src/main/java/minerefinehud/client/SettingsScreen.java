@@ -446,8 +446,8 @@ public final class SettingsScreen extends Screen {
         Button xp = toggleAt(x(0), y(1), "EXP per hour",
                 () -> config.showXp, v -> config.showXp = v);
         xp.setTooltip(Tooltip.create(Component.literal("Adds a row with the EXP you get per hour while mining, "
-                + "and what you earned this session, to the Mining panel. Read from the +EXP on the action bar, "
-                + "measured the same way as Mining per hour.")));
+                + "and what you earned this session, to the Mining panel. Read from the +EXP on the action bar "
+                + "and measured over time (\"Rate over\", or the last minute when that is off).")));
         Button window = cycle(1, 1, "Rate over", () -> config.mineRateSeconds, v -> config.mineRateSeconds = v,
                 new int[] { 0, 30, 60, 120, 300, 600 },
                 v -> v == 0 ? "off" : v < 60 ? v + " sec" : v / 60 + " min");

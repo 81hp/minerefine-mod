@@ -10,12 +10,24 @@ import java.util.regex.Pattern;
 /**
  * EXP per hour, from the "+140,732 EXP" on the mining action bar. By Arreba.
  *
- * Every block mined puts a fresh line on the bar, but the server also resends a line unchanged,
- * so a line is only counted when its balance or its gain differs from the one before. The first
- * line after a break is counted in the session total but gives no rate, since it is not known
- * how long that block took. After that a block took the time since the one before it, at most
- * {@link #MAX_GAP_MS}, so a walk to the shop does not drag the rate down. The rate shown is the
- * last few blocks together, like {@link MiningRate}.
+ * The number on the bar is not the EXP of one block. In a player's log it climbed by the same step
+ * from line to line while coins and tokens beside it climbed in proportion, and adding every line
+ * up gave a session of 1.29 billion for an account whose whole lifetime total is 654 million (and
+ * another player's rate came out about 27 times too high). So a line is read as a point on a rising
+ * run: while the number goes up, only the rise since the line before is new EXP; when it falls (or
+ * comes after a break) a new run starts and its first line counts in full. Added up, every run counts
+ * its highest value once, whether the bar is counting up through one block or adding up a streak.
+ *
+ * A line with the same number as the one before counts for nothing, even when the balance beside it
+ * moved: every block sends the new balance and the new EXP on two separate lines ("304934 EXP bal
+ * 84.43B", then "304934 EXP bal 84.48B", then "353082 EXP bal 84.48B"), and counting the balance-only
+ * line in full put a player at 100m for a 12m session. The price: a new run that happens to start on
+ * exactly the number the last one showed looks like a balance-only line and that block counts 0, a
+ * rare undercount of one block instead of an overcount on every block.
+ *
+ * The first line after a break is counted in the session but gives no rate, since it is not known
+ * how long it took. The rate is what came in over a window of time ({@link #perHourOver}), like
+ * {@link MiningRate}, not line by line, so a burst of lines cannot inflate it.
  *
  * No Minecraft types; times are epoch milliseconds from the caller.
  */
@@ -25,7 +37,7 @@ public final class XpRate {
     public static final long IDLE_MS = 30_000L;
     /** Longest time one block is taken to have taken. */
     public static final long MAX_GAP_MS = 10_000L;
-    /** Blocks averaged at most, whatever is asked. */
+    /** Blocks kept for sure, whatever the window. */
     public static final int MAX_BLOCKS = 100;
 
     private static final Pattern GAIN = Pattern.compile(
@@ -38,8 +50,18 @@ public final class XpRate {
 
     private record Block(double gain, long tookMs, long at) implements MiningRate.WindowBlock {}
 
+    /** One line seen, for /mrhud debug: when, what it showed, and whether it was counted. */
+    private record Seen(long at, double gain, long balance, boolean counted) {}
+
+    /** How many lines /mrhud debug can show. */
+    public static final int LOG = 15;
+    private final Deque<Seen> seen = new ArrayDeque<>();
+    private long linesSeen;
+    private long linesCounted;
+
     private final Deque<Block> blocks = new ArrayDeque<>();
-    private String lastKey = "";
+    /** The number on the latest line that counted, to tell a rise from a new run. */
+    private double lastGain;
     private long lastLineAt = -1L;
     private long lastGainAt = -1L;
     private double session;
@@ -90,7 +112,7 @@ public final class XpRate {
      * One mining line from the action bar.
      *
      * @param gain    the EXP it shows
-     * @param balance the balance on the same line, which tells a new block from a resent line
+     * @param balance the balance on the same line, only kept for /mrhud debug
      */
     public void observe(double gain, long balance, long now) {
         if (Double.isNaN(gain) || gain <= 0.0) {
@@ -98,14 +120,22 @@ public final class XpRate {
         }
         boolean wasMining = mining(now);
         lastLineAt = now;
-        String key = balance + "|" + gain;
-        if (key.equals(lastKey)) {
+        linesSeen++;
+        // The same number again is no new EXP, whatever the balance did: the bar sends the new
+        // balance and the new EXP of a block on two separate lines. After a break it is a new
+        // starting line like any other, so it is not swallowed and the rate gets its baseline.
+        if (wasMining && gain == lastGain) {
+            note(now, gain, balance, false);
             return;
         }
-        lastKey = key;
-        session += gain;
+        // Rising on the run before: only the rise is new. Anything else starts a run, counted in full.
+        double credit = wasMining && gain > lastGain ? gain - lastGain : gain;
+        lastGain = gain;
+        linesCounted++;
+        note(now, gain, balance, true);
+        session += credit;
         if (wasMining && lastGainAt >= 0L && now > lastGainAt) {
-            blocks.addLast(new Block(gain, Math.min(now - lastGainAt, MAX_GAP_MS), now));
+            blocks.addLast(new Block(credit, Math.min(now - lastGainAt, MAX_GAP_MS), now));
             while (blocks.size() > KEEP_BLOCKS
                     || (blocks.size() > MAX_BLOCKS && now - blocks.peekFirst().at() > MAX_WINDOW_MS)) {
                 blocks.removeFirst();
@@ -117,20 +147,29 @@ public final class XpRate {
         lastGainAt = now;
     }
 
-    /** EXP per hour over the last {@code count} blocks, NaN until two lines have come. */
-    public double perHour(int count) {
-        int take = Math.max(1, Math.min(MAX_BLOCKS, count));
-        double gained = 0.0;
-        long ms = 0L;
-        int seen = 0;
-        var it = blocks.descendingIterator();
-        while (it.hasNext() && seen < take) {
-            Block b = it.next();
-            gained += b.gain();
-            ms += b.tookMs();
-            seen++;
+    private void note(long now, double gain, long balance, boolean counted) {
+        seen.addLast(new Seen(now, gain, balance, counted));
+        while (seen.size() > LOG) {
+            seen.removeFirst();
         }
-        return ms <= 0L ? Double.NaN : gained / ms * 3_600_000.0;
+    }
+
+    /**
+     * The latest EXP lines for /mrhud debug, oldest first: seconds since the line before, the EXP it
+     * showed, the balance beside it, and whether it counted. Shows how the number moves from block
+     * to block, which is what decides how it must be read.
+     */
+    public java.util.List<String> recent() {
+        java.util.List<String> out = new java.util.ArrayList<>();
+        out.add("exp lines seen " + linesSeen + ", counted " + linesCounted + ", latest " + seen.size() + ":");
+        long prev = -1L;
+        for (Seen s : seen) {
+            String gap = prev < 0 ? "first" : String.format(Locale.ROOT, "+%.1fs", (s.at() - prev) / 1000.0);
+            out.add("  " + gap + "  " + Math.round(s.gain()) + " EXP  bal " + s.balance()
+                    + (s.counted() ? "" : "  (same EXP, not counted)"));
+            prev = s.at();
+        }
+        return out;
     }
 
     /**
@@ -162,11 +201,14 @@ public final class XpRate {
 
     public void reset() {
         blocks.clear();
-        lastKey = "";
+        lastGain = 0.0;
         lastLineAt = -1L;
         lastGainAt = -1L;
         session = 0.0;
         miningMs = 0L;
         lastTick = -1L;
+        seen.clear();
+        linesSeen = 0L;
+        linesCounted = 0L;
     }
 }

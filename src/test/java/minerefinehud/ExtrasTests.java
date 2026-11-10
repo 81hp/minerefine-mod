@@ -36,6 +36,7 @@ public final class ExtrasTests {
         vaultIsNotMining();
         rateOverWindow();
         heldRate();
+        xpLog();
         panels();
         beacon();
         outposts();
@@ -304,7 +305,7 @@ public final class ExtrasTests {
         long u = 1_000_000L;
         yes("xp window: no blocks, no rate", Double.isNaN(e.perHourOver(60_000L, u)));
         for (int i = 0; i <= 120; i++) {
-            e.observe(1_000, i, u + i * 1_000L);
+            e.observe(1_000.0 * (i + 1), i, u + i * 1_000L);   // the bar's number rises 1000 a block
         }
         long end = u + 120_000L;
         yes("xp window: 1000 a second is 3.6m an hour", Math.abs(e.perHourOver(60_000L, end) - 3_600_000.0) < 1.0);
@@ -314,7 +315,7 @@ public final class ExtrasTests {
                 e.perHourOver(30_000L, end + 60_000L));
         XpRate longRun = new XpRate();
         for (int i = 0; i < 4_000; i++) {
-            longRun.observe(10, i, u + i * 1_000L);
+            longRun.observe(10.0 * (i + 1), i, u + i * 1_000L);
         }
         yes("xp window: right after a long session",
                 Math.abs(longRun.perHourOver(600_000L, u + 3_999_000L) - 36_000.0) < 1.0);
@@ -338,6 +339,27 @@ public final class ExtrasTests {
         h.reset();
         live[0] = 7.0;
         eq("held: reset", 7.0, h.get(1_001L, "b", () -> live[0]));
+    }
+
+    /** The log of EXP lines for /mrhud debug. */
+    private static void xpLog() {
+        XpRate x = new XpRate();
+        yes("xp log: starts empty", x.recent().size() == 1);
+        x.observe(455_847, 38_650_000_000L, 1_000L);
+        x.observe(503_414, 38_690_000_000L, 2_200L);
+        x.observe(503_414, 38_690_000_000L, 2_400L);
+        var lines = x.recent();
+        eq("xp log: a header and three lines", 4, lines.size());
+        yes("xp log: seen and counted", lines.get(0).contains("seen 3") && lines.get(0).contains("counted 2"));
+        yes("xp log: the first line", lines.get(1).contains("first") && lines.get(1).contains("455847"));
+        yes("xp log: seconds since the one before", lines.get(2).contains("+1.2s") && lines.get(2).contains("503414"));
+        yes("xp log: a repeat is marked", lines.get(3).contains("not counted"));
+        for (int i = 0; i < 40; i++) {
+            x.observe(1_000 + i, 1L + i, 5_000L + i * 500L);
+        }
+        eq("xp log: only the latest are kept", XpRate.LOG + 1, x.recent().size());
+        x.reset();
+        yes("xp log: reset", x.recent().size() == 1);
     }
 
     /** A user took Rosewood out of their vault: 174,318b/h and +15,041b in the session. */
@@ -396,32 +418,89 @@ public final class ExtrasTests {
         yes("xp: hunting exp is its own line", XpRate.parse("Hunting EXP").isEmpty());
         yes("xp: nothing", XpRate.parse("").isEmpty() && XpRate.parse(null).isEmpty());
 
-        XpRate x = new XpRate();
         long t = 1_000_000L;
-        yes("xp: no rate before a block", Double.isNaN(x.perHour(10)));
+        long hour = 3_600_000L;
+        // The bar's number rises by what each block gave.
+        XpRate x = new XpRate();
+        yes("xp: no rate before a block", Double.isNaN(x.perHourOver(60_000L, t)));
         x.observe(1_000, 100, t);
         yes("xp: the first line counts for the session", x.session() == 1_000.0);
-        yes("xp: but gives no rate", Double.isNaN(x.perHour(10)));
-        x.observe(1_000, 101, t + 2_000L);
-        yes("xp: 1000 in 2s is 1.8m an hour", Math.abs(x.perHour(10) - 1_800_000.0) < 1.0);
-        x.observe(1_000, 101, t + 3_000L);
+        yes("xp: but gives no rate", Double.isNaN(x.perHourOver(60_000L, t)));
+        x.observe(2_000, 101, t + 2_000L);
+        yes("xp: 1000 in 2s is 1.8m an hour", Math.abs(x.perHourOver(60_000L, t + 2_000L) - 1_800_000.0) < 1.0);
+        x.observe(2_000, 101, t + 3_000L);
         yes("xp: the same line again is not counted", x.session() == 2_000.0);
-        x.observe(2_000, 102, t + 6_000L);
-        // blocks: 1000 in 2s, 2000 in 4s -> 3000 / 6s = 1.8m
-        yes("xp: two blocks together", Math.abs(x.perHour(10) - 1_800_000.0) < 1.0);
-        yes("xp: last block alone", Math.abs(x.perHour(1) - 1_800_000.0) < 1.0);
-        yes("xp: session adds up", x.session() == 4_000.0);
+        x.observe(2_000, 102, t + 3_500L);
+        yes("xp: only the balance moving is not counted", x.session() == 2_000.0);
+        x.observe(3_000, 102, t + 4_000L);
+        yes("xp: every block counts", x.session() == 3_000.0);
+        yes("xp: two blocks in 4s", Math.abs(x.perHourOver(60_000L, t + 4_000L) - 1_800_000.0) < 1.0);
 
-        x.observe(500, 103, t + 6_000L + 5 * 60_000L);
-        yes("xp: after a break the first line is a baseline, rate restarts", Double.isNaN(x.perHour(10)));
-        yes("xp: and is still in the session", x.session() == 4_500.0);
-        x.observe(500, 104, t + 6_000L + 5 * 60_000L + 1_000L);
-        yes("xp: 500 in 1s", Math.abs(x.perHour(10) - 1_800_000.0) < 1.0);
+        // A player's real log: one block's lines counting up. Only the top counts, not the sum.
+        XpRate log = new XpRate();
+        log.observe(455_847, 38_650_000_000L, t);
+        log.observe(503_414, 38_690_000_000L, t + 50L);
+        log.observe(550_981, 38_690_000_000L, t + 100L);
+        eq("xp: lines counting up count their highest value once", 550_981.0, log.session());
+
+        // Two blocks, each counting up 100, 200, 300: 600, not 1200.
+        XpRate anim = new XpRate();
+        long[] at = { 0L, 50L, 100L, 1_000L, 1_050L, 1_100L };
+        double[] shown = { 100, 200, 300, 100, 200, 300 };
+        for (int i = 0; i < at.length; i++) {
+            anim.observe(shown[i], 1_000L + i, t + at[i]);
+        }
+        eq("xp: two count-ups are two peaks", 600.0, anim.session());
+        yes("xp: and a rate over time, not per line",
+                Math.abs(anim.perHourOver(60_000L, t + 1_100L) - 500.0 * hour / 1_100.0) < 1.0);
+
+        // A streak total that keeps rising: every block adds its own 50.
+        XpRate streak = new XpRate();
+        for (int i = 1; i <= 10; i++) {
+            streak.observe(50.0 * i, 5_000L + i, t + i * 1_000L);
+        }
+        eq("xp: a running total counts as itself", 500.0, streak.session());
+        yes("xp: at 50 a second", Math.abs(streak.perHourOver(60_000L, t + 10_000L) - 450.0 * hour / 9_000.0) < 1.0);
+
+        // A player's /mrhud debug log (MineRefine, 10 Nov 2026): every block sends the new balance
+        // on one line and the new EXP on the next. Only the rises are new EXP, plus the run that
+        // started again at 16049. Counting the balance-only lines in full made 12m look like 100m.
+        XpRate real = new XpRate();
+        long[] realAt = { 0, 500, 900, 1_000, 1_500, 1_520, 1_620, 1_640, 1_740, 1_940, 2_040, 2_060, 2_080, 2_580, 3_580 };
+        double[] realExp = { 304_934, 304_934, 304_934, 353_082, 353_082, 353_082, 16_049, 16_049, 68_209, 68_209,
+                112_344, 112_344, 160_492, 160_492, 160_492 };
+        long[] realBal = { 84_430_000_000L, 84_430_000_000L, 84_480_000_000L, 84_480_000_000L, 84_480_000_000L,
+                84_500_000_000L, 84_500_000_000L, 84_550_000_000L, 84_550_000_000L, 84_600_000_000L,
+                84_600_000_000L, 84_650_000_000L, 84_650_000_000L, 84_650_000_000L, 84_650_000_000L };
+        for (int i = 0; i < realAt.length; i++) {
+            real.observe(realExp[i], realBal[i], t + realAt[i]);
+        }
+        eq("xp: real log, after the first line only the rises and the new run",
+                (double) (48_148 + 16_049 + 52_160 + 44_135 + 48_148), real.session() - 304_934.0);
+        yes("xp: real log, one line counted per block", real.recent().get(0).contains("counted 6"));
+        double beforeBreak = real.session();
+        long afterBreak = t + 3_580L + XpRate.IDLE_MS + 1_000L;
+        real.observe(160_492, 84_700_000_000L, afterBreak);
+        eq("xp: after a break the same number is a new start, not swallowed", beforeBreak + 160_492.0, real.session());
+        yes("xp: and gives no rate yet", Double.isNaN(real.perHourOver(60_000L, afterBreak)));
+        real.observe(208_640, 84_700_000_000L, afterBreak + 1_000L);
+        eq("xp: the next block after the break counts its rise", beforeBreak + 208_640.0, real.session());
+        yes("xp: timed from the new start, not from before the break",
+                Math.abs(real.perHourOver(60_000L, afterBreak + 1_000L) - 48_148.0 * 3_600.0) < 1.0);
+
+        // After a break the first line is a baseline and the rate starts again.
+        long back = t + 4_000L + 5 * 60_000L;
+        x.observe(500, 103, back);
+        yes("xp: after a break the first line gives no rate", Double.isNaN(x.perHourOver(60_000L, back)));
+        yes("xp: and is still in the session", x.session() == 3_500.0);
+        x.observe(1_000, 104, back + 1_000L);
+        yes("xp: 500 in 1s", Math.abs(x.perHourOver(60_000L, back + 1_000L) - 1_800_000.0) < 1.0);
 
         XpRate slow = new XpRate();
         slow.observe(100, 1, t);
-        slow.observe(100, 2, t + 20_000L);
-        yes("xp: a long gap counts as 10s, not 20s", Math.abs(slow.perHour(10) - 36_000.0) < 1.0);
+        slow.observe(200, 2, t + 20_000L);
+        yes("xp: a long gap counts as 10s, not 20s",
+                Math.abs(slow.perHourOver(60_000L, t + 20_000L) - 36_000.0) < 1.0);
 
         XpRate timed = new XpRate();
         timed.tick(t);
@@ -435,7 +514,7 @@ public final class ExtrasTests {
         yes("xp: mining time runs while lines come", timed.miningMs() >= 110_000L);
         timed.reset();
         yes("xp: reset empties it", !timed.any() && timed.session() == 0.0 && timed.miningMs() == 0L
-                && Double.isNaN(timed.perHour(10)));
+                && Double.isNaN(timed.perHourOver(60_000L, t)));
 
         var mine = new ExtrasHud.Mining("Shale", OptionalLong.of(36_420_000_000L), 1_250_000_000.0,
                 4_510_000_000.0, 3L * 3_600_000L, List.of());

@@ -73,10 +73,7 @@ public final class SettingsScreen extends Screen {
     private static final int UI_MUTED = 0xFF8FA49E;
     private static final int UI_OFF = 0xFF4A5856;
     private static final int DEFAULT_ACCENT = 0xFFFFD24A;
-    /** The menu colours to pick from. */
-    private static final String[] MENU_NAMES = { "Gold", "Cyan", "Pink", "Green", "Orange", "Violet", "Red", "White" };
-    private static final int[] MENU_COLOURS = { 0xFFFFD24A, 0xFF7FE3FF, 0xFFFF8AD8, 0xFF7CE36B, 0xFFFF9F43,
-            0xFFA06BFF, 0xFFFF6B6B, 0xFFFFFFFF };
+    private static final int DEFAULT_MENU_BACKGROUND = 0xFF182221;
 
     /** Quick picks, the design page's. */
     private static final int[] ACCENTS = { 0xFFFFD24A, 0xFF7FE3FF, 0xFFFF8AD8, 0xFF9BFF6B, 0xFFFF9F43, 0xFFFFFFFF };
@@ -183,16 +180,6 @@ public final class SettingsScreen extends Screen {
     private int ink() {
         int a = accent();
         return Smooth.contrast(a) == 0xFFFFFFFF ? 0xFFFFFFFF : 0xFF1A1500;
-    }
-
-    private int menuColourIndex() {
-        int a = accent() & 0xFFFFFF;
-        for (int i = 0; i < MENU_COLOURS.length; i++) {
-            if ((MENU_COLOURS[i] & 0xFFFFFF) == a) {
-                return i;
-            }
-        }
-        return 0;
     }
 
     /** The menu is a window in the middle, not the whole screen. */
@@ -338,10 +325,6 @@ public final class SettingsScreen extends Screen {
                     }
                 });
         addRenderableWidget(rate);
-
-        cycle(0, 3, "Menu colour", this::menuColourIndex,
-                v -> config.menuAccent = Theme.format(MENU_COLOURS[Math.floorMod(v, MENU_COLOURS.length)]),
-                new int[] { 0, 1, 2, 3, 4, 5, 6, 7 }, v -> MENU_NAMES[Math.floorMod(v, MENU_NAMES.length)]);
 
         addRenderableWidget(Button.builder(Component.literal("Move and resize panels..."), b -> {
                     onChange.run();
@@ -1101,7 +1084,11 @@ public final class SettingsScreen extends Screen {
                 new ColourEntry("Warnings", "Bosses due now, the respawn reminder.", () -> config.colorWarn,
                         v -> config.colorWarn = v, d.warn()),
                 new ColourEntry("Dim text", "Hints, credits, bosses still being learned.", () -> config.colorDim,
-                        v -> config.colorDim = v, d.dim()));
+                        v -> config.colorDim = v, d.dim()),
+                new ColourEntry("Menu accent", "This settings menu: the tabs, switches, sliders and the Done button.",
+                        () -> config.menuAccent, v -> config.menuAccent = v, DEFAULT_ACCENT),
+                new ColourEntry("Menu background", "This settings menu's background.",
+                        () -> config.menuBackground, v -> config.menuBackground = v, DEFAULT_MENU_BACKGROUND));
     }
 
     private int entryColour(ColourEntry e) {
@@ -2077,7 +2064,9 @@ public final class SettingsScreen extends Screen {
         int w = c[2] - c[0];
         int h = c[3] - c[1];
         Smooth.shadow(context, c[0], c[1], w, h, 10, 6, 0x60000000);
-        Smooth.rect(context, c[0], c[1], w, h, 10, 0xF2182221, 0xF20D1413);
+        int base = Theme.parseOr(config.menuBackground, DEFAULT_MENU_BACKGROUND);
+        Smooth.rect(context, c[0], c[1], w, h, 10, Smooth.alpha(base, 0.95f),
+                Smooth.alpha(Smooth.mix(base, 0xFF000000, 0.45f), 0.95f));
         Smooth.rectTop(context, c[0], c[1], w, 46, 10, Smooth.alpha(accent(), 0.14f), Smooth.alpha(accent(), 0f));
         Smooth.ring(context, c[0], c[1], w, h, 10, 1f, UI_LINE);
 

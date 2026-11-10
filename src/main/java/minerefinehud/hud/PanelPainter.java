@@ -190,6 +190,10 @@ public final class PanelPainter {
             return iconShown(l) ? ICON + ICON_GAP : 0;
         }
 
+        private boolean smooth() {
+            return background == Background.SMOOTH;
+        }
+
         private boolean chip(Cell c) {
             return style.bossStatus() == HudStyle.BossStatus.CHIPS && !c.chip().isEmpty();
         }
@@ -488,7 +492,12 @@ public final class PanelPainter {
             text(name, at, y, nameColor);
             int stateX = columns ? x + figureRight(l) - cellWidth(l, 0) : at + w(name) + w(" ");
             if (chip(state)) {
-                fill(stateX, y - 1, stateX + w(state.chip()) + CHIP_PAD * 2, y + TEXT_H, stateColor);
+                if (smooth()) {
+                    ops.add(new Round(stateX, y - 1, stateX + w(state.chip()) + CHIP_PAD * 2, y + TEXT_H, 3f,
+                            stateColor, stateColor, false));
+                } else {
+                    fill(stateX, y - 1, stateX + w(state.chip()) + CHIP_PAD * 2, y + TEXT_H, stateColor);
+                }
                 ops.add(new Text(state.chip(), stateX + CHIP_PAD, y, CHIP_INK, false));
             } else {
                 text(state.text(), stateX, y, stateColor);
@@ -564,6 +573,19 @@ public final class PanelPainter {
             int by = y + (rowH - barH) / 2;
             int fill = fillColor(fraction);
             int filled = (int) Math.round(barW * fraction);
+            if (smooth() && (style.bar() == HudStyle.BarStyle.THIN || style.bar() == HudStyle.BarStyle.THICK)
+                    && !fades(fraction)) {
+                // Rounded ends, like the loading bar of the Beacon timer.
+                float radius = barH / 2f;
+                ops.add(new Round(x, by, x + barW, by + barH, radius, theme.barTrack(), theme.barTrack(), false));
+                if (filled > 0) {
+                    ops.add(new Round(x, by, x + filled, by + barH, radius, fill, fill, false));
+                }
+                if (style.bar() == HudStyle.BarStyle.THICK && percent == HudStyle.Percent.INSIDE) {
+                    text(pct, x + (barW - w(pct)) / 2, by + 1, theme.value());
+                }
+                return;
+            }
             switch (style.bar()) {
                 case THIN -> {
                     fill(x, by, x + barW, by + barH, theme.barTrack());

@@ -362,6 +362,8 @@ public final class ModConfig {
         colorBarDone = fresh.colorBarDone;
         colorBarTrack = fresh.colorBarTrack;
         colorFrame = fresh.colorFrame;
+        menuAccent = fresh.menuAccent;
+        menuBackground = fresh.menuBackground;
     }
 
     // ------------------------------------------------------------- Halloween
@@ -511,6 +513,8 @@ public final class ModConfig {
 
     /** The settings menu's accent colour, as #RRGGBB. By Arreba. */
     public String menuAccent = "#FFD24A";
+    /** The settings menu's background colour, as #RRGGBB. */
+    public String menuBackground = "#182221";
 
     /** An EXP per hour row in the Mining panel, from the EXP on the mining action bar. */
     public boolean showXp = false;
@@ -883,6 +887,7 @@ public final class ModConfig {
         beaconWarnSeconds = Math.max(0, Math.min(60, beaconWarnSeconds));
         outpostLook = fix(outpostLook, 1.0);
         menuAccent = Theme.format(Theme.parseOr(menuAccent, 0xFFFFD24A));
+        menuBackground = Theme.format(Theme.parseOr(menuBackground, 0xFF182221));
         outpostWarnSeconds = Math.max(0, Math.min(600, outpostWarnSeconds));
         outpostEveryMs = Math.max(OutpostPoller.MIN_INTERVAL_MS, outpostEveryMs);
         outpostData = minerefinehud.outpost.OutpostTimers.repair(outpostData);

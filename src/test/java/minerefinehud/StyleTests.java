@@ -337,6 +337,13 @@ public final class StyleTests {
         yes("smooth: no square fill for the background", smooth.ops().stream()
                 .noneMatch(o -> o instanceof PanelPainter.Fill f && f.x1() == 0 && f.y1() == 0
                         && f.x2() == smooth.width() && f.y2() == smooth.height()));
+        var bar = PanelPainter.paint(List.of(HudModel.Line.bar(0.5)),
+                new HudStyle(HudStyle.Titles.BAND, HudStyle.Numbers.COLUMNS, HudStyle.GearLabels.WORDS,
+                        HudStyle.BossStatus.CHIPS, HudStyle.BarStyle.THICK, HudStyle.Percent.AFTER,
+                        HudStyle.BarColor.ACCENT, HudStyle.Spacing.NORMAL, true),
+                HudStyle.Background.SMOOTH, 80, Theme.defaults(), FONT);
+        yes("smooth: the bar track and fill are rounded", bar.ops().stream()
+                .filter(o -> o instanceof PanelPainter.Round r && !r.topOnly()).count() >= 3);
         yes("smooth: more padding than shade, for the corners",
                 PanelPainter.padding(HudStyle.Preset.SMOOTH.style, HudStyle.Background.SMOOTH)
                         > PanelPainter.padding(HudStyle.Preset.SMOOTH.style, HudStyle.Background.SHADE));

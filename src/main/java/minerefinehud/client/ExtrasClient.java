@@ -231,16 +231,24 @@ final class ExtrasClient {
                 miningRate.miningMs(), ExtrasHud.etas(progress, mine, perHour)), xp);
     }
 
+    /** The figures shown are held for a few seconds, so the panel is calm; the rates behind them are live. */
+    private final minerefinehud.mine.HeldRate heldMine = new minerefinehud.mine.HeldRate();
+    private final minerefinehud.mine.HeldRate heldXp = new minerefinehud.mine.HeldRate();
+
     private double minePerHour(String mine) {
-        return config.mineRateSeconds > 0
-                ? miningRate.perHourOver(mine, config.mineRateSeconds * 1000L, System.currentTimeMillis())
-                : miningRate.perHour(mine, config.mineRateBlocks);
+        long now = System.currentTimeMillis();
+        return heldMine.get(now, mine + "|" + config.mineRateSeconds + "|" + config.mineRateBlocks,
+                () -> config.mineRateSeconds > 0
+                        ? miningRate.perHourOver(mine, config.mineRateSeconds * 1000L, now)
+                        : miningRate.perHour(mine, config.mineRateBlocks));
     }
 
     private double xpPerHour() {
-        return config.mineRateSeconds > 0
-                ? xpRate.perHourOver(config.mineRateSeconds * 1000L, System.currentTimeMillis())
-                : xpRate.perHour(config.mineRateBlocks);
+        long now = System.currentTimeMillis();
+        return heldXp.get(now, config.mineRateSeconds + "|" + config.mineRateBlocks,
+                () -> config.mineRateSeconds > 0
+                        ? xpRate.perHourOver(config.mineRateSeconds * 1000L, now)
+                        : xpRate.perHour(config.mineRateBlocks));
     }
 
     /** The mine being measured, to look its balance up. */
@@ -295,6 +303,8 @@ final class ExtrasClient {
     void resetMiningRate() {
         miningRate.reset();
         xpRate.reset();
+        heldMine.reset();
+        heldXp.reset();
     }
 
     void resetDropSession() {

@@ -5,6 +5,7 @@ import minerefinehud.drops.RareDrops;
 import minerefinehud.hud.ExtrasHud;
 import minerefinehud.hud.HudModel;
 import minerefinehud.job.JobCalc;
+import minerefinehud.mine.HeldRate;
 import minerefinehud.mine.MiningRate;
 import minerefinehud.mine.XpRate;
 import minerefinehud.outpost.OutpostTimers;
@@ -34,6 +35,7 @@ public final class ExtrasTests {
         miningRate();
         vaultIsNotMining();
         rateOverWindow();
+        heldRate();
         panels();
         beacon();
         outposts();
@@ -309,6 +311,26 @@ public final class ExtrasTests {
         }
         yes("xp window: right after a long session",
                 Math.abs(longRun.perHourOver(600_000L, u + 3_999_000L) - 36_000.0) < 1.0);
+    }
+
+    /** The figure on the panel changes at most every 5 seconds. */
+    private static void heldRate() {
+        HeldRate h = new HeldRate();
+        double[] live = { Double.NaN };
+        eq("held: no figure yet", true, Double.isNaN(h.get(0L, "a", () -> live[0])));
+        live[0] = 100.0;
+        eq("held: the first figure shows at once", 100.0, h.get(100L, "a", () -> live[0]));
+        live[0] = 200.0;
+        eq("held: not changed after 1 s", 100.0, h.get(1_100L, "a", () -> live[0]));
+        eq("held: nor after 4.9 s", 100.0, h.get(5_000L, "a", () -> live[0]));
+        eq("held: replaced after 5 s", 200.0, h.get(5_100L, "a", () -> live[0]));
+        live[0] = 300.0;
+        eq("held: another mine shows at once", 300.0, h.get(5_200L, "b", () -> live[0]));
+        live[0] = 400.0;
+        eq("held: a clock that went back refreshes", 400.0, h.get(1_000L, "b", () -> live[0]));
+        h.reset();
+        live[0] = 7.0;
+        eq("held: reset", 7.0, h.get(1_001L, "b", () -> live[0]));
     }
 
     /** A user took Rosewood out of their vault: 174,318b/h and +15,041b in the session. */

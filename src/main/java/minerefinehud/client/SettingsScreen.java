@@ -107,6 +107,15 @@ public final class SettingsScreen extends Screen {
 
     private Tab tab = Tab.GENERAL;
 
+    /** The tab buttons, which the screen draws itself as pills, and the Done button as the main one. */
+    private final java.util.Map<Button, Tab> tabButtons = new java.util.LinkedHashMap<>();
+    private Button doneButton;
+    /** How far each toggle's switch has slid, 0 off to 1 on. */
+    private final java.util.Map<Button, Float> slide = new java.util.IdentityHashMap<>();
+    /** Where the row of tabs starts and how wide it is. */
+    private int tabsX;
+    private int tabsW;
+
     private record Label(String text, int x, int y) {}
 
     private final List<Label> labels = new ArrayList<>();
@@ -191,6 +200,8 @@ public final class SettingsScreen extends Screen {
     protected void init() {
         labels.clear();
         controls.clear();
+        tabButtons.clear();
+        slide.clear();
         dragging = null;
         draggingScrollbar = false;
         hexBox = null;
@@ -216,12 +227,15 @@ public final class SettingsScreen extends Screen {
         int share = Math.max(0, (room - natural) / tabs.length);
         int total = natural + share * tabs.length;
         int tabX = this.width / 2 - total / 2;
+        tabsX = tabX;
+        tabsW = total;
         for (int i = 0; i < tabs.length; i++) {
             Tab t = tabs[i];
             int tw = widths[i] + share;
             Button b = Button.builder(Component.literal(t.label), w -> openTab(t))
                     .bounds(tabX, 28, tw, 20).build();
             b.active = t != tab;
+            tabButtons.put(b, t);
             addRenderableWidget(b);
             tabX += tw + 2;
         }
@@ -239,8 +253,16 @@ public final class SettingsScreen extends Screen {
             case TIMERS -> timers();
         }
 
-        addRenderableWidget(Button.builder(Component.literal("Done"), b -> onClose())
-                .bounds(this.width / 2 - 100, this.height - 28, 200, 20).build());
+        doneButton = Button.builder(Component.literal("Done"), b -> onClose())
+                .bounds(this.width / 2 - 100, this.height - 28, 200, 20).build();
+        addRenderableWidget(doneButton);
+
+        // The buttons keep their clicks and tooltips; what is seen of them is drawn by skin().
+        for (var child : this.children()) {
+            if (child instanceof Button b) {
+                b.setAlpha(0f);
+            }
+        }
     }
 
     private void openTab(Tab t) {
@@ -1513,9 +1535,9 @@ public final class SettingsScreen extends Screen {
             int trackY = ty + 11 + 3;
             double f = (Math.max(min, Math.min(max, get.getAsDouble())) - min) / (max - min);
             int knob = x + 3 + (int) Math.round(f * (w - 6));
-            context.fill(x, trackY, x + w, trackY + 4, UI_LINE);
+            Smooth.rect(context, x, trackY, w, 4, 2f, UI_LINE);
             if (on) {
-                context.fill(x, trackY, knob, trackY + 4, UI_ACCENT);
+                Smooth.rect(context, x, trackY, Math.max(4, knob - x), 4, 2f, UI_ACCENT);
             }
             boolean hover = on && (dragging == this || contains(mx, my));
             box(context, knob - 3, ty + 11, 6, 10, on ? (hover ? UI_FG : 0xFFCCD6D2) : UI_OFF, UI_LINE);
@@ -1757,8 +1779,8 @@ public final class SettingsScreen extends Screen {
                 box(context, x, y, w, h, on ? UI_RAISED : 0x601B2726, on ? UI_ACCENT : UI_LINE);
             }
             int s = h - 4;
-            context.fill(x + 2, y + 2, x + 2 + s, y + 2 + s, 0xFF000000);
-            context.fill(x + 3, y + 3, x + 1 + s, y + 1 + s, entryColour(entry));
+            Smooth.rect(context, x + 2, y + 2, s, s, 3f, 0x66000000);
+            Smooth.rect(context, x + 3, y + 3, s - 2, s - 2, 2f, entryColour(entry));
             context.text(font, trim(entry.name(), w - s - 10), x + s + 6, y + (h - 8) / 2 + 1, on ? UI_FG : UI_MUTED, false);
         }
 
@@ -1852,9 +1874,9 @@ public final class SettingsScreen extends Screen {
             }
             int kx = x + (int) Math.round(pickSat * (s - 1));
             int ky = y + (int) Math.round((1 - pickVal) * (s - 1));
-            context.fill(kx - 3, ky - 3, kx + 4, ky + 4, 0xFF000000);
-            context.fill(kx - 2, ky - 2, kx + 3, ky + 3, 0xFFFFFFFF);
-            context.fill(kx - 1, ky - 1, kx + 2, ky + 2, Theme.hsv(pickHue, pickSat, pickVal));
+            Smooth.circle(context, kx + 0.5f, ky + 0.5f, 6.5f, 0x55000000);
+            Smooth.circle(context, kx + 0.5f, ky + 0.5f, 5.5f, 0xFFFFFFFF);
+            Smooth.circle(context, kx + 0.5f, ky + 0.5f, 3.8f, Theme.hsv(pickHue, pickSat, pickVal));
 
             int hy = hueY();
             context.fill(x - 1, hy - 1, x + s + 1, hy + 9, UI_LINE);
@@ -1862,13 +1884,13 @@ public final class SettingsScreen extends Screen {
                 context.fill(x + i, hy, x + i + 1, hy + 8, Theme.hsv(i * 360.0 / s, 1, 1));
             }
             int hx = x + (int) Math.round(pickHue / 360.0 * (s - 1));
-            context.fill(hx - 2, hy - 2, hx + 3, hy + 10, 0xFF000000);
-            context.fill(hx - 1, hy - 1, hx + 2, hy + 9, 0xFFFFFFFF);
+            Smooth.rect(context, hx - 3, hy - 2, 7, 12, 3f, 0x55000000);
+            Smooth.rect(context, hx - 2, hy - 1, 5, 10, 2.5f, 0xFFFFFFFF);
 
             // The colour as it is now, beside the hex box.
             int py = hy + 8 + 6;
-            context.fill(x - 1, py - 1, x + 17, py + 17, UI_LINE);
-            context.fill(x, py, x + 16, py + 16, pickedColour());
+            Smooth.rect(context, x - 1, py - 1, 18, 18, 4f, UI_LINE);
+            Smooth.rect(context, x, py, 16, 16, 3f, pickedColour());
         }
 
         @Override
@@ -1906,15 +1928,15 @@ public final class SettingsScreen extends Screen {
     // --------------------------------------------------------------- drawing
 
     private static void box(GuiGraphicsExtractor context, int x, int y, int w, int h, int fill, int edge) {
-        context.fill(x, y, x + w, y + h, edge);
-        context.fill(x + 1, y + 1, x + w - 1, y + h - 1, fill);
+        Smooth.rect(context, x, y, w, h, 3f, edge);
+        Smooth.rect(context, x + 1, y + 1, w - 2, h - 2, 2f, fill);
     }
 
     private static void swatch(GuiGraphicsExtractor context, int x, int y, int s, int colour, boolean picked, boolean hover) {
-        context.fill(x, y, x + s, y + s, picked ? 0xFFFFFFFF : hover ? UI_MUTED : 0xFF000000);
-        context.fill(x + 1, y + 1, x + s - 1, y + s - 1, picked ? 0xFF000000 : colour);
+        Smooth.rect(context, x, y, s, s, 3f, picked ? 0xFFFFFFFF : hover ? UI_MUTED : 0x66000000);
+        Smooth.rect(context, x + 1, y + 1, s - 2, s - 2, 2f, picked ? 0xFF000000 : colour);
         if (picked) {
-            context.fill(x + 2, y + 2, x + s - 2, y + s - 2, colour);
+            Smooth.rect(context, x + 2, y + 2, s - 4, s - 4, 1.5f, colour);
         }
     }
 
@@ -1933,20 +1955,25 @@ public final class SettingsScreen extends Screen {
     public void extractRenderState(GuiGraphicsExtractor context, int mouseX, int mouseY, float delta) {
         // Background is drawn by renderWithTooltip; see HudPositionScreen for why not here.
         boolean look = lookTab();
+        frame(context);
         if (look) {
-            // A card under the controls, so they read over a busy world.
+            // A darker inset under the controls, so they read over a busy world.
             if (tab == Tab.STYLE) {
-                context.fill(listX, listTop, listX + listWidth, listBottom, UI_CARD);
+                Smooth.rect(context, listX, listTop, listWidth, listBottom - listTop, 8, 0x40000000);
             } else {
-                context.fill(4, TOP - 8, stageX - 6, contentBottom() + 2, UI_CARD);
+                Smooth.rect(context, 4, TOP - 8, stageX - 10, contentBottom() + 10 - (TOP - 8), 8, 0x40000000);
+            }
+        }
+        for (var child : this.children()) {
+            if (child instanceof Button b) {
+                skin(context, b, mouseX, mouseY);
             }
         }
 
         super.extractRenderState(context, mouseX, mouseY, delta);
 
-        context.centeredText(this.font, this.title, this.width / 2, 12, 0xFFFFFFFF);
         for (Label l : labels) {
-            context.text(this.font, l.text(), l.x(), l.y(), 0xFFCCCCCC);
+            context.text(this.font, l.text(), l.x(), l.y(), UI_FG, false);
         }
         if (!look) {
             return;
@@ -1975,8 +2002,8 @@ public final class SettingsScreen extends Screen {
         }
         if (listScrolls()) {
             int[] bar = scrollbar();
-            context.fill(listX + listWidth - 6, listTop + 2, listX + listWidth - 3, listBottom - 2, UI_LINE);
-            context.fill(listX + listWidth - 6, bar[0], listX + listWidth - 3, bar[1], UI_MUTED);
+            Smooth.rect(context, listX + listWidth - 6, listTop + 2, 3, listBottom - listTop - 4, 1.5f, UI_LINE);
+            Smooth.rect(context, listX + listWidth - 6, bar[0], 3, bar[1] - bar[0], 1.5f, UI_MUTED);
         }
 
         if (dragging == null && !draggingScrollbar) {
@@ -1990,6 +2017,99 @@ public final class SettingsScreen extends Screen {
                 }
             }
         }
+    }
+
+    /** The card behind everything: wide enough for the tabs and whatever the tab holds. */
+    private int[] cardBounds() {
+        int x1 = tabsX - 12;
+        int x2 = tabsX + tabsW + 12;
+        for (var child : this.children()) {
+            if (child instanceof net.minecraft.client.gui.components.AbstractWidget w) {
+                x1 = Math.min(x1, w.getX() - 12);
+                x2 = Math.max(x2, w.getX() + w.getWidth() + 12);
+            }
+        }
+        for (Control c : controls) {
+            x1 = Math.min(x1, c.x - 12);
+            x2 = Math.max(x2, c.x + c.w + 12);
+        }
+        for (Label l : labels) {
+            x1 = Math.min(x1, l.x() - 12);
+            x2 = Math.max(x2, l.x() + this.font.width(l.text()) + 12);
+        }
+        if (stageW > 0) {
+            x1 = Math.min(x1, stageX - 12);
+            x2 = Math.max(x2, stageX + stageW + 12);
+        }
+        return new int[] { Math.max(3, x1), 6, Math.min(this.width - 3, x2), this.height - 6 };
+    }
+
+    /** The rounded card, its header with the title and the strip the tabs sit in. */
+    private void frame(GuiGraphicsExtractor context) {
+        int[] c = cardBounds();
+        int w = c[2] - c[0];
+        int h = c[3] - c[1];
+        Smooth.shadow(context, c[0], c[1], w, h, 10, 6, 0x60000000);
+        Smooth.rect(context, c[0], c[1], w, h, 10, 0xF2182221, 0xF20D1413);
+        Smooth.rectTop(context, c[0], c[1], w, 46, 10, Smooth.alpha(UI_ACCENT, 0.14f), Smooth.alpha(UI_ACCENT, 0f));
+        Smooth.ring(context, c[0], c[1], w, h, 10, 1f, UI_LINE);
+
+        Smooth.diamond(context, c[0] + 19, c[1] + 12, 4.4f, UI_ACCENT);
+        context.text(this.font, this.title.getString(), c[0] + 29, c[1] + 8, UI_FG, true);
+        Smooth.rect(context, c[0] + 14, 51, w - 28, 1, 0, 0x14FFFFFF);
+        Smooth.rect(context, c[0] + 14, c[3] - 26, w - 28, 1, 0, 0x14FFFFFF);
+    }
+
+    /** Draws a button the way the rest of the screen looks; the real one is see-through. */
+    private void skin(GuiGraphicsExtractor context, Button b, int mx, int my) {
+        int x = b.getX();
+        int y = b.getY();
+        int w = b.getWidth();
+        int h = b.getHeight();
+        boolean hover = mx >= x && mx < x + w && my >= y && my < y + h;
+        String message = b.getMessage().getString();
+
+        Tab own = tabButtons.get(b);
+        if (own != null) {
+            boolean picked = own == tab;
+            if (picked) {
+                Smooth.rect(context, x, y, w, h, 10, Smooth.alpha(UI_ACCENT, 0.2f));
+                Smooth.ring(context, x, y, w, h, 10, 1f, Smooth.alpha(UI_ACCENT, 0.55f));
+            } else if (hover) {
+                Smooth.rect(context, x, y, w, h, 10, 0x14FFFFFF);
+            }
+            context.text(this.font, message, x + (w - this.font.width(message)) / 2, y + (h - 8) / 2,
+                    picked ? 0xFFFFFFFF : hover ? UI_FG : UI_MUTED, false);
+            return;
+        }
+
+        if (b == doneButton) {
+            Smooth.rect(context, x, y, w, h, 6, Smooth.mix(UI_ACCENT, 0xFFFFFFFF, hover ? 0.3f : 0.12f), UI_ACCENT);
+            context.text(this.font, message, x + (w - this.font.width(message)) / 2, y + (h - 8) / 2,
+                    UI_ACCENT_INK, false);
+            return;
+        }
+
+        boolean isOn = message.endsWith(": ON");
+        if (isOn || message.endsWith(": OFF")) {
+            String label = message.substring(0, message.lastIndexOf(": "));
+            float t = slide.getOrDefault(b, isOn ? 1f : 0f);
+            t += ((isOn ? 1f : 0f) - t) * 0.3f;
+            slide.put(b, t);
+            Smooth.rect(context, x, y, w, h, 6, hover ? 0xFF223231 : UI_RAISED);
+            context.text(this.font, trim(label, w - 46), x + 10, y + (h - 8) / 2, isOn ? UI_FG : UI_MUTED, false);
+            int sx = x + w - 10 - 26;
+            int sy = y + (h - 14) / 2;
+            Smooth.rect(context, sx, sy, 26, 14, 7, Smooth.mix(UI_OFF, UI_ACCENT, t));
+            Smooth.circle(context, sx + 7 + 12 * t, sy + 7, 5f, 0xFFFFFFFF);
+            return;
+        }
+
+        Smooth.rect(context, x, y, w, h, 6, !b.active ? 0x80141C1B : hover ? 0xFF2A3A38 : UI_RAISED);
+        Smooth.ring(context, x, y, w, h, 6, 1f, hover ? Smooth.alpha(UI_ACCENT, 0.5f) : 0x18FFFFFF);
+        String shown = trim(message, w - 10);
+        context.text(this.font, shown, x + (w - this.font.width(shown)) / 2, y + (h - 8) / 2,
+                b.active ? UI_FG : UI_OFF, false);
     }
 
     /** Top and bottom of the scrollbar's thumb. */
@@ -2026,9 +2146,9 @@ public final class SettingsScreen extends Screen {
         int ty = my + 12 + h + 6 > this.height ? Math.max(6, my - h - 8) : my + 12;
         // Its own layer, or text drawn earlier in the frame could show through the box.
         context.nextStratum();
-        context.fill(tx - 4, ty - 4, tx + w + 4, ty + h + 2, 0xF0100010);
-        context.fill(tx - 3, ty - 3, tx + w + 3, ty - 2, 0xFF5A3CA0);
-        context.fill(tx - 3, ty + h, tx + w + 3, ty + h + 1, 0xFF2A1A50);
+        Smooth.shadow(context, tx - 5, ty - 5, w + 10, h + 9, 6, 3, 0x60000000);
+        Smooth.rect(context, tx - 5, ty - 5, w + 10, h + 9, 6, 0xF8121A19);
+        Smooth.ring(context, tx - 5, ty - 5, w + 10, h + 9, 6, 1f, Smooth.alpha(UI_ACCENT, 0.5f));
         for (int i = 0; i < lines.size(); i++) {
             context.text(font, lines.get(i), tx, ty + i * 10, UI_FG, false);
         }

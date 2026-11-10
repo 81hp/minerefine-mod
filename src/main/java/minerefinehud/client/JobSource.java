@@ -71,11 +71,24 @@ final class JobSource {
                 seen.add(m.name().toLowerCase(Locale.ROOT));
             }
         }
-        for (String known : prices.knownMines()) {
-            if (seen.contains(known) || cat.boss(known).isPresent() || cat.byName(known).isPresent()) {
-                continue;
+        java.util.Set<String> shops = prices.knownMines();
+        LinkedHashSet<String> sift = new LinkedHashSet<>();
+        for (List<String> group : JobWorlds.SIFT) {
+            // The spelling the shop uses if it has been read, else the first.
+            String spelling = group.stream().filter(n -> shops.contains(n.toLowerCase(Locale.ROOT)))
+                    .findFirst().orElse(group.get(0));
+            for (String n : group) {
+                sift.add(n.toLowerCase(Locale.ROOT));
             }
-            if (!JobWorlds.known(known, learned.get()) || !isMine(known)) {
+            String key = spelling.toLowerCase(Locale.ROOT);
+            if (!seen.contains(key) && cat.byName(spelling).isEmpty()) {
+                out.add(new Item(spelling, "Sift", Optional.empty(), key));
+            }
+        }
+        // Any other mine only the shop knows is listed once the player has mined in it.
+        for (String known : shops) {
+            if (seen.contains(known) || sift.contains(known) || cat.boss(known).isPresent()
+                    || cat.byName(known).isPresent() || !learned.get().containsKey(known) || !isMine(known)) {
                 continue;
             }
             out.add(new Item(JobWorlds.title(known), JobWorlds.of(known, learned.get()), Optional.empty(), known));

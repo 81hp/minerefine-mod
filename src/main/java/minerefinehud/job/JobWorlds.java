@@ -1,5 +1,7 @@
 package minerefinehud.job;
 
+import java.util.HashMap;
+import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Optional;
@@ -22,13 +24,24 @@ public final class JobWorlds {
      */
     public static final String DEFAULT = "Sift";
 
-    private static final Map<String, String> KNOWN = Map.of(
-            "blub", "Sift",
-            "jade", "Sift",
-            "petal", "Sift",
-            "ichor", "Sift",
-            "rosewood", "Sift",
-            "siftite", "Sift");
+    /**
+     * The Sift's mines in the order the game lists them. A group is one mine under the spellings
+     * seen for it, so the shop's own spelling is found whichever it is.
+     */
+    public static final List<List<String>> SIFT = List.of(
+            List.of("Shale"), List.of("Sulfer", "Sulfur"), List.of("Charoite"), List.of("Amber"),
+            List.of("Thicket"), List.of("Bulb", "Blub"), List.of("Petal"), List.of("Jade"),
+            List.of("Ichor"), List.of("Rosewood"), List.of("Siftite"));
+
+    private static final Map<String, String> KNOWN = new HashMap<>();
+
+    static {
+        for (List<String> group : SIFT) {
+            for (String name : group) {
+                KNOWN.put(name.toLowerCase(Locale.ROOT), "Sift");
+            }
+        }
+    }
 
     /** "SIFTBOUND" as "Sift"; empty for anything that is not a world tag. */
     public static Optional<String> fromTag(String tag) {

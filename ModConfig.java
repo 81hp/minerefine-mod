@@ -1,0 +1,953 @@
+package minerefinehud.client;
+
+import com.google.gson.Gson;
+import com.google.gson.GsonBuilder;
+import minerefinehud.hud.Anchor;
+import minerefinehud.hud.HudLayout;
+import minerefinehud.hud.HudModel;
+import minerefinehud.hud.HudStyle;
+import minerefinehud.hud.Theme;
+import minerefinehud.progress.ProgressPlanner;
+import minerefinehud.progress.ProgressSlot;
+
+import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.util.Optional;
+
+/** User settings. Changed in the settings screen and F6, or by hand in config.json. */
+public final class ModConfig {
+
+    private static final Gson GSON = new GsonBuilder().setPrettyPrinting().create();
+
+    public static final HudLayout.Placement DEFAULT_MINE_PLACEMENT =
+            new HudLayout.Placement(Anchor.TOP_LEFT, 4, 4);
+
+    /** Middle left is empty in vanilla: chat is bottom left, effects and the sidebar are right. */
+    public static final HudLayout.Placement DEFAULT_BOSS_PLACEMENT =
+            new HudLayout.Placement(Anchor.MIDDLE_LEFT, 4, 0);
+
+    /**
+     * Which corner or edge the mine panel is pinned to. Named hud* because it predates the boss
+     * panel having its own position, and renaming it would silently reset existing configs.
+     *
+     * Stored as a string so a hand-edited config with a typo degrades to the default instead of
+     * refusing to parse and wiping every other setting with it.
+     */
+    public String hudAnchor = DEFAULT_MINE_PLACEMENT.anchor().name();
+
+    /** Nudge away from that anchor, in pixels. Set by dragging in the position screen. */
+    public int hudX = DEFAULT_MINE_PLACEMENT.offsetX();
+    public int hudY = DEFAULT_MINE_PLACEMENT.offsetY();
+
+    /** Same again for the boss timers, which can sit anywhere independently of the mine panel. */
+    public String bossAnchor = DEFAULT_BOSS_PLACEMENT.anchor().name();
+    public int bossX = DEFAULT_BOSS_PLACEMENT.offsetX();
+    public int bossY = DEFAULT_BOSS_PLACEMENT.offsetY();
+
+    /** Bottom right is clear in vanilla, and well away from the other two panels' defaults. */
+    public static final HudLayout.Placement DEFAULT_PROGRESS_PLACEMENT =
+            new HudLayout.Placement(Anchor.BOTTOM_RIGHT, -4, -4);
+
+    /**
+     * Before several bars existed, the one bar's item: SWORD, PICKAXE ... CHARM, or OFF. Only read
+     * to carry an old config over into {@link #progressBars}, then set to OFF.
+     */
+    public String progressSlot = "OFF";
+
+    /** One progress bar: the item it follows and how many are being bought together. */
+    public static final class Bar {
+        /** A gear slot, or TOTAL for the whole mine. */
+        public String slot = "SWORD";
+        /** 1 for a single piece. 12 for twelve chestplates bought at the same tier. */
+        public int quantity = 1;
+        /** Follow boss gear, paid in that boss's fragments, instead of mine gear. */
+        public boolean boss = false;
+        /**
+         * Total bars only: leave out the tiers already bought, so buying a pickaxe takes what it
+         * cost off the Total. Off, the Total is the whole mine at full price.
+         */
+        public boolean minusOwned = true;
+
+        public Bar() {
+        }
+
+        public Bar(String slot, int quantity) {
+            this.slot = slot;
+            this.quantity = quantity;
+        }
+
+        public Optional<ProgressSlot> choice() {
+            return ProgressSlot.parse(slot);
+        }
+    }
+
+    /** At most this many bars. More stops being a glance. */
+    public static final int MAX_BARS = 6;
+
+    /** The progress bars, stacked in one panel in this order. Edited in the settings screen. */
+    public java.util.List<Bar> progressBars = new java.util.ArrayList<>();
+
+    /**
+     * Block sprite to mine, learned by matching a shop balance against the mining total, e.g.
+     * "block/cobblestone": "Rubble". Written by the mod; delete an entry to make it relearn.
+     */
+    public java.util.Map<String, String> minedBlocks = new java.util.LinkedHashMap<>();
+
+    /**
+     * Block sprites more than one mine shows, with those mines, e.g. "block/deepslate_copper_ore":
+     * ["Woodland Copper", "Rust"]. Each block is then decided by which mine's balance the total
+     * continues. Written by the mod; the mod also knows some by itself.
+     */
+    public java.util.Map<String, java.util.List<String>> sharedIcons = new java.util.LinkedHashMap<>();
+
+    /**
+     * Where each mine was last mined, dimension and x/z, so a shared icon is told apart by where
+     * the player stands instead of needing a shop visit. Written by the mod.
+     */
+    public java.util.Map<String, minerefinehud.mine.MineSpots.Spot> mineSpots = new java.util.LinkedHashMap<>();
+
+    /**
+     * Last known balance per currency, so recognising a mine by its balance works straight after
+     * logging in, without opening a shop. Written by the mod.
+     */
+    public java.util.Map<String, Long> savedBalances = new java.util.LinkedHashMap<>();
+
+    /**
+     * Which mine comes before which, read from shop prerequisites, e.g. "shovel|Debris":
+     * "Suspicious Sand". Written by the mod; lets the progress bar follow dimensions newer than
+     * the bundled data.
+     */
+    public java.util.Map<String, String> learnedProgression = new java.util.LinkedHashMap<>();
+
+    /**
+     * How many tiers an item has, "pine|chestplate": 3 and when, from shop listings read in game. Written
+     * by the mod; wins over the bundled table, so a tier the server removes stops being waited for.
+     */
+    public java.util.Map<String, minerefinehud.shop.PriceLedger.Learned> learnedTierCounts = new java.util.LinkedHashMap<>();
+    public String progressAnchor = DEFAULT_PROGRESS_PLACEMENT.anchor().name();
+    public int progressX = DEFAULT_PROGRESS_PLACEMENT.offsetX();
+    public int progressY = DEFAULT_PROGRESS_PLACEMENT.offsetY();
+
+    public boolean showMine = true;
+    public boolean showBosses = true;
+
+    /** Show the four armour pieces instead of the bundled armour cost. */
+    public boolean showArmorPieces = false;
+
+    /** Also show costs converted to credits. */
+    public boolean showCredits = false;
+
+    /** The job calculator's "block rate" field, in millions of blocks per credit. */
+    public double blocksPerCreditMillions = 200.0;
+
+    /** The job calculator's rate as the player typed it, and the mines in the saved job. */
+    public String jobRate = minerefinehud.job.JobCalc.DEFAULT_RATE;
+    public java.util.List<String> jobMines = new java.util.ArrayList<>();
+    /** Pieces left out of the job, "jade|charm", and the dimension learned for mines the data lacks. */
+    public java.util.List<String> jobSkips = new java.util.ArrayList<>();
+    public java.util.Map<String, String> mineWorlds = new java.util.LinkedHashMap<>();
+
+    public int maxBosses = 5;
+
+    // ------------------------------------------------------------- rows shown
+
+    public boolean showSword = true;
+    public boolean showTool = true;
+    public boolean showArmor = true;
+    public boolean showCharm = true;
+    public boolean showMineTotal = true;
+    /** The "Shovel IV/VI, Next: ..." block for the item in hand. */
+    public boolean showHeldUpgrade = true;
+
+    public boolean showBossUpTimers = true;
+    public boolean showBossLearning = true;
+    /** Bosses from every dimension rather than only the one being mined in. */
+    public boolean showAllBossWorlds = false;
+    /**
+     * Bosses chosen to watch, from every world. Empty watches none in particular: the panel shows
+     * this dimension's bosses, or every one, as above.
+     */
+    public java.util.List<String> watchedBosses = new java.util.ArrayList<>();
+    /** Open /bossindex unseen every so often, so every timer stays right away from its world. */
+    public boolean bossIndexAuto = false;
+    public long bossIndexEveryMs = 5L * 60_000L;
+    /** The index menu's title, learned when it is seen with bosses in it. Written by the mod. */
+    public String bossIndexTitle = "";
+
+    public boolean showProgressText = true;
+    /** Bars count every tier left to max the piece at its mine, not just the next tier. */
+    public boolean progressToMax = false;
+    /**
+     * Pickaxe bars take in the axe and shovel mines on the way instead of skipping to the next
+     * pickaxe mine: Soul Soil Shovel between City Wall and Blackstone pickaxes.
+     */
+    public boolean pickaxeSwapsAtToolMines = false;
+    public boolean showProgressBar = true;
+
+    // ------------------------------------------------------- respawn reminder
+
+    public boolean bossReminder = true;
+    /** How long before a respawn the reminder fires. */
+    public int bossReminderSeconds = 10;
+    public boolean bossReminderSound = true;
+    /** 0 to 100. */
+    public int bossReminderVolume = 100;
+
+    public static final HudLayout.Placement DEFAULT_ALERT_PLACEMENT =
+            new HudLayout.Placement(Anchor.TOP_CENTER, 0, 40);
+    public String alertAnchor = DEFAULT_ALERT_PLACEMENT.anchor().name();
+    public int alertX = DEFAULT_ALERT_PLACEMENT.offsetX();
+    public int alertY = DEFAULT_ALERT_PLACEMENT.offsetY();
+
+    /** Bosses the spreadsheet does not list, mapped to the world they were heard in. Written by the mod. */
+    public java.util.Map<String, String> bossWorlds = new java.util.LinkedHashMap<>();
+
+    // ----------------------------------------------------------------- looks
+
+    /** Size and background of one panel. */
+    public static final class Look {
+        /** 0.5 to 4. Set in the F6 screen with the size buttons or the scroll wheel. */
+        public double scale = 1.0;
+        /**
+         * Before there were background styles: on or off. Kept in step with {@link #panel} so an
+         * older version reading this config still gets a background where there is one.
+         */
+        public boolean background = false;
+        /** NONE, SHADE, TOOLTIP or FRAMED. Null in configs from before it existed. */
+        public String panel = null;
+        /** Background opacity, 0 to 100. */
+        public int opacity = 50;
+
+        public Look() {
+        }
+
+        Look(double scale) {
+            this.scale = scale;
+        }
+
+        public HudStyle.Background backgroundStyle() {
+            return HudStyle.parse(HudStyle.Background.class, panel,
+                    background ? HudStyle.Background.SHADE : HudStyle.Background.NONE);
+        }
+
+        public void setBackground(HudStyle.Background b) {
+            panel = b.name();
+            background = b != HudStyle.Background.NONE;
+        }
+    }
+
+    public Look mineLook = new Look();
+    public Look bossLook = new Look();
+    public Look progressLook = new Look();
+    /** The reminder is meant to be noticed, so it starts out large. */
+    public Look alertLook = new Look(2.0);
+
+    /** Colours as "#RRGGBB". A value that does not parse falls back to the default for that colour. */
+    public String colorHeader = Theme.format(Theme.defaults().header());
+    public String colorLabel = Theme.format(Theme.defaults().label());
+    public String colorValue = Theme.format(Theme.defaults().value());
+    public String colorGood = Theme.format(Theme.defaults().good());
+    public String colorWarn = Theme.format(Theme.defaults().warn());
+    public String colorDim = Theme.format(Theme.defaults().dim());
+    public String colorBar = Theme.format(Theme.defaults().barFill());
+    public String colorBarDone = Theme.format(Theme.defaults().barDone());
+    public String colorBarTrack = Theme.format(Theme.defaults().barTrack());
+    /** Panel borders, title bands and underlines. */
+    public String colorFrame = Theme.format(Theme.defaults().frame());
+
+    // ------------------------------------------------------------- style
+
+    /** Each one a {@link HudStyle} enum name; anything else falls back to that choice's default. */
+    public String titleStyle = HudStyle.defaults().titles().name();
+    public String numberStyle = HudStyle.defaults().numbers().name();
+    public String gearLabels = HudStyle.defaults().gearLabels().name();
+    public String bossStatus = HudStyle.defaults().bossStatus().name();
+    public String barStyle = HudStyle.defaults().bar().name();
+    public String percentStyle = HudStyle.defaults().percent().name();
+    public String barColors = HudStyle.defaults().barColor().name();
+    public String spacing = HudStyle.defaults().spacing().name();
+    public boolean textShadow = HudStyle.defaults().shadow();
+    /** "0.18b still needed" under each progress bar. */
+    public boolean showNeeded = false;
+    /** Every panel's size is multiplied by this, so the whole HUD grows or shrinks at once. */
+    public double hudScale = 1.0;
+
+    public static final double MIN_HUD_SCALE = 0.5;
+    public static final double MAX_HUD_SCALE = 2.0;
+
+    public HudStyle style() {
+        HudStyle d = HudStyle.defaults();
+        return new HudStyle(
+                HudStyle.parse(HudStyle.Titles.class, titleStyle, d.titles()),
+                HudStyle.parse(HudStyle.Numbers.class, numberStyle, d.numbers()),
+                HudStyle.parse(HudStyle.GearLabels.class, gearLabels, d.gearLabels()),
+                HudStyle.parse(HudStyle.BossStatus.class, bossStatus, d.bossStatus()),
+                HudStyle.parse(HudStyle.BarStyle.class, barStyle, d.bar()),
+                HudStyle.parse(HudStyle.Percent.class, percentStyle, d.percent()),
+                HudStyle.parse(HudStyle.BarColor.class, barColors, d.barColor()),
+                HudStyle.parse(HudStyle.Spacing.class, spacing, d.spacing()),
+                textShadow);
+    }
+
+    public void setStyle(HudStyle s) {
+        titleStyle = s.titles().name();
+        numberStyle = s.numbers().name();
+        gearLabels = s.gearLabels().name();
+        bossStatus = s.bossStatus().name();
+        barStyle = s.bar().name();
+        percentStyle = s.percent().name();
+        barColors = s.barColor().name();
+        spacing = s.spacing().name();
+        textShadow = s.shadow();
+    }
+
+    /** Every panel's look, for settings that change them all at once. */
+    public java.util.List<Look> allLooks() {
+        return java.util.List.of(mineLook, bossLook, progressLook, alertLook, hwStatsLook, hwPumpkinLook, hwAbilityLook,
+                miningLook, statsLook, dropsLook, beaconLook, outpostLook);
+    }
+
+    /** Size a panel is drawn at: its own size times the whole HUD's. */
+    public double effectiveScale(Look look) {
+        return HudLayout.clampScale(look.scale * hudScale);
+    }
+
+    /** Sets every look setting the design does, colours and every panel's background included. */
+    public void applyPreset(HudStyle.Preset p) {
+        setStyle(p.style);
+        showCredits = p.credits;
+        showNeeded = p.needed;
+        colorHeader = Theme.format(p.accent);
+        colorBar = Theme.format(p.accent);
+        colorFrame = Theme.format(p.frame);
+        for (Look look : allLooks()) {
+            look.setBackground(p.background);
+            look.opacity = p.opacity;
+        }
+    }
+
+    /** The design these settings match exactly, if any, so the settings screen can show it picked. */
+    public Optional<HudStyle.Preset> matchingPreset() {
+        HudStyle current = style();
+        Theme theme = theme();
+        for (HudStyle.Preset p : HudStyle.Preset.values()) {
+            boolean looks = allLooks().stream().allMatch(l -> l.backgroundStyle() == p.background
+                    && (p.background == HudStyle.Background.NONE || l.opacity == p.opacity));
+            if (p.style.equals(current) && looks && showCredits == p.credits && showNeeded == p.needed
+                    && theme.header() == p.accent && theme.barFill() == p.accent && theme.frame() == p.frame) {
+                return Optional.of(p);
+            }
+        }
+        return Optional.empty();
+    }
+
+    public Theme theme() {
+        Theme d = Theme.defaults();
+        return new Theme(
+                Theme.parseOr(colorHeader, d.header()),
+                Theme.parseOr(colorLabel, d.label()),
+                Theme.parseOr(colorValue, d.value()),
+                Theme.parseOr(colorGood, d.good()),
+                Theme.parseOr(colorWarn, d.warn()),
+                Theme.parseOr(colorDim, d.dim()),
+                Theme.parseOr(colorBar, d.barFill()),
+                Theme.parseOr(colorBarDone, d.barDone()),
+                Theme.parseOr(colorBarTrack, d.barTrack()),
+                Theme.parseOr(colorFrame, d.frame()));
+    }
+
+    public void resetColors() {
+        ModConfig fresh = new ModConfig();
+        colorHeader = fresh.colorHeader;
+        colorLabel = fresh.colorLabel;
+        colorValue = fresh.colorValue;
+        colorGood = fresh.colorGood;
+        colorWarn = fresh.colorWarn;
+        colorDim = fresh.colorDim;
+        colorBar = fresh.colorBar;
+        colorBarDone = fresh.colorBarDone;
+        colorBarTrack = fresh.colorBarTrack;
+        colorFrame = fresh.colorFrame;
+        menuAccent = fresh.menuAccent;
+        menuBackground = fresh.menuBackground;
+    }
+
+    // ------------------------------------------------------------- Halloween
+
+    /** The Halloween panels, which replace the mine and progress panels in that dimension. */
+    public boolean halloweenEnabled = true;
+
+    public boolean hwCandyRate = true;
+    public boolean hwCropRates = true;
+    public boolean hwPerCrop = true;
+    public boolean hwPests = true;
+    public boolean hwCaravan = true;
+    /** The alert, with sound, a minute before the caravan leaves. */
+    public boolean hwCaravanReminder = true;
+    public boolean hwRefine = true;
+    /** Minutes of play the per-hour rates are averaged over. */
+    public int hwRateMinutes = 10;
+
+    public boolean hwAbilities = true;
+    public boolean hwAbilitySound = true;
+
+    /** The Halloween panels in their own orange and purple look, whatever the Style tab says. */
+    public boolean hwSpooky = true;
+
+    /** A bar per building in the stats panel, and the upgrade countdowns. */
+    public boolean hwBuildings = true;
+    /** A bell when a building upgrade finishes. */
+    public boolean hwBuildingSound = true;
+    /** A bar toward the next resurrection: crops held against its cost, and its hoe. */
+    public boolean hwResurrect = true;
+    /** The resurrection level, the hoe held and the costs read from the menu. Written by the mod. */
+    public minerefinehud.halloween.Resurrection.Saved hwResurrectionData = new minerefinehud.halloween.Resurrection.Saved();
+    /** Each building's level, grants, next cost and upgrade timer. Written by the mod. */
+    public java.util.Map<String, minerefinehud.halloween.Buildings.Saved> hwBuildingData = new java.util.LinkedHashMap<>();
+
+    /** Pumpkin set bars: "Helmet", "Chestplate", "Leggings", "Boots", "Set". */
+    public java.util.List<String> hwPumpkinBars = new java.util.ArrayList<>();
+    /** Each currency on its own line rather than one percentage. */
+    public boolean hwPumpkinDetailed = true;
+    /** Pumpkin pieces the shop showed as bought (0/1 stock). Written by the mod. */
+    public java.util.List<String> hwPumpkinOwned = new java.util.ArrayList<>();
+    /** Pumpkin piece prices from the shop, piece to currency to amount. Written by the mod. */
+    public java.util.Map<String, java.util.Map<String, Double>> hwPumpkinPrices = new java.util.LinkedHashMap<>();
+
+    /** Candy the next hoe refine costs, typed in or read from the refiner; 0 when unknown. */
+    public double hwRefineCost = 0.0;
+    /** The hoe's refine level, from "Your hoe has been refined to [I]". Written by the mod. */
+    public int hwRefineLevel = 0;
+
+    /** Ability classes learned from the Farming Abilities menu, and the one picked. Written by the mod. */
+    public java.util.Map<String, String> hwAbilityClasses = new java.util.LinkedHashMap<>();
+    public String hwAbilityClass = "";
+
+    public minerefinehud.halloween.RecurringEvent.Saved hwCaravanState = new minerefinehud.halloween.RecurringEvent.Saved();
+
+    public static final HudLayout.Placement DEFAULT_HW_STATS_PLACEMENT = DEFAULT_MINE_PLACEMENT;
+    public static final HudLayout.Placement DEFAULT_HW_PUMPKIN_PLACEMENT = DEFAULT_PROGRESS_PLACEMENT;
+    public static final HudLayout.Placement DEFAULT_HW_ABILITY_PLACEMENT =
+            new HudLayout.Placement(Anchor.CENTER, 0, 30);
+
+    public String hwStatsAnchor = DEFAULT_HW_STATS_PLACEMENT.anchor().name();
+    public int hwStatsX = DEFAULT_HW_STATS_PLACEMENT.offsetX();
+    public int hwStatsY = DEFAULT_HW_STATS_PLACEMENT.offsetY();
+    public String hwPumpkinAnchor = DEFAULT_HW_PUMPKIN_PLACEMENT.anchor().name();
+    public int hwPumpkinX = DEFAULT_HW_PUMPKIN_PLACEMENT.offsetX();
+    public int hwPumpkinY = DEFAULT_HW_PUMPKIN_PLACEMENT.offsetY();
+    public String hwAbilityAnchor = DEFAULT_HW_ABILITY_PLACEMENT.anchor().name();
+    public int hwAbilityX = DEFAULT_HW_ABILITY_PLACEMENT.offsetX();
+    public int hwAbilityY = DEFAULT_HW_ABILITY_PLACEMENT.offsetY();
+
+    public Look hwStatsLook = new Look();
+    public Look hwPumpkinLook = new Look();
+    public Look hwAbilityLook = new Look();
+
+    public HudLayout.Placement hwStatsPlacement() {
+        return new HudLayout.Placement(
+                Anchor.parse(hwStatsAnchor).orElse(DEFAULT_HW_STATS_PLACEMENT.anchor()), hwStatsX, hwStatsY);
+    }
+
+    public void setHwStatsPlacement(HudLayout.Placement p) {
+        hwStatsAnchor = p.anchor().name();
+        hwStatsX = p.offsetX();
+        hwStatsY = p.offsetY();
+    }
+
+    public HudLayout.Placement hwPumpkinPlacement() {
+        return new HudLayout.Placement(
+                Anchor.parse(hwPumpkinAnchor).orElse(DEFAULT_HW_PUMPKIN_PLACEMENT.anchor()), hwPumpkinX, hwPumpkinY);
+    }
+
+    public void setHwPumpkinPlacement(HudLayout.Placement p) {
+        hwPumpkinAnchor = p.anchor().name();
+        hwPumpkinX = p.offsetX();
+        hwPumpkinY = p.offsetY();
+    }
+
+    public HudLayout.Placement hwAbilityPlacement() {
+        return new HudLayout.Placement(
+                Anchor.parse(hwAbilityAnchor).orElse(DEFAULT_HW_ABILITY_PLACEMENT.anchor()), hwAbilityX, hwAbilityY);
+    }
+
+    public void setHwAbilityPlacement(HudLayout.Placement p) {
+        hwAbilityAnchor = p.anchor().name();
+        hwAbilityX = p.offsetX();
+        hwAbilityY = p.offsetY();
+    }
+
+    public minerefinehud.halloween.HalloweenHud.StatsLines hwStatsLines() {
+        return new minerefinehud.halloween.HalloweenHud.StatsLines(hwCandyRate, hwCropRates, hwPerCrop,
+                hwPests, hwCaravan, hwRefine, hwBuildings, hwResurrect);
+    }
+
+    // ------------------------------------------------- mining rate, stats, drops
+
+    /** Mined per hour, from the action bar, like the Halloween panel's crops per hour. */
+    public boolean showMiningRate = false;
+    /** The rate is what the last this many blocks brought, over the time they took; 1 is the last block alone. */
+    public int mineRateBlocks = 10;
+
+    /** The player's stats, read from /stats. */
+    public boolean showStats = false;
+    /** Runs /stats by itself every so often while the panel is on, and reads it unseen. */
+    public boolean statsAuto = true;
+    public long statsEveryMs = 5L * 60_000L;
+    /** The /stats menu's title, learned the first time it is read. Written by the mod. */
+    public String statsTitle = "";
+    /** Stats not shown, by name in lower case. */
+    public java.util.List<String> statsHidden = new java.util.ArrayList<>();
+    /** The last reading. Written by the mod. */
+    public minerefinehud.stats.PlayerStats.Saved statsData = new minerefinehud.stats.PlayerStats.Saved();
+
+    /** Rare drops from chat, counted per item. */
+    public boolean showDrops = false;
+    /** Rarities not shown, upper case ("RARE"). They are still counted. */
+    public java.util.List<String> dropsHiddenRarities = new java.util.ArrayList<>();
+    /** Items listed at most. */
+    public int dropsRows = 8;
+    /** Latest drops listed under them; 0 for none. */
+    public int dropsRecent = 3;
+    /** Every item's all-time count and the latest drops. Written by the mod. */
+    public minerefinehud.drops.RareDrops.Saved dropData = new minerefinehud.drops.RareDrops.Saved();
+
+    /** The Beacon Mine reset timer, by Arreba. */
+    public boolean showBeacon = false;
+    /** Seconds before the reset the title and ping come; 0 for neither. */
+    public int beaconWarnSeconds = 15;
+
+    /** The settings menu's accent colour, as #RRGGBB. By Arreba. */
+    public String menuAccent = "#FFD24A";
+    /** The settings menu's background colour, as #RRGGBB. */
+    public String menuBackground = "#182221";
+
+    /** An EXP per hour row in the Mining panel, from the EXP on the mining action bar. */
+    public boolean showXp = false;
+
+    /** When each outpost opens, read from /outpost. */
+    public boolean showOutposts = false;
+    /** Runs /outpost by itself every so often while the panel is on, and reads it unseen. */
+    public boolean outpostAuto = true;
+    public long outpostEveryMs = 15L * 60_000L;
+    /** Seconds before an outpost opens that the title and ping come; 0 for neither. */
+    public int outpostWarnSeconds = 60;
+    /** The last readings, counted forward from. Written by the mod. */
+    public minerefinehud.outpost.OutpostTimers.Saved outpostData = new minerefinehud.outpost.OutpostTimers.Saved();
+
+    /** Clear of the other panels' default spots: under the mine panel, and both right corners are taken. */
+    public static final HudLayout.Placement DEFAULT_MINING_PLACEMENT =
+            new HudLayout.Placement(Anchor.TOP_CENTER, 0, 24);
+    public static final HudLayout.Placement DEFAULT_STATS_PLACEMENT =
+            new HudLayout.Placement(Anchor.TOP_RIGHT, -4, 4);
+    public static final HudLayout.Placement DEFAULT_DROPS_PLACEMENT =
+            new HudLayout.Placement(Anchor.BOTTOM_LEFT, 4, -48);
+
+    public static final HudLayout.Placement DEFAULT_BEACON_PLACEMENT =
+            new HudLayout.Placement(Anchor.TOP_RIGHT, -4, 100);
+
+    public String beaconAnchor = DEFAULT_BEACON_PLACEMENT.anchor().name();
+    public int beaconX = DEFAULT_BEACON_PLACEMENT.offsetX();
+    public int beaconY = DEFAULT_BEACON_PLACEMENT.offsetY();
+    public Look beaconLook = new Look();
+
+    public static final HudLayout.Placement DEFAULT_OUTPOST_PLACEMENT =
+            new HudLayout.Placement(Anchor.TOP_RIGHT, -4, 150);
+
+    public String outpostAnchor = DEFAULT_OUTPOST_PLACEMENT.anchor().name();
+    public int outpostX = DEFAULT_OUTPOST_PLACEMENT.offsetX();
+    public int outpostY = DEFAULT_OUTPOST_PLACEMENT.offsetY();
+    public Look outpostLook = new Look();
+
+    public String miningAnchor = DEFAULT_MINING_PLACEMENT.anchor().name();
+    public int miningX = DEFAULT_MINING_PLACEMENT.offsetX();
+    public int miningY = DEFAULT_MINING_PLACEMENT.offsetY();
+    public String statsAnchor = DEFAULT_STATS_PLACEMENT.anchor().name();
+    public int statsX = DEFAULT_STATS_PLACEMENT.offsetX();
+    public int statsY = DEFAULT_STATS_PLACEMENT.offsetY();
+    public String dropsAnchor = DEFAULT_DROPS_PLACEMENT.anchor().name();
+    public int dropsX = DEFAULT_DROPS_PLACEMENT.offsetX();
+    public int dropsY = DEFAULT_DROPS_PLACEMENT.offsetY();
+
+    public Look miningLook = new Look();
+    public Look statsLook = new Look();
+    public Look dropsLook = new Look();
+
+    public HudLayout.Placement miningPlacement() {
+        return new HudLayout.Placement(
+                Anchor.parse(miningAnchor).orElse(DEFAULT_MINING_PLACEMENT.anchor()), miningX, miningY);
+    }
+
+    public void setMiningPlacement(HudLayout.Placement p) {
+        miningAnchor = p.anchor().name();
+        miningX = p.offsetX();
+        miningY = p.offsetY();
+    }
+
+    public HudLayout.Placement statsPlacement() {
+        return new HudLayout.Placement(
+                Anchor.parse(statsAnchor).orElse(DEFAULT_STATS_PLACEMENT.anchor()), statsX, statsY);
+    }
+
+    public void setStatsPlacement(HudLayout.Placement p) {
+        statsAnchor = p.anchor().name();
+        statsX = p.offsetX();
+        statsY = p.offsetY();
+    }
+
+    public HudLayout.Placement dropsPlacement() {
+        return new HudLayout.Placement(
+                Anchor.parse(dropsAnchor).orElse(DEFAULT_DROPS_PLACEMENT.anchor()), dropsX, dropsY);
+    }
+
+    public void setDropsPlacement(HudLayout.Placement p) {
+        dropsAnchor = p.anchor().name();
+        dropsX = p.offsetX();
+        dropsY = p.offsetY();
+    }
+
+    public HudLayout.Placement beaconPlacement() {
+        return new HudLayout.Placement(
+                Anchor.parse(beaconAnchor).orElse(DEFAULT_BEACON_PLACEMENT.anchor()), beaconX, beaconY);
+    }
+
+    public HudLayout.Placement outpostPlacement() {
+        return new HudLayout.Placement(
+                Anchor.parse(outpostAnchor).orElse(DEFAULT_OUTPOST_PLACEMENT.anchor()), outpostX, outpostY);
+    }
+
+    public void setOutpostPlacement(HudLayout.Placement p) {
+        outpostAnchor = p.anchor().name();
+        outpostX = p.offsetX();
+        outpostY = p.offsetY();
+    }
+
+    public void setBeaconPlacement(HudLayout.Placement p) {
+        beaconAnchor = p.anchor().name();
+        beaconX = p.offsetX();
+        beaconY = p.offsetY();
+    }
+
+    public java.util.Set<String> statsHiddenSet() {
+        java.util.Set<String> out = new java.util.HashSet<>();
+        for (String s : statsHidden) {
+            out.add(s.toLowerCase(java.util.Locale.ROOT));
+        }
+        return out;
+    }
+
+    public java.util.Set<String> dropsHiddenSet() {
+        java.util.Set<String> out = new java.util.HashSet<>();
+        for (String s : dropsHiddenRarities) {
+            out.add(s.toUpperCase(java.util.Locale.ROOT));
+        }
+        return out;
+    }
+
+    /** One of the Halloween panels' looks, which the Halloween look replaces. */
+    public boolean isHalloweenLook(Look look) {
+        return look != null && (look == hwStatsLook || look == hwPumpkinLook || look == hwAbilityLook);
+    }
+
+    // -------------------------------------------------------------- Reforger
+
+    /** The Reforger's countdown in the boss panel, everywhere on the server. */
+    public boolean reforgerTimer = true;
+    /** Runs /nextreforger quietly after joining, so the countdown is exact straight away. */
+    public boolean reforgerAutoCheck = true;
+    /** The alert, with sound, when the Reforger is about to arrive and when it does. */
+    public boolean reforgerAlert = true;
+    public minerefinehud.halloween.RecurringEvent.Saved reforgerState = new minerefinehud.halloween.RecurringEvent.Saved();
+
+    /** Hide the overlay entirely. Also toggled by the keybind in Options, Controls. */
+    public boolean enabled = true;
+
+    public HudLayout.Placement minePlacement() {
+        return new HudLayout.Placement(
+                Anchor.parse(hudAnchor).orElse(DEFAULT_MINE_PLACEMENT.anchor()), hudX, hudY);
+    }
+
+    public void setMinePlacement(HudLayout.Placement placement) {
+        this.hudAnchor = placement.anchor().name();
+        this.hudX = placement.offsetX();
+        this.hudY = placement.offsetY();
+    }
+
+    public HudLayout.Placement bossPlacement() {
+        return new HudLayout.Placement(
+                Anchor.parse(bossAnchor).orElse(DEFAULT_BOSS_PLACEMENT.anchor()), bossX, bossY);
+    }
+
+    public void setBossPlacement(HudLayout.Placement placement) {
+        this.bossAnchor = placement.anchor().name();
+        this.bossX = placement.offsetX();
+        this.bossY = placement.offsetY();
+    }
+
+    public HudLayout.Placement progressPlacement() {
+        return new HudLayout.Placement(
+                Anchor.parse(progressAnchor).orElse(DEFAULT_PROGRESS_PLACEMENT.anchor()),
+                progressX, progressY);
+    }
+
+    public void setProgressPlacement(HudLayout.Placement placement) {
+        this.progressAnchor = placement.anchor().name();
+        this.progressX = placement.offsetX();
+        this.progressY = placement.offsetY();
+    }
+
+    public HudLayout.Placement alertPlacement() {
+        return new HudLayout.Placement(
+                Anchor.parse(alertAnchor).orElse(DEFAULT_ALERT_PLACEMENT.anchor()), alertX, alertY);
+    }
+
+    public void setAlertPlacement(HudLayout.Placement placement) {
+        this.alertAnchor = placement.anchor().name();
+        this.alertX = placement.offsetX();
+        this.alertY = placement.offsetY();
+    }
+
+    public HudModel.Options toOptions() {
+        return new HudModel.Options(showMine, showArmorPieces, showCredits,
+                blocksPerCreditMillions, showBosses, maxBosses,
+                new HudModel.MineLines(showSword, showTool, showArmor, showCharm, showMineTotal, showHeldUpgrade),
+                new HudModel.BossLines(showBossUpTimers, showBossLearning),
+                new HudModel.ProgressLines(showProgressText, showProgressBar, showNeeded));
+    }
+
+    /**
+     * Repairs whatever a hand edit or an older version left behind: missing sections, the old
+     * single progress bar, out-of-range numbers. Run after every load.
+     */
+    void normalise() {
+        if (progressBars == null) {
+            progressBars = new java.util.ArrayList<>();
+        }
+        Optional<ProgressSlot> old = ProgressSlot.parse(progressSlot);
+        if (old.isPresent() && progressBars.isEmpty()) {
+            progressBars.add(new Bar(old.get().name(), 1));
+        }
+        progressSlot = "OFF";
+        progressBars.removeIf(b -> b == null || b.choice().isEmpty());
+        while (progressBars.size() > MAX_BARS) {
+            progressBars.remove(progressBars.size() - 1);
+        }
+        for (Bar b : progressBars) {
+            b.quantity = Math.max(1, Math.min(ProgressPlanner.ProgressView.MAX_QUANTITY, b.quantity));
+            // A boss is not a mine, so there is no boss Total, and no boss sells an axe or a shovel.
+            if (b.choice().map(s -> s.isTotal() || s == ProgressSlot.AXE || s == ProgressSlot.SHOVEL)
+                    .orElse(false)) {
+                b.boss = false;
+            }
+        }
+
+        if (minedBlocks == null) {
+            minedBlocks = new java.util.LinkedHashMap<>();
+        }
+        if (sharedIcons == null) {
+            sharedIcons = new java.util.LinkedHashMap<>();
+        }
+        if (mineSpots == null) {
+            mineSpots = new java.util.LinkedHashMap<>();
+        }
+        if (savedBalances == null) {
+            savedBalances = new java.util.LinkedHashMap<>();
+        }
+        if (learnedProgression == null) {
+            learnedProgression = new java.util.LinkedHashMap<>();
+        }
+        if (jobRate == null) {
+            jobRate = minerefinehud.job.JobCalc.DEFAULT_RATE;
+        }
+        if (jobSkips == null) {
+            jobSkips = new java.util.ArrayList<>();
+        }
+        if (mineWorlds == null) {
+            mineWorlds = new java.util.LinkedHashMap<>();
+        }
+        if (jobMines == null) {
+            jobMines = new java.util.ArrayList<>();
+        }
+        if (learnedTierCounts == null) {
+            learnedTierCounts = new java.util.LinkedHashMap<>();
+        }
+        if (bossWorlds == null) {
+            bossWorlds = new java.util.LinkedHashMap<>();
+        }
+        if (hwPumpkinBars == null) {
+            hwPumpkinBars = new java.util.ArrayList<>();
+        }
+        hwPumpkinBars.removeIf(b -> b == null || !(minerefinehud.halloween.PumpkinSet.PIECES.contains(b)
+                || b.equals(minerefinehud.halloween.PumpkinSet.SET)));
+        if (hwPumpkinOwned == null) {
+            hwPumpkinOwned = new java.util.ArrayList<>();
+        }
+        hwPumpkinOwned.removeIf(java.util.Objects::isNull);
+        if (hwPumpkinPrices == null) {
+            hwPumpkinPrices = new java.util.LinkedHashMap<>();
+        }
+        hwPumpkinPrices.values().removeIf(java.util.Objects::isNull);
+        if (hwAbilityClasses == null) {
+            hwAbilityClasses = new java.util.LinkedHashMap<>();
+        }
+        if (hwAbilityClass == null) {
+            hwAbilityClass = "";
+        }
+        if (hwCaravanState == null) {
+            hwCaravanState = new minerefinehud.halloween.RecurringEvent.Saved();
+        }
+        if (hwBuildingData == null) {
+            hwBuildingData = new java.util.LinkedHashMap<>();
+        }
+        hwBuildingData.keySet().removeIf(k -> k == null || k.isBlank());
+        hwBuildingData.values().removeIf(java.util.Objects::isNull);
+        for (minerefinehud.halloween.Buildings.Saved b : hwBuildingData.values()) {
+            if (b.now == null) {
+                b.now = new java.util.ArrayList<>();
+            }
+            if (b.next == null) {
+                b.next = new java.util.ArrayList<>();
+            }
+            b.now.removeIf(g -> g == null || g.stat == null || g.value == null);
+            b.next.removeIf(g -> g == null || g.stat == null || g.value == null);
+            if (b.cost == null) {
+                b.cost = new java.util.LinkedHashMap<>();
+            }
+            b.cost.entrySet().removeIf(e -> e.getKey() == null || e.getValue() == null);
+            if (b.currency == null) {
+                b.currency = "";
+            }
+        }
+        // 1.5.0 also saved the /upgrades menu's stats (Luck, More Damage): no upgrade time, so
+        // not a building. A real one read from its menu has a time; one only known from a
+        // "COMPLETE!" in chat has no time but nothing else either.
+        hwBuildingData.values().removeIf(b -> b.upgradeMs <= 0L && b.upgradeEnd <= 0L
+                && (!b.cost.isEmpty() || !b.now.isEmpty()));
+        if (hwResurrectionData == null) {
+            hwResurrectionData = new minerefinehud.halloween.Resurrection.Saved();
+        }
+        if (hwResurrectionData.cards == null) {
+            hwResurrectionData.cards = new java.util.ArrayList<>();
+        }
+        hwResurrectionData.cards.removeIf(c -> c == null || c.target < 1 || !(c.crops > 0));
+        for (minerefinehud.halloween.Resurrection.Card c : hwResurrectionData.cards) {
+            if (c.hoe == null) {
+                c.hoe = "";
+            }
+            if (c.multiplier == null) {
+                c.multiplier = "";
+            }
+            if (c.unlocks == null) {
+                c.unlocks = "";
+            }
+        }
+        hwResurrectionData.level = Math.max(-1, hwResurrectionData.level);
+        if (reforgerState == null) {
+            reforgerState = new minerefinehud.halloween.RecurringEvent.Saved();
+        }
+        if (Double.isNaN(hwRefineCost) || hwRefineCost < 0) {
+            hwRefineCost = 0.0;
+        }
+        hwRefineLevel = Math.max(0, hwRefineLevel);
+        hwRateMinutes = Math.max(1, Math.min(60, hwRateMinutes));
+        hwStatsLook = fix(hwStatsLook, 1.0);
+        hwPumpkinLook = fix(hwPumpkinLook, 1.0);
+        hwAbilityLook = fix(hwAbilityLook, 1.0);
+
+        // The old on/off for the bar is now the bar style "None".
+        if (!showProgressBar) {
+            barStyle = HudStyle.BarStyle.NONE.name();
+            showProgressBar = true;
+        }
+        if (Double.isNaN(hudScale) || hudScale <= 0.0) {
+            hudScale = 1.0;
+        }
+        hudScale = Math.max(MIN_HUD_SCALE, Math.min(MAX_HUD_SCALE, hudScale));
+
+        mineLook = fix(mineLook, 1.0);
+        bossLook = fix(bossLook, 1.0);
+        progressLook = fix(progressLook, 1.0);
+        alertLook = fix(alertLook, 2.0);
+
+        maxBosses = Math.max(1, Math.min(MAX_BOSSES, maxBosses));
+        if (watchedBosses == null) {
+            watchedBosses = new java.util.ArrayList<>();
+        }
+        watchedBosses.removeIf(n -> n == null || n.isBlank());
+        bossIndexEveryMs = Math.max(BossIndexPoller.MIN_INTERVAL_MS, bossIndexEveryMs);
+        if (bossIndexTitle == null) {
+            bossIndexTitle = "";
+        }
+        bossReminderSeconds = Math.max(MIN_REMINDER_SECONDS, Math.min(MAX_REMINDER_SECONDS, bossReminderSeconds));
+        bossReminderVolume = Math.max(0, Math.min(100, bossReminderVolume));
+
+        mineRateBlocks = Math.max(1, Math.min(minerefinehud.mine.MiningRate.MAX_BLOCKS, mineRateBlocks));
+        statsEveryMs = Math.max(StatsPoller.MIN_INTERVAL_MS, statsEveryMs);
+        if (statsTitle == null) {
+            statsTitle = "";
+        }
+        if (statsHidden == null) {
+            statsHidden = new java.util.ArrayList<>();
+        }
+        statsHidden.removeIf(n -> n == null || n.isBlank());
+        statsData = minerefinehud.stats.PlayerStats.repair(statsData);
+        if (dropsHiddenRarities == null) {
+            dropsHiddenRarities = new java.util.ArrayList<>();
+        }
+        dropsHiddenRarities.removeIf(n -> n == null || n.isBlank());
+        dropsRows = Math.max(1, Math.min(30, dropsRows));
+        dropsRecent = Math.max(0, Math.min(minerefinehud.drops.RareDrops.RECENT_KEPT, dropsRecent));
+        dropData = minerefinehud.drops.RareDrops.repair(dropData);
+        miningLook = fix(miningLook, 1.0);
+        statsLook = fix(statsLook, 1.0);
+        dropsLook = fix(dropsLook, 1.0);
+        beaconLook = fix(beaconLook, 1.0);
+        beaconWarnSeconds = Math.max(0, Math.min(60, beaconWarnSeconds));
+        outpostLook = fix(outpostLook, 1.0);
+        menuAccent = Theme.format(Theme.parseOr(menuAccent, 0xFFFFD24A));
+        menuBackground = Theme.format(Theme.parseOr(menuBackground, 0xFF182221));
+        outpostWarnSeconds = Math.max(0, Math.min(600, outpostWarnSeconds));
+        outpostEveryMs = Math.max(OutpostPoller.MIN_INTERVAL_MS, outpostEveryMs);
+        outpostData = minerefinehud.outpost.OutpostTimers.repair(outpostData);
+    }
+
+    public static final int MAX_BOSSES = 15;
+    public static final int MIN_REMINDER_SECONDS = 3;
+    public static final int MAX_REMINDER_SECONDS = 60;
+
+    private static Look fix(Look look, double defaultScale) {
+        Look out = look == null ? new Look(defaultScale) : look;
+        out.scale = HudLayout.clampScale(out.scale);
+        out.opacity = Math.max(0, Math.min(100, out.opacity));
+        out.setBackground(out.backgroundStyle());
+        return out;
+    }
+
+    public static ModConfig load(Path file) {
+        try {
+            if (Files.isRegularFile(file)) {
+                ModConfig loaded =
+                        GSON.fromJson(Files.readString(file, StandardCharsets.UTF_8), ModConfig.class);
+                if (loaded != null) {
+                    loaded.normalise();
+                    return loaded;
+                }
+            }
+        } catch (Exception ignored) {
+            // Fall through to defaults rather than refusing to start.
+        }
+        return new ModConfig();
+    }
+
+    public void save(Path file) {
+        try {
+            Path parent = file.getParent();
+            if (parent != null) {
+                Files.createDirectories(parent);
+            }
+            Files.writeString(file, GSON.toJson(this), StandardCharsets.UTF_8);
+        } catch (Exception ignored) {
+        }
+    }
+}

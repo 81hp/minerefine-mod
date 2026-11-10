@@ -75,14 +75,34 @@ final class JobSource {
             if (seen.contains(known) || cat.boss(known).isPresent() || cat.byName(known).isPresent()) {
                 continue;
             }
-            // Armour alone is an old or odd listing, not a mine somebody works.
-            var gears = prices.observedGears(known);
-            if (gears.stream().noneMatch(g -> g.equals("sword") || g.equals("charm") || g.endsWith("axe") || g.equals("shovel"))) {
+            if (!isMine(known)) {
                 continue;
             }
             out.add(new Item(JobWorlds.title(known), JobWorlds.of(known, learned.get()), Optional.empty(), known));
         }
         return out;
+    }
+
+    /**
+     * Whether a shop name the data does not list is a mine. Boss gear is paid in that boss's
+     * fragments and its name says so ("Harmonizer Fragment"), a mine's in its own resource, so
+     * anything paid in fragments is left out. A mine also sells a sword.
+     */
+    private static boolean isMine(String shopName) {
+        var gears = prices.observedGears(shopName);
+        if (!gears.contains("sword")) {
+            return false;
+        }
+        for (String gear : gears) {
+            for (int level = 1; level <= 6; level++) {
+                var price = prices.price(shopName, gear, level);
+                if (price.isPresent()) {
+                    String currency = price.get().currency() == null ? "" : price.get().currency().toLowerCase(Locale.ROOT);
+                    return !currency.contains("fragment");
+                }
+            }
+        }
+        return true;
     }
 
     /** Dimensions in order, the data's first and the ones the shop found last. */

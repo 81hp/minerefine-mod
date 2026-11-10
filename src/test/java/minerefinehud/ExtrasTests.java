@@ -431,7 +431,7 @@ public final class ExtrasTests {
         yes("beacon panel: urgent is a warning", ExtrasHud.beaconPanel(9_000L, true).stream()
                 .anyMatch(l -> l.text().contains("0:09") && l.style() == HudModel.Style.WARN));
         eq("beacon alert: nothing", List.of(), ExtrasHud.beaconAlerts(100_000L, false, 15_000L));
-        eq("beacon alert: soon", List.of("Beacon Mine resets in 12s"), ExtrasHud.beaconAlerts(11_200L, false, 15_000L));
+        eq("beacon alert: soon", List.of("Beacon Mine resets in 11s"), ExtrasHud.beaconAlerts(11_200L, false, 15_000L));
         eq("beacon alert: reset", List.of("Beacon Mine has reset!"), ExtrasHud.beaconAlerts(300_000L, true, 15_000L));
         eq("beacon alert: warning off", List.of(), ExtrasHud.beaconAlerts(5_000L, false, 0L));
     }

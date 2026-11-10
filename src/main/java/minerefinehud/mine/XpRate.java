@@ -32,7 +32,11 @@ public final class XpRate {
             "(?<![\\p{L}\\p{N}])\\+\\s*(?<num>[0-9][0-9,]*(?:\\.[0-9]+)?)\\s*(?<suffix>[KMBTQkmbtq])?\\s*EXP\\b");
     private static final Pattern FORMATTING = Pattern.compile("[§&][0-9A-Fa-fK-Ok-oRr]");
 
-    private record Block(double gain, long tookMs) {}
+    /** Longest time window a rate can be asked over, in milliseconds. */
+    public static final long MAX_WINDOW_MS = MiningRate.MAX_WINDOW_MS;
+    private static final int KEEP_BLOCKS = 5_000;
+
+    private record Block(double gain, long tookMs, long at) {}
 
     private final Deque<Block> blocks = new ArrayDeque<>();
     private String lastKey = "";
@@ -101,8 +105,9 @@ public final class XpRate {
         lastKey = key;
         session += gain;
         if (wasMining && lastGainAt >= 0L && now > lastGainAt) {
-            blocks.addLast(new Block(gain, Math.min(now - lastGainAt, MAX_GAP_MS)));
-            while (blocks.size() > MAX_BLOCKS) {
+            blocks.addLast(new Block(gain, Math.min(now - lastGainAt, MAX_GAP_MS), now));
+            while (blocks.size() > KEEP_BLOCKS
+                    || (blocks.size() > MAX_BLOCKS && now - blocks.peekFirst().at() > MAX_WINDOW_MS)) {
                 blocks.removeFirst();
             }
         } else if (!wasMining) {
@@ -124,6 +129,29 @@ public final class XpRate {
             gained += b.gain();
             ms += b.tookMs();
             seen++;
+        }
+        return ms <= 0L ? Double.NaN : gained / ms * 3_600_000.0;
+    }
+
+    /**
+     * EXP per hour over the blocks of the last {@code windowMs}, counted back from the latest block,
+     * NaN until two lines have come. Same rule as {@link MiningRate#perHourOver}.
+     */
+    public double perHourOver(long windowMs) {
+        if (blocks.isEmpty()) {
+            return Double.NaN;
+        }
+        long from = blocks.peekLast().at() - Math.max(1L, Math.min(MAX_WINDOW_MS, windowMs));
+        double gained = 0.0;
+        long ms = 0L;
+        var it = blocks.descendingIterator();
+        while (it.hasNext()) {
+            Block b = it.next();
+            if (b.at() <= from) {
+                break;
+            }
+            gained += b.gain();
+            ms += b.tookMs();
         }
         return ms <= 0L ? Double.NaN : gained / ms * 3_600_000.0;
     }

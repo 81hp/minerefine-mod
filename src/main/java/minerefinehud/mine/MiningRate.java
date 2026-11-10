@@ -43,7 +43,12 @@ public final class MiningRate {
     /** The usual block is the median of this many latest ones. */
     private static final int OUTLIER_OVER = 20;
 
-    private record Block(double gain, long tookMs) {}
+    /** Longest time window a rate can be asked over, in milliseconds. */
+    public static final long MAX_WINDOW_MS = 10L * 60_000L;
+    /** Most blocks kept, even for the longest window. */
+    private static final int KEEP_BLOCKS = 5_000;
+
+    private record Block(double gain, long tookMs, long at) {}
 
     private final Deque<Block> blocks = new ArrayDeque<>();
     private final Map<String, Double> session = new HashMap<>();
@@ -100,8 +105,10 @@ public final class MiningRate {
             double gain = amount - lastAmount;
             outliersInRow = 0;
             long took = Math.max(0L, Math.min(MAX_GAP_MS, now - lastGainAt));
-            blocks.addLast(new Block(gain, took));
-            while (blocks.size() > MAX_BLOCKS) {
+            blocks.addLast(new Block(gain, took, now));
+            // Kept as long as the longest window needs, and at least the blocks a count asks for.
+            while (blocks.size() > KEEP_BLOCKS
+                    || (blocks.size() > MAX_BLOCKS && now - blocks.peekFirst().at() > MAX_WINDOW_MS)) {
                 blocks.removeFirst();
             }
             session.merge(key, gain, Double::sum);
@@ -162,6 +169,31 @@ public final class MiningRate {
             took += b.tookMs();
         }
         // Blocks in the same instant: too little time to tell a rate from.
+        return took <= 0L ? Double.NaN : gain * 3_600_000.0 / took;
+    }
+
+    /**
+     * Per hour from the blocks of the last {@code windowMs} of {@code mine}, or NaN before the first
+     * block. The window counts back from the latest block, so the figure stays put when mining
+     * stops, and it is what those blocks brought over the time they took, so a break inside the
+     * window does not drag it down. Before the window has filled it is what there is so far.
+     */
+    public double perHourOver(String mine, long windowMs) {
+        if (!key(mine).equals(currency) || blocks.isEmpty()) {
+            return Double.NaN;
+        }
+        long from = blocks.peekLast().at() - Math.max(1L, Math.min(MAX_WINDOW_MS, windowMs));
+        double gain = 0.0;
+        long took = 0L;
+        var it = blocks.descendingIterator();
+        while (it.hasNext()) {
+            Block b = it.next();
+            if (b.at() <= from) {
+                break;
+            }
+            gain += b.gain();
+            took += b.tookMs();
+        }
         return took <= 0L ? Double.NaN : gain * 3_600_000.0 / took;
     }
 

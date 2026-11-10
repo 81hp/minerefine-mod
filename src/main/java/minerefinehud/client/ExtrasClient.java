@@ -224,11 +224,21 @@ final class ExtrasClient {
             return List.of();
         }
         String mine = miningRate.mine();
-        double perHour = miningRate.perHour(mine, config.mineRateBlocks);
+        double perHour = minePerHour(mine);
         ExtrasHud.Xp xp = config.showXp && xpRate.any()
-                ? new ExtrasHud.Xp(xpRate.perHour(config.mineRateBlocks), xpRate.session()) : null;
+                ? new ExtrasHud.Xp(xpPerHour(), xpRate.session()) : null;
         return ExtrasHud.miningPanel(new ExtrasHud.Mining(mine, balance, perHour, miningRate.session(mine),
                 miningRate.miningMs(), ExtrasHud.etas(progress, mine, perHour)), xp);
+    }
+
+    private double minePerHour(String mine) {
+        return config.mineRateMinutes > 0 ? miningRate.perHourOver(mine, config.mineRateMinutes * 60_000L)
+                : miningRate.perHour(mine, config.mineRateBlocks);
+    }
+
+    private double xpPerHour() {
+        return config.mineRateMinutes > 0 ? xpRate.perHourOver(config.mineRateMinutes * 60_000L)
+                : xpRate.perHour(config.mineRateBlocks);
     }
 
     /** The mine being measured, to look its balance up. */
@@ -300,10 +310,10 @@ final class ExtrasClient {
         List<String> out = new ArrayList<>();
         String mine = miningRate.mine();
         out.add("mining rate: " + (mine.isEmpty() ? "nothing read yet" : mine + " "
-                + Math.round(miningRate.perHour(mine, config.mineRateBlocks)) + "/h, mining "
+                + Math.round(minePerHour(mine)) + "/h, mining "
                 + (miningRate.mining(now) ? "now" : "stopped") + ", "
                 + ExtrasHud.eta(miningRate.miningMs()) + " measured"));
-        out.add("exp rate: " + (xpRate.any() ? Math.round(xpRate.perHour(config.mineRateBlocks)) + "/h, +"
+        out.add("exp rate: " + (xpRate.any() ? Math.round(xpPerHour()) + "/h, +"
                 + Math.round(xpRate.session()) + " this session, mining "
                 + (xpRate.mining(now) ? "now" : "stopped") : "no EXP line read yet"));
         out.add("stats: " + config.statsData.stats.size() + " read "

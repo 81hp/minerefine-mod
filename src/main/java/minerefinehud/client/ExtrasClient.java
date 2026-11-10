@@ -291,9 +291,8 @@ final class ExtrasClient {
                             return profileRateHeld;
                         }
                     }
-                    return config.mineRateSeconds > 0
-                            ? xpRate.perHourOver(config.mineRateSeconds * 1000L, now)
-                            : xpRate.perHour(config.mineRateBlocks);
+                    // Counted over time, not line by line: with "Rate over" off it is the last minute.
+                    return xpRate.perHourOver(config.mineRateSeconds > 0 ? config.mineRateSeconds * 1000L : 60_000L, now);
                 });
     }
 
@@ -376,6 +375,7 @@ final class ExtrasClient {
         out.add("exp rate: " + (xpRate.any() ? Math.round(xpPerHour()) + "/h, +"
                 + Math.round(xpRate.session()) + " this session, mining "
                 + (xpRate.mining(now) ? "now" : "stopped") : "no EXP line read yet"));
+        out.addAll(xpRate.recent());
         String profile = "off";
         if (config.xpFromProfile) {
             profile = profileExp.total().isPresent()

@@ -75,7 +75,7 @@ final class JobSource {
             if (seen.contains(known) || cat.boss(known).isPresent() || cat.byName(known).isPresent()) {
                 continue;
             }
-            if (!isMine(known)) {
+            if (!JobWorlds.known(known, learned.get()) || !isMine(known)) {
                 continue;
             }
             out.add(new Item(JobWorlds.title(known), JobWorlds.of(known, learned.get()), Optional.empty(), known));

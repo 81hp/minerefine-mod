@@ -25,6 +25,7 @@ public final class JobWorlds {
     private static final Map<String, String> KNOWN = Map.of(
             "blub", "Sift",
             "jade", "Sift",
+            "petal", "Sift",
             "ichor", "Sift",
             "rosewood", "Sift",
             "siftite", "Sift");
@@ -43,6 +44,12 @@ public final class JobWorlds {
             return Optional.empty();
         }
         return Optional.of(word.charAt(0) + word.substring(1).toLowerCase(Locale.ROOT));
+    }
+
+    /** Whether the mine is known to be a mine: named here, or one the player has mined in. */
+    public static boolean known(String mine, Map<String, String> learned) {
+        String key = mine == null ? "" : mine.trim().toLowerCase(Locale.ROOT);
+        return KNOWN.containsKey(key) || (learned != null && learned.containsKey(key));
     }
 
     /** The learned dimension, else the known one, else {@link #DEFAULT}. */

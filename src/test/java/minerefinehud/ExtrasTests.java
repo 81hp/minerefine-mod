@@ -594,6 +594,9 @@ public final class ExtrasTests {
         eq("known Sift mine", "Sift", minerefinehud.job.JobWorlds.of("Jade", java.util.Map.of()));
         eq("learned world wins", "Dunes", minerefinehud.job.JobWorlds.of("Jade", java.util.Map.of("jade", "Dunes")));
         eq("unlisted mine goes to the Sift", "Sift", minerefinehud.job.JobWorlds.of("Petal", null));
+        yes("known mines only", minerefinehud.job.JobWorlds.known("Petal", null)
+                && !minerefinehud.job.JobWorlds.known("Great Fruit", java.util.Map.of())
+                && minerefinehud.job.JobWorlds.known("Zorp", java.util.Map.of("zorp", "Sift")));
         eq("title case", "Ancient Debris", minerefinehud.job.JobWorlds.title("ancient  debris"));
         eq("mats text", "760.34b", JobCalc.mats(760_340_000_000.0));
         eq("mats small", "12,345", JobCalc.mats(12_345.0));

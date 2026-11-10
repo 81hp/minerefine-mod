@@ -204,7 +204,7 @@ public final class ExtrasHud {
         if (justReset) {
             out.add("Beacon Mine has reset!");
         } else if (remainingMs >= 0L && warnMs > 0L && remainingMs <= warnMs) {
-            out.add("Beacon Mine resets in " + Math.max(1L, (remainingMs + 999L) / 1000L) + "s");
+            out.add("Beacon Mine resets in " + Math.max(1L, remainingMs / 1000L) + "s");
         }
         return out;
     }

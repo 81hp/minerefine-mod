@@ -207,7 +207,7 @@ public final class MinerefineHudClient implements ClientModInitializer {
         priceStore.load(prices);
         prices.importLearnedTiers(config.learnedTierCounts);
         PriceStore.loadVerifiedPrices(prices);
-        JobSource.set(catalogSource::catalog, prices);
+        JobSource.set(catalogSource::catalog, prices, () -> config.mineWorlds);
 
         halloween = new HalloweenClient(config, () -> config.save(configFile), () -> {
             if (config.bossReminderVolume > 0) {
@@ -1003,6 +1003,23 @@ public final class MinerefineHudClient implements ClientModInitializer {
         mineCosts = currentMine.map(m -> MineCosts.of(catalog.serverName(m.name()), Optional.of(m),
                 prices, config.showArmorPieces));
         currentWorld = BossWorlds.currentWorld(currentMine, resourcePickups.lastWorldTag());
+        learnMineWorld();
+    }
+
+    /**
+     * A mine the data does not list gets its dimension from the world tag on what it drops, so the
+     * job calculator can group it ("SIFTBOUND" is the Sift). Saved only when it changes.
+     */
+    private void learnMineWorld() {
+        currentMine.filter(m -> m.world().isBlank() && !m.name().isBlank()).ifPresent(m -> {
+            resourcePickups.lastWorldTag().flatMap(minerefinehud.job.JobWorlds::fromTag).ifPresent(world -> {
+                String key = catalogSource.catalog().serverName(m.name()).trim().toLowerCase(java.util.Locale.ROOT);
+                if (!world.equals(config.mineWorlds.get(key))) {
+                    config.mineWorlds.put(key, world);
+                    config.save(configFile);
+                }
+            });
+        });
     }
 
     // ------------------------------------------------------------- action bar

@@ -568,14 +568,33 @@ public final class ExtrasTests {
         yes("rate half typed", JobCalc.parseRate("1.").isEmpty() && JobCalc.parseRate("B").isEmpty()
                 && JobCalc.parseRate("1B/0c").isEmpty());
 
-        var entries = List.of(new JobCalc.Entry("Jade", OptionalLong.of(760_340_000_000L)),
-                new JobCalc.Entry("Sift", OptionalLong.of(240_000_000_000L)),
-                new JobCalc.Entry("New", OptionalLong.empty()));
-        JobCalc.Total t = JobCalc.total(entries, java.util.OptionalDouble.of(1e9));
-        eq("total mats", 1.00034e12, t.mats());
-        eq("total credits", 1000.34, t.credits());
+        List<JobCalc.Part> jade = List.of(new JobCalc.Part("sword", OptionalLong.of(136_510_000_000L)),
+                new JobCalc.Part("charm", OptionalLong.of(70_290_000_000L)),
+                new JobCalc.Part("boots", OptionalLong.of(112_780_000_000L)));
+        JobCalc.Entry full = JobCalc.entry("Jade", jade, List.of(), 1);
+        eq("entry sums every piece", 319_580_000_000L, full.mats());
+        JobCalc.Entry noCharm = JobCalc.entry("Jade", jade, List.of(JobCalc.skipKey("JADE", "Charm")), 1);
+        eq("a left-out piece is not counted", 249_290_000_000L, noCharm.mats());
+        eq("skip key", "jade|charm", JobCalc.skipKey(" Jade ", "CHARM"));
+        var unpriced = JobCalc.entry("New", List.of(new JobCalc.Part("sword", OptionalLong.empty()),
+                new JobCalc.Part("charm", OptionalLong.of(5L))), List.of(), 1);
+        eq("unpriced piece counted as missing", 1, unpriced.missing());
+        eq("unpriced piece adds nothing", 5L, unpriced.mats());
+        eq("skipping the unpriced piece clears it", 0, JobCalc.entry("New",
+                List.of(new JobCalc.Part("sword", OptionalLong.empty())), List.of("new|sword"), 1).missing());
+        JobCalc.Total t = JobCalc.total(List.of(noCharm, new JobCalc.Entry("Sift", 240_000_000_000L, 2, 0), unpriced),
+                java.util.OptionalDouble.of(1e9));
+        eq("total mats", 729_290_000_005.0, t.mats());
+        eq("total credits", 729.290000005, t.credits());
         eq("total unknown", 1, t.unknown());
-        yes("no rate gives NaN", Double.isNaN(JobCalc.total(entries, java.util.OptionalDouble.empty()).credits()));
+        yes("no rate gives NaN", Double.isNaN(JobCalc.total(List.of(noCharm), java.util.OptionalDouble.empty()).credits()));
+        eq("world tag", "Sift", minerefinehud.job.JobWorlds.fromTag("SIFTBOUND").get());
+        yes("not a world tag", minerefinehud.job.JobWorlds.fromTag("RARE").isEmpty()
+                && minerefinehud.job.JobWorlds.fromTag("BOUND").isEmpty() && minerefinehud.job.JobWorlds.fromTag(null).isEmpty());
+        eq("known Sift mine", "Sift", minerefinehud.job.JobWorlds.of("Jade", java.util.Map.of()));
+        eq("learned world wins", "Dunes", minerefinehud.job.JobWorlds.of("Jade", java.util.Map.of("jade", "Dunes")));
+        eq("unknown mine", "Other", minerefinehud.job.JobWorlds.of("Zorp", null));
+        eq("title case", "Ancient Debris", minerefinehud.job.JobWorlds.title("ancient  debris"));
         eq("mats text", "760.34b", JobCalc.mats(760_340_000_000.0));
         eq("mats small", "12,345", JobCalc.mats(12_345.0));
         eq("credits text", "1,000.34c", JobCalc.credits(1000.34));

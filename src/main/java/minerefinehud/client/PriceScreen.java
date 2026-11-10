@@ -3,14 +3,14 @@ package minerefinehud.client;
 import minerefinehud.hud.Formatting;
 import minerefinehud.hud.Theme;
 import minerefinehud.job.JobCalc;
-import minerefinehud.mine.Mine;
 import minerefinehud.progress.MineCosts;
 import net.minecraft.client.gui.GuiGraphicsExtractor;
-import net.minecraft.client.gui.components.Button;
 import net.minecraft.client.gui.screens.Screen;
 import net.minecraft.network.chat.Component;
 
 import java.util.List;
+import java.util.Locale;
+import java.util.Optional;
 import java.util.OptionalDouble;
 
 /**
@@ -22,12 +22,14 @@ import java.util.OptionalDouble;
  */
 public final class PriceScreen extends Screen {
 
-    private static final int ROW = 20;
-    private static final int GAP = 4;
+    private static final int ROW = 16;
+    private static final int STEP = 18;
 
     private final Screen parent;
     private final ModConfig config;
+    private final Chips chips = new Chips(this::addRenderableWidget);
 
+    private List<JobSource.Item> items = List.of();
     private String world = "";
     private String mine = "";
     private int page;
@@ -40,7 +42,7 @@ public final class PriceScreen extends Screen {
     }
 
     private int winW() {
-        return Math.min(this.width - 16, 460);
+        return Math.min(this.width - 16, 480);
     }
 
     private int left() {
@@ -48,7 +50,7 @@ public final class PriceScreen extends Screen {
     }
 
     private int colW() {
-        return (winW() - 30) / 2;
+        return (winW() - 36) / 2;
     }
 
     private int accent() {
@@ -57,31 +59,36 @@ public final class PriceScreen extends Screen {
 
     @Override
     protected void init() {
-        int l = left() + 10;
-        int w = winW() - 20;
-        int y = 30;
+        chips.clear();
+        items = JobSource.items();
+        int l = left() + 12;
+        int w = winW() - 24;
 
-        List<String> worlds = JobSource.worlds();
-        if (world.isBlank() && !worlds.isEmpty()) {
+        List<String> worlds = JobSource.worlds(items);
+        if ((world.isBlank() || !worlds.contains(world)) && !worlds.isEmpty()) {
             world = worlds.get(0);
         }
-        int per = Math.max(1, (w + GAP) / (74 + GAP));
-        int bw = (w - (per - 1) * GAP) / per;
-        for (int i = 0; i < worlds.size(); i++) {
-            String name = worlds.get(i);
-            addRenderableWidget(Button.builder(Component.literal(name.equals(world) ? "> " + name : name), b -> {
-                        world = name;
-                        mine = "";
-                        page = 0;
-                        rebuildWidgets();
-                    })
-                    .bounds(l + (i % per) * (bw + GAP), y + (i / per) * (ROW + GAP), bw, ROW).build());
+        int x = l;
+        int y = 36;
+        for (String name : worlds) {
+            int cw = this.font.width(name) + 16;
+            if (x + cw > l + w) {
+                x = l;
+                y += ROW + 3;
+            }
+            chips.add(x, y, cw, ROW, name, "", name.equals(world), false, () -> {
+                world = name;
+                mine = "";
+                page = 0;
+                rebuildWidgets();
+            });
+            x += cw + 4;
         }
-        listTop = y + ((worlds.size() + per - 1) / per) * (ROW + GAP) + 14;
+        listTop = y + ROW + 20;
 
-        int by = this.height - 28;
-        int fit = Math.max(1, (by - 4 - listTop) / (ROW + 2));
-        List<Mine> mines = JobSource.mines(world);
+        int by = this.height - 30;
+        int fit = Math.max(1, (by - 4 - listTop) / STEP);
+        List<JobSource.Item> mines = JobSource.in(items, world);
         int pages = Math.max(1, (mines.size() + fit - 1) / fit);
         page = Math.max(0, Math.min(page, pages - 1));
         for (int i = 0; i < fit; i++) {
@@ -90,22 +97,24 @@ public final class PriceScreen extends Screen {
                 break;
             }
             String name = mines.get(at).name();
-            addRenderableWidget(Button.builder(Component.literal(name.equals(mine) ? "> " + name : name), b -> {
-                        mine = name;
-                        rebuildWidgets();
-                    })
-                    .bounds(l, listTop + i * (ROW + 2), colW(), ROW).build());
+            chips.add(l, listTop + i * STEP, colW(), ROW, name, "", name.equals(mine), false, () -> {
+                mine = name;
+                rebuildWidgets();
+            });
         }
-        addRenderableWidget(Button.builder(Component.literal("<"), b -> {
-                    page--;
-                    rebuildWidgets();
-                }).bounds(l, by, 20, ROW).build()).active = page > 0;
-        addRenderableWidget(Button.builder(Component.literal(">"), b -> {
-                    page++;
-                    rebuildWidgets();
-                }).bounds(l + 24, by, 20, ROW).build()).active = page < pages - 1;
-        addRenderableWidget(Button.builder(Component.literal("Back"), b -> onClose())
-                .bounds(l + w - 50, by, 50, ROW).build());
+        chips.add(l, by, 22, ROW, "<", "", false, page == 0, () -> {
+            if (page > 0) {
+                page--;
+                rebuildWidgets();
+            }
+        });
+        chips.add(l + 26, by, 22, ROW, ">", "", false, page >= pages - 1, () -> {
+            if (page < pages - 1) {
+                page++;
+                rebuildWidgets();
+            }
+        });
+        chips.add(l + w - 60, by, 60, ROW, "Back", "", false, false, this::onClose);
     }
 
     private static String label(String gear) {
@@ -115,44 +124,49 @@ public final class PriceScreen extends Screen {
     @Override
     public void extractRenderState(GuiGraphicsExtractor context, int mouseX, int mouseY, float delta) {
         int l = left();
-        Smooth.rect(context, l, 8, winW(), this.height - 16, 6f, 0xF0182221);
-        Smooth.ring(context, l, 8, winW(), this.height - 16, 6f, 1f, Smooth.alpha(accent(), 0.8f));
+        int a = accent();
+        Smooth.rect(context, l, 6, winW(), this.height - 12, 6f, 0xF0182221);
+        Smooth.ring(context, l, 6, winW(), this.height - 12, 6f, 1f, Smooth.alpha(a, 0.7f));
+        chips.paint(context, this.font, mouseX, mouseY, a);
         super.extractRenderState(context, mouseX, mouseY, delta);
 
-        int x = l + 10;
-        context.text(this.font, this.title.getString(), x, 15, accent(), false);
-        context.text(this.font, world.isBlank() ? "No mines found" : world, x, listTop - 11, 0xFFAAAAAA, false);
+        int x = l + 12;
+        context.text(this.font, this.title.getString(), x, 16, a, false);
+        context.text(this.font, world.isBlank() ? "NO MINES FOUND" : world.toUpperCase(Locale.ROOT) + " - PICK A MINE",
+                x, listTop - 12, Chips.MUTED, false);
 
-        int rx = l + colW() + 20;
-        int rw = colW() - 10;
+        int rx = x + colW() + 12;
+        int rw = colW();
         int y = listTop;
-        var found = JobSource.mine(mine);
+        Optional<JobSource.Item> found = JobSource.find(items, mine);
         if (found.isEmpty()) {
-            context.text(this.font, "Pick a mine", rx, y, 0xFFAAAAAA, false);
+            context.text(this.font, "Pick a mine to see its prices", rx, y + 4, Chips.OFF, false);
             return;
         }
-        MineCosts.View v = JobSource.view(found.get());
-        context.text(this.font, v.mine(), rx, y, accent(), false);
-        y += 14;
+        MineCosts.View v = found.get().view();
+        Smooth.rect(context, rx, y - 4, rw, this.height - 40 - y + 4, 4f, 0x80101818);
+        context.text(this.font, found.get().name().toUpperCase(Locale.ROOT), rx + 8, y + 2, a, false);
+        y += 18;
         for (MineCosts.Piece p : v.pieces()) {
-            String name = label(p.gear());
             String value = p.shown() ? Formatting.blocks(p.cost().getAsLong())
                     + (p.source() == MineCosts.Source.SHOP ? "*" : "")
                     + (p.source() == MineCosts.Source.PARTIAL ? " (" + p.tiers() + ")" : "") : "?";
-            context.text(this.font, name, rx, y, 0xFFDDDDDD, false);
-            context.text(this.font, value, rx + rw - this.font.width(value), y, 0xFFFFFFFF, false);
+            context.text(this.font, label(p.gear()), rx + 8, y, Chips.INK, false);
+            context.text(this.font, value, rx + rw - 8 - this.font.width(value), y, 0xFFFFFFFF, false);
             y += 12;
         }
-        y += 4;
+        y += 2;
+        context.fill(rx + 8, y, rx + rw - 8, y + 1, 0xFF283836);
+        y += 6;
         String total = v.total().isPresent() ? Formatting.blocks(v.total().getAsLong()) : "?";
-        context.text(this.font, "Total", rx, y, accent(), false);
-        context.text(this.font, total, rx + rw - this.font.width(total), y, accent(), false);
+        context.text(this.font, "Total", rx + 8, y, a, false);
+        context.text(this.font, total, rx + rw - 8 - this.font.width(total), y, a, false);
         y += 12;
         OptionalDouble rate = JobCalc.parseRate(config.jobRate);
         if (v.total().isPresent() && rate.isPresent()) {
             String c = JobCalc.credits(v.total().getAsLong() / rate.getAsDouble());
-            context.text(this.font, "At your rate", rx, y, 0xFFAAAAAA, false);
-            context.text(this.font, c, rx + rw - this.font.width(c), y, 0xFFAAAAAA, false);
+            context.text(this.font, "At your rate", rx + 8, y, Chips.MUTED, false);
+            context.text(this.font, c, rx + rw - 8 - this.font.width(c), y, Chips.MUTED, false);
         }
     }
 

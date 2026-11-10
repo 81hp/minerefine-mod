@@ -144,6 +144,9 @@ public final class ModConfig {
     /** The job calculator's rate as the player typed it, and the mines in the saved job. */
     public String jobRate = minerefinehud.job.JobCalc.DEFAULT_RATE;
     public java.util.List<String> jobMines = new java.util.ArrayList<>();
+    /** Pieces left out of the job, "jade|charm", and the dimension learned for mines the data lacks. */
+    public java.util.List<String> jobSkips = new java.util.ArrayList<>();
+    public java.util.Map<String, String> mineWorlds = new java.util.LinkedHashMap<>();
 
     public int maxBosses = 5;
 
@@ -756,6 +759,12 @@ public final class ModConfig {
         }
         if (jobRate == null) {
             jobRate = minerefinehud.job.JobCalc.DEFAULT_RATE;
+        }
+        if (jobSkips == null) {
+            jobSkips = new java.util.ArrayList<>();
+        }
+        if (mineWorlds == null) {
+            mineWorlds = new java.util.LinkedHashMap<>();
         }
         if (jobMines == null) {
             jobMines = new java.util.ArrayList<>();

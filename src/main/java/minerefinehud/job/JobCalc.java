@@ -98,13 +98,45 @@ public final class JobCalc {
         return mats;
     }
 
-    /** A mine in the job and the mats it needs, empty when that is not known. */
-    public record Entry(String mine, OptionalLong mats) {}
+    /** One piece of gear at a mine and what it costs, empty when that is not known. */
+    public record Part(String gear, OptionalLong cost) {}
+
+    /**
+     * A mine in the job.
+     *
+     * @param mats    what the pieces still in the job cost, for one copy; unknown pieces add nothing
+     * @param times   how many copies of the mine are in the job
+     * @param missing how many of the pieces still in the job have no price yet
+     */
+    public record Entry(String mine, long mats, int times, int missing) {}
+
+    /** The key a left-out piece is saved under: "jade|charm". */
+    public static String skipKey(String mine, String gear) {
+        return (mine == null ? "" : mine.trim().toLowerCase(Locale.ROOT)) + "|"
+                + (gear == null ? "" : gear.trim().toLowerCase(Locale.ROOT));
+    }
+
+    /** The mine with the pieces in {@code skipped} left out. */
+    public static Entry entry(String mine, List<Part> parts, java.util.Collection<String> skipped, int times) {
+        long sum = 0L;
+        int missing = 0;
+        for (Part p : parts) {
+            if (skipped.contains(skipKey(mine, p.gear()))) {
+                continue;
+            }
+            if (p.cost().isPresent()) {
+                sum += p.cost().getAsLong();
+            } else {
+                missing++;
+            }
+        }
+        return new Entry(mine, sum, Math.max(1, times), missing);
+    }
 
     /**
      * @param mats    everything known, added up
      * @param credits {@code mats} at the rate, NaN when there is no rate
-     * @param unknown how many mines had no figure and are left out of the totals
+     * @param unknown how many mines have a piece with no price and are short in the totals
      */
     public record Total(double mats, double credits, int unknown) {}
 
@@ -112,9 +144,8 @@ public final class JobCalc {
         double sum = 0.0;
         int unknown = 0;
         for (Entry e : entries) {
-            if (e.mats().isPresent()) {
-                sum += e.mats().getAsLong();
-            } else {
+            sum += (double) e.mats() * e.times();
+            if (e.missing() > 0) {
                 unknown++;
             }
         }

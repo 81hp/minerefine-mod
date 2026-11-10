@@ -1,5 +1,7 @@
 package minerefinehud.client;
 
+import minerefinehud.job.JobCalc;
+import minerefinehud.job.JobWorlds;
 import minerefinehud.mine.Mine;
 import minerefinehud.mine.MineCatalog;
 import minerefinehud.progress.MineCosts;
@@ -8,54 +10,111 @@ import minerefinehud.shop.PriceLedger;
 import java.util.ArrayList;
 import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Locale;
+import java.util.Map;
 import java.util.Optional;
+import java.util.OptionalLong;
 import java.util.function.Supplier;
 
 /**
  * Where the job calculator and the price lookup get the mines and their prices, by Arreba: the
- * same catalog and shop prices the Mine panel uses. The client sets it once at start-up.
+ * same catalog and shop prices the Mine panel uses. Mines added after the bundled data (the
+ * Sift's) are found from the shop prices the mod has read, grouped by the dimension it learned.
+ * The client sets it once at start-up.
  */
 final class JobSource {
 
     private static Supplier<MineCatalog> catalog = () -> new MineCatalog(List.of());
     private static PriceLedger prices = new PriceLedger();
+    private static Supplier<Map<String, String>> learned = Map::of;
 
     private JobSource() {
     }
 
-    static void set(Supplier<MineCatalog> catalogSource, PriceLedger ledger) {
+    static void set(Supplier<MineCatalog> catalogSource, PriceLedger ledger, Supplier<Map<String, String>> worlds) {
         catalog = catalogSource;
         prices = ledger;
+        learned = worlds;
     }
 
-    /** Every dimension that has a mine, in the order the data lists them. */
-    static List<String> worlds() {
-        LinkedHashSet<String> out = new LinkedHashSet<>();
-        for (Mine m : catalog.get().mines()) {
-            if (!m.world().isBlank()) {
-                out.add(m.world());
+    /** One mine the player can pick, listed in the data or only known from its shop. */
+    record Item(String name, String world, Optional<Mine> data, String serverName) {
+
+        /** Gear and total as the Mine panel works them out, armour as four pieces. */
+        MineCosts.View view() {
+            return MineCosts.of(serverName, data, prices, true);
+        }
+
+        List<JobCalc.Part> parts() {
+            List<JobCalc.Part> out = new ArrayList<>();
+            for (MineCosts.Piece p : view().pieces()) {
+                out.add(new JobCalc.Part(p.gear(), p.cost()));
             }
+            return out;
+        }
+
+        OptionalLong total() {
+            return view().total();
+        }
+    }
+
+    /** Every mine, the data's first and in its order, then the ones only the shop has shown. */
+    static List<Item> items() {
+        MineCatalog cat = catalog.get();
+        List<Item> out = new ArrayList<>();
+        LinkedHashSet<String> seen = new LinkedHashSet<>();
+        for (Mine m : cat.mines()) {
+            if (!m.world().isBlank()) {
+                String server = cat.serverName(m.name());
+                out.add(new Item(m.name(), m.world(), Optional.of(m), server));
+                seen.add(server.toLowerCase(Locale.ROOT));
+                seen.add(m.name().toLowerCase(Locale.ROOT));
+            }
+        }
+        for (String known : prices.knownMines()) {
+            if (seen.contains(known) || cat.boss(known).isPresent() || cat.byName(known).isPresent()) {
+                continue;
+            }
+            // Armour alone is an old or odd listing, not a mine somebody works.
+            var gears = prices.observedGears(known);
+            if (gears.stream().noneMatch(g -> g.equals("sword") || g.equals("charm") || g.endsWith("axe") || g.equals("shovel"))) {
+                continue;
+            }
+            out.add(new Item(JobWorlds.title(known), JobWorlds.of(known, learned.get()), Optional.empty(), known));
+        }
+        return out;
+    }
+
+    /** Dimensions in order, the newer ones the shop found last and "Other" at the very end. */
+    static List<String> worlds(List<Item> items) {
+        LinkedHashSet<String> out = new LinkedHashSet<>();
+        for (Item i : items) {
+            if (!i.world().equals(JobWorlds.OTHER)) {
+                out.add(i.world());
+            }
+        }
+        if (items.stream().anyMatch(i -> i.world().equals(JobWorlds.OTHER))) {
+            out.add(JobWorlds.OTHER);
         }
         return new ArrayList<>(out);
     }
 
-    static List<Mine> mines(String world) {
-        List<Mine> out = new ArrayList<>();
-        for (Mine m : catalog.get().mines()) {
-            if (m.world().equals(world)) {
-                out.add(m);
+    static List<Item> in(List<Item> items, String world) {
+        List<Item> out = new ArrayList<>();
+        for (Item i : items) {
+            if (i.world().equals(world)) {
+                out.add(i);
             }
         }
         return out;
     }
 
-    static Optional<Mine> mine(String name) {
-        return catalog.get().byName(name);
-    }
-
-    /** The mine's gear and total exactly as the Mine panel works them out, armour as four pieces. */
-    static MineCosts.View view(Mine m) {
-        var cat = catalog.get();
-        return MineCosts.of(cat.serverName(m.name()), Optional.of(m), prices, true);
+    static Optional<Item> find(List<Item> items, String name) {
+        for (Item i : items) {
+            if (i.name().equalsIgnoreCase(name)) {
+                return Optional.of(i);
+            }
+        }
+        return Optional.empty();
     }
 }

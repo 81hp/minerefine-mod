@@ -2,39 +2,44 @@ package minerefinehud.client;
 
 import minerefinehud.hud.Theme;
 import minerefinehud.job.JobCalc;
-import minerefinehud.mine.Mine;
 import net.minecraft.client.gui.GuiGraphicsExtractor;
-import net.minecraft.client.gui.components.Button;
 import net.minecraft.client.gui.components.EditBox;
 import net.minecraft.client.gui.screens.Screen;
 import net.minecraft.network.chat.Component;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
+import java.util.Optional;
 import java.util.OptionalDouble;
-import java.util.OptionalLong;
 
 /**
  * The job calculator, by Arreba. Type the rate you charge, pick a dimension, click mines to add
- * them to the job, and read off the mats and credits for all of them together. The mats for a mine
- * are what its whole gear costs, from the same prices the Mine panel shows. The job and the rate
- * are saved in the config.
+ * them to the job, click a mine in the job to switch single pieces (the charm, say) off, and read
+ * the mats and credits for everything together. The mats are what each piece costs, from the same
+ * prices the Mine panel shows. The rate, the job and the left-out pieces are saved in the config.
  *
  * VERSION SENSITIVE for the Screen and widget API only; the arithmetic is {@link JobCalc}.
  */
 public final class JobScreen extends Screen {
 
-    private static final int ROW = 20;
-    private static final int GAP = 4;
+    private static final int ROW = 16;
+    private static final int STEP = 18;
 
     private final Screen parent;
     private final ModConfig config;
     private final Runnable onChange;
+    private final Chips chips = new Chips(this::addRenderableWidget);
+
+    private List<JobSource.Item> items = List.of();
 
     /** Kept across re-inits so a window resize does not lose them. */
     private String world = "";
+    private String selected = "";
     private int page;
+    private int listTop;
+    private int pieceTop;
 
     public JobScreen(Screen parent, ModConfig config, Runnable onChange) {
         super(Component.literal("Job Calculator"));
@@ -44,7 +49,7 @@ public final class JobScreen extends Screen {
     }
 
     private int winW() {
-        return Math.min(this.width - 16, 460);
+        return Math.min(this.width - 16, 480);
     }
 
     private int left() {
@@ -52,7 +57,7 @@ public final class JobScreen extends Screen {
     }
 
     private int colW() {
-        return (winW() - 30) / 2;
+        return (winW() - 36) / 2;
     }
 
     private int accent() {
@@ -63,16 +68,21 @@ public final class JobScreen extends Screen {
         return JobCalc.parseRate(config.jobRate);
     }
 
-    /** Where the lists start: under the rate box and the dimension buttons. */
-    private int listTop;
+    private void change() {
+        onChange.run();
+        rebuildWidgets();
+    }
 
     @Override
     protected void init() {
-        int l = left() + 10;
-        int w = winW() - 20;
-        int y = 30;
+        chips.clear();
+        items = JobSource.items();
+        int l = left() + 12;
+        int w = winW() - 24;
+        int rx = l + colW() + 12;
 
-        EditBox rate = new EditBox(this.font, l + w - 110, y, 110, 18, Component.empty());
+        // Rate, the one thing typed.
+        EditBox rate = new EditBox(this.font, l + 92, 33, 96, 16, Component.empty());
         rate.setMaxLength(24);
         rate.setValue(config.jobRate == null ? "" : config.jobRate);
         Compat.filter(rate, s -> s.matches("[0-9A-Za-z.,/ ]*"), s -> {
@@ -81,29 +91,39 @@ public final class JobScreen extends Screen {
         });
         addRenderableWidget(rate);
 
-        List<String> worlds = JobSource.worlds();
-        if (world.isBlank() && !worlds.isEmpty()) {
+        chips.add(l + w - 86, 12, 86, 16, "Price lookup", "", false, false, () -> {
+            if (this.minecraft != null) {
+                Compat.setScreen(this.minecraft, new PriceScreen(this, config));
+            }
+        });
+
+        // Dimensions, as chips that wrap.
+        List<String> worlds = JobSource.worlds(items);
+        if ((world.isBlank() || !worlds.contains(world)) && !worlds.isEmpty()) {
             world = worlds.get(0);
         }
-        y += 26;
-        int per = Math.max(1, (w + GAP) / (74 + GAP));
-        int bw = (w - (per - 1) * GAP) / per;
-        for (int i = 0; i < worlds.size(); i++) {
-            String name = worlds.get(i);
-            String shown = name.equals(world) ? "> " + name : name;
-            addRenderableWidget(Button.builder(Component.literal(shown), b -> {
-                        world = name;
-                        page = 0;
-                        rebuildWidgets();
-                    })
-                    .bounds(l + (i % per) * (bw + GAP), y + (i / per) * (ROW + GAP), bw, ROW).build());
+        int x = l;
+        int y = 58;
+        for (String name : worlds) {
+            int cw = this.font.width(name) + 16;
+            if (x + cw > l + w) {
+                x = l;
+                y += ROW + 3;
+            }
+            chips.add(x, y, cw, ROW, name, "", name.equals(world), false, () -> {
+                world = name;
+                page = 0;
+                rebuildWidgets();
+            });
+            x += cw + 4;
         }
-        int rows = (worlds.size() + per - 1) / per;
-        listTop = y + rows * (ROW + GAP) + 14;
+        listTop = y + ROW + 20;
 
-        int bottom = this.height - 34;
-        int fit = Math.max(1, (bottom - listTop) / (ROW + 2));
-        List<Mine> mines = JobSource.mines(world);
+        int bottom = this.height - 38;
+
+        // Mines of this dimension.
+        List<JobSource.Item> mines = JobSource.in(items, world);
+        int fit = Math.max(1, (bottom - listTop) / STEP);
         int pages = Math.max(1, (mines.size() + fit - 1) / fit);
         page = Math.max(0, Math.min(page, pages - 1));
         for (int i = 0; i < fit; i++) {
@@ -111,87 +131,131 @@ public final class JobScreen extends Screen {
             if (at >= mines.size()) {
                 break;
             }
-            Mine m = mines.get(at);
-            OptionalLong mats = JobSource.view(m).total();
-            String text = m.name() + "  " + (mats.isPresent() ? JobCalc.mats(mats.getAsLong()) : "?");
-            addRenderableWidget(Button.builder(Component.literal(text), b -> {
+            JobSource.Item m = mines.get(at);
+            chips.add(l, listTop + i * STEP, colW(), ROW, m.name(),
+                    m.total().isPresent() ? JobCalc.mats(m.total().getAsLong()) : "?", false, false, () -> {
                         config.jobMines.add(m.name());
-                        onChange.run();
-                        rebuildWidgets();
-                    })
-                    .bounds(l, listTop + i * (ROW + 2), colW(), ROW).build());
+                        selected = m.name();
+                        change();
+                    });
         }
 
+        // The job, and the pieces of the mine picked in it.
         Map<String, Integer> counts = JobCalc.counts(config.jobMines);
+        if (!counts.containsKey(selected)) {
+            selected = counts.isEmpty() ? "" : counts.keySet().iterator().next();
+        }
+        Optional<JobSource.Item> pick = JobSource.find(items, selected);
+        int pieceRowsNeeded = pick.map(p -> (p.parts().size() + 1) / 2).orElse(0);
+        int jobRows = Math.max(1, (bottom - listTop - (pieceRowsNeeded > 0 ? pieceRowsNeeded * STEP + 16 : 0)) / STEP);
         int shown = 0;
         for (Map.Entry<String, Integer> e : counts.entrySet()) {
-            if (shown >= fit) {
+            if (shown >= jobRows) {
                 break;
             }
-            String mine = e.getKey();
-            OptionalLong each = JobSource.mine(mine).map(m -> JobSource.view(m).total()).orElse(OptionalLong.empty());
-            String text = (e.getValue() > 1 ? e.getValue() + "x " : "") + mine + "  "
-                    + (each.isPresent() ? JobCalc.mats((double) each.getAsLong() * e.getValue()) : "?");
-            addRenderableWidget(Button.builder(Component.literal(text), b -> {
-                        config.jobMines = new ArrayList<>(JobCalc.removeOne(config.jobMines, mine));
-                        onChange.run();
+            String name = e.getKey();
+            Optional<JobSource.Item> item = JobSource.find(items, name);
+            JobCalc.Entry entry = item.map(it -> JobCalc.entry(name, it.parts(), config.jobSkips, e.getValue()))
+                    .orElse(new JobCalc.Entry(name, 0L, e.getValue(), 1));
+            String label = (e.getValue() > 1 ? e.getValue() + "x " : "") + name;
+            chips.add(rx, listTop + shown * STEP, colW() - 22, ROW, label,
+                    JobCalc.mats((double) entry.mats() * entry.times()) + (entry.missing() > 0 ? "+" : ""),
+                    name.equalsIgnoreCase(selected), false, () -> {
+                        selected = name;
                         rebuildWidgets();
-                    })
-                    .bounds(l + colW() + 10, listTop + shown * (ROW + 2), colW(), ROW).build());
+                    });
+            chips.add(rx + colW() - 18, listTop + shown * STEP, 18, ROW, "-", "", false, false, () -> {
+                config.jobMines = new ArrayList<>(JobCalc.removeOne(config.jobMines, name));
+                change();
+            });
             shown++;
         }
+        pieceTop = listTop + Math.max(shown, 1) * STEP + 14;
+        if (pick.isPresent() && !counts.isEmpty()) {
+            List<JobCalc.Part> parts = pick.get().parts();
+            for (int i = 0; i < parts.size(); i++) {
+                JobCalc.Part p = parts.get(i);
+                String key = JobCalc.skipKey(selected, p.gear());
+                boolean off = config.jobSkips.contains(key);
+                int cw = (colW() - 4) / 2;
+                String name = p.gear().isEmpty() ? p.gear()
+                        : Character.toUpperCase(p.gear().charAt(0)) + p.gear().substring(1);
+                chips.add(rx + (i % 2) * (cw + 4), pieceTop + (i / 2) * STEP, cw, ROW, name,
+                        p.cost().isPresent() ? JobCalc.mats(p.cost().getAsLong()) : "?", false, off, () -> {
+                            List<String> skips = new ArrayList<>(config.jobSkips);
+                            if (!skips.remove(key)) {
+                                skips.add(key);
+                            }
+                            config.jobSkips = skips;
+                            change();
+                        });
+            }
+        }
 
-        int by = this.height - 28;
-        addRenderableWidget(Button.builder(Component.literal("<"), b -> {
-                    page--;
-                    rebuildWidgets();
-                }).bounds(l, by, 20, ROW).build()).active = page > 0;
-        addRenderableWidget(Button.builder(Component.literal(">"), b -> {
-                    page++;
-                    rebuildWidgets();
-                }).bounds(l + 24, by, 20, ROW).build()).active = page < pages - 1;
-        addRenderableWidget(Button.builder(Component.literal("Clear job"), b -> {
-                    config.jobMines = new ArrayList<>();
-                    onChange.run();
-                    rebuildWidgets();
-                }).bounds(l + colW() + 10, by, 70, ROW).build());
-        addRenderableWidget(Button.builder(Component.literal("Price lookup..."), b -> {
-                    if (this.minecraft != null) {
-                        Compat.setScreen(this.minecraft, new PriceScreen(this, config));
-                    }
-                }).bounds(l + colW() + 84, by, 90, ROW).build());
-        addRenderableWidget(Button.builder(Component.literal("Done"), b -> onClose())
-                .bounds(l + w - 50, by, 50, ROW).build());
+        int by = this.height - 30;
+        chips.add(l, by, 22, ROW, "<", "", false, page == 0, () -> {
+            if (page > 0) {
+                page--;
+                rebuildWidgets();
+            }
+        });
+        chips.add(l + 26, by, 22, ROW, ">", "", false, page >= pages - 1, () -> {
+            if (page < pages - 1) {
+                page++;
+                rebuildWidgets();
+            }
+        });
+        chips.add(rx, by, 70, ROW, "Clear job", "", false, false, () -> {
+            config.jobMines = new ArrayList<>();
+            config.jobSkips = new ArrayList<>();
+            selected = "";
+            change();
+        });
+        chips.add(l + w - 60, by, 60, ROW, "Done", "", false, false, this::onClose);
     }
 
     @Override
     public void extractRenderState(GuiGraphicsExtractor context, int mouseX, int mouseY, float delta) {
         int l = left();
-        Smooth.rect(context, l, 8, winW(), this.height - 16, 6f, 0xF0182221);
-        Smooth.ring(context, l, 8, winW(), this.height - 16, 6f, 1f, Smooth.alpha(accent(), 0.8f));
+        int a = accent();
+        Smooth.rect(context, l, 6, winW(), this.height - 12, 6f, 0xF0182221);
+        Smooth.ring(context, l, 6, winW(), this.height - 12, 6f, 1f, Smooth.alpha(a, 0.7f));
+        chips.paint(context, this.font, mouseX, mouseY, a);
         super.extractRenderState(context, mouseX, mouseY, delta);
 
-        int x = l + 10;
-        context.text(this.font, this.title.getString(), x, 15, accent(), false);
-        context.text(this.font, "Rate (mats per credit)", x, 35, 0xFFCCCCCC, false);
+        int x = l + 12;
+        int rx = x + colW() + 12;
+        context.text(this.font, this.title.getString(), x, 16, a, false);
+        context.text(this.font, "Rate (mats / credit)", x, 37, Chips.MUTED, false);
         OptionalDouble r = rate();
-        String parsed = r.isPresent() ? "= " + JobCalc.mats(r.getAsDouble()) + " per credit" : "type e.g. 1B or 1.25B/1c";
-        context.text(this.font, parsed, x + 110, 35, r.isPresent() ? 0xFF66CC66 : 0xFFE08080, false);
+        String parsed = r.isPresent() ? "= " + JobCalc.mats(r.getAsDouble()) + " per credit" : "try 1B or 1.25B/1c";
+        context.text(this.font, parsed, x + 198, 37, r.isPresent() ? 0xFF66CC66 : 0xFFE08080, false);
 
-        context.text(this.font, world.isBlank() ? "No mines found" : world + " - click a mine to add it",
-                x, listTop - 11, 0xFFAAAAAA, false);
-        context.text(this.font, "Your job - click to remove one", x + colW() + 10, listTop - 11, 0xFFAAAAAA, false);
+        context.text(this.font, world.isBlank() ? "NO MINES FOUND" : world.toUpperCase(Locale.ROOT) + " - CLICK TO ADD",
+                x, listTop - 12, Chips.MUTED, false);
+        context.text(this.font, "YOUR JOB", rx, listTop - 12, Chips.MUTED, false);
+        if (!selected.isBlank() && !config.jobMines.isEmpty()) {
+            context.text(this.font, selected.toUpperCase(Locale.ROOT) + " - CLICK A PIECE TO LEAVE IT OUT", rx,
+                    pieceTop - 12, Chips.MUTED, false);
+        } else if (config.jobMines.isEmpty()) {
+            context.text(this.font, "Nothing added yet", rx, listTop + 4, Chips.OFF, false);
+        }
 
         List<JobCalc.Entry> entries = new ArrayList<>();
-        for (String name : config.jobMines) {
-            entries.add(new JobCalc.Entry(name,
-                    JobSource.mine(name).map(m -> JobSource.view(m).total()).orElse(OptionalLong.empty())));
+        for (Map.Entry<String, Integer> e : JobCalc.counts(config.jobMines).entrySet()) {
+            String name = e.getKey();
+            entries.add(JobSource.find(items, name).map(it -> JobCalc.entry(name, it.parts(), config.jobSkips, e.getValue()))
+                    .orElse(new JobCalc.Entry(name, 0L, e.getValue(), 1)));
         }
         JobCalc.Total t = JobCalc.total(entries, r);
-        String sum = config.jobMines.isEmpty() ? "Nothing added yet"
-                : "Total " + JobCalc.mats(t.mats()) + " mats = " + JobCalc.credits(t.credits())
-                + (t.unknown() > 0 ? "  (" + t.unknown() + " unpriced)" : "");
-        context.text(this.font, sum, x + colW() + 10, this.height - 42, 0xFFFFFFFF, false);
+        if (!config.jobMines.isEmpty()) {
+            String sum = JobCalc.mats(t.mats()) + " mats  =  " + JobCalc.credits(t.credits());
+            context.text(this.font, sum, rx + colW() - this.font.width(sum), this.height - 44, 0xFFFFFFFF, false);
+            if (t.unknown() > 0) {
+                context.text(this.font, t.unknown() + " mine(s) have unpriced pieces - open their shop", rx,
+                        this.height - 54, 0xFFE0B060, false);
+            }
+        }
     }
 
     @Override

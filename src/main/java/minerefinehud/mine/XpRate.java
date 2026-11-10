@@ -135,8 +135,8 @@ public final class XpRate {
 
     /**
      * EXP per hour from what came in the last {@code windowMs} up to {@code now}, over that time:
-     * falls by itself when mining stops. Same rule as {@link MiningRate#perHourOver}; NaN until
-     * two lines have come, 0 once nothing came for a whole window.
+     * stops where it was {@link MiningRate#PAUSE_MS} after the last block. Same rule as
+     * {@link MiningRate#perHourOver}; NaN until two lines have come.
      */
     public double perHourOver(long windowMs, long now) {
         if (blocks.isEmpty()) {

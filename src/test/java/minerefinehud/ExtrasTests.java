@@ -287,12 +287,18 @@ public final class ExtrasTests {
                 r.perHourOver("Shale", 600_000L, t));
         yes("another mine: none", Double.isNaN(r.perHourOver("Amber", 60_000L, t)));
 
-        // Mining stops: the 30 s rate falls, and is 0 once a whole window has passed with nothing.
-        double half = r.perHourOver("Shale", 30_000L, t + 15_000L);
-        eq("15 s of nothing in a 30 s window halves it", 300.0 * 3_600.0 * 15.0 / 30.0, half);
-        eq("a whole window of nothing is 0", 0.0, r.perHourOver("Shale", 30_000L, t + 30_000L));
-        eq("the 1 min rate is still there after 30 s", 300.0 * 30.0 * 3_600.0 / 60.0,
-                r.perHourOver("Shale", 60_000L, t + 30_000L));
+        // Mining stops: it eases for 4 seconds, then holds where it was.
+        double at4 = 26 * 300.0 * 3_600.0 / 30.0;
+        eq("4 s after the last block", at4, r.perHourOver("Shale", 30_000L, t + 4_000L));
+        eq("then it holds, 15 s later", at4, r.perHourOver("Shale", 30_000L, t + 15_000L));
+        eq("and for a whole window and more", at4, r.perHourOver("Shale", 30_000L, t + 120_000L));
+        eq("the 1 min rate holds too", 56 * 300.0 * 3_600.0 / 60.0, r.perHourOver("Shale", 60_000L, t + 90_000L));
+        // Mining again moves it on from the real time.
+        r.observe("Shale", balance, t + 40_000L);
+        balance += 300.0;
+        r.observe("Shale", balance, t + 41_000L);
+        eq("a new block after the pause moves it on", 300.0 * 3_600.0 / 30.0,
+                r.perHourOver("Shale", 30_000L, t + 41_000L));
 
         XpRate e = new XpRate();
         long u = 1_000_000L;
@@ -302,9 +308,10 @@ public final class ExtrasTests {
         }
         long end = u + 120_000L;
         yes("xp window: 1000 a second is 3.6m an hour", Math.abs(e.perHourOver(60_000L, end) - 3_600_000.0) < 1.0);
-        yes("xp window: halves after 60 s of nothing in a 2 min window",
-                Math.abs(e.perHourOver(120_000L, end + 60_000L) - 3_600_000.0 * 60.0 / 120.0) < 1.0);
-        eq("xp window: 0 after a whole window", 0.0, e.perHourOver(30_000L, end + 30_000L));
+        yes("xp window: holds after the pause",
+                Math.abs(e.perHourOver(120_000L, end + 600_000L) - 116_000.0 * 3_600.0 / 120.0) < 1.0);
+        eq("xp window: the same a minute later", e.perHourOver(30_000L, end + 4_000L),
+                e.perHourOver(30_000L, end + 60_000L));
         XpRate longRun = new XpRate();
         for (int i = 0; i < 4_000; i++) {
             longRun.observe(10, i, u + i * 1_000L);

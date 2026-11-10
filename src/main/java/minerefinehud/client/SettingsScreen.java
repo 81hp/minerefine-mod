@@ -453,7 +453,7 @@ public final class SettingsScreen extends Screen {
                 v -> v == 0 ? "off" : v < 60 ? v + " sec" : v / 60 + " min");
         window.setTooltip(Tooltip.create(Component.literal("Mats and EXP per hour from what you got in the "
                 + "last 30 seconds, 1, 2, 5 or 10 minutes, over that time, so one lucky Fortune roll does not "
-                + "swing it and the number falls when you stop mining. Off uses \"Rate from\".")));
+                + "swing it. A few seconds after you stop mining it holds, so you can read it. Off uses \"Rate from\".")));
 
         Button stats = toggleAt(x(0), y(2), "Stats panel", () -> config.showStats, v -> config.showStats = v);
         stats.setTooltip(Tooltip.create(Component.literal("Your stats from /stats: Fortune, Luck and the rest. "

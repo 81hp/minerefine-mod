@@ -43,6 +43,11 @@ public final class MiningRate {
     /** The usual block is the median of this many latest ones. */
     private static final int OUTLIER_OVER = 20;
 
+    /**
+     * No block for this long and the windowed rate stops where it is, so it can be read after
+     * mining and does not run down to 0.
+     */
+    public static final long PAUSE_MS = 4_000L;
     /** Longest time window a rate can be asked over, in milliseconds. */
     public static final long MAX_WINDOW_MS = 10L * 60_000L;
     /** Most blocks kept, even for the longest window. */
@@ -174,10 +179,10 @@ public final class MiningRate {
 
     /**
      * Per hour from everything {@code mine} brought in the last {@code windowMs} up to {@code now},
-     * over that time: so it falls by itself when mining stops, and a walk to the shop inside the
-     * window counts against it. Until the window has filled (a minute after the first block, for a
-     * minute-long window) it is over the time since the first block, so the first figure is as
-     * right as a block-by-block one. NaN before the first block; 0 once nothing came for a whole window.
+     * over that time: a walk to the shop inside the window counts against it. Until the window has
+     * filled it is over the time since the first block, so the first figure is as right as a
+     * block-by-block one. Once {@link #PAUSE_MS} has passed with no block the figure stops where it
+     * is, for the player to read after mining; mining again moves it on. NaN before the first block.
      */
     public double perHourOver(String mine, long windowMs, long now) {
         if (!key(mine).equals(currency) || blocks.isEmpty()) {
@@ -189,6 +194,8 @@ public final class MiningRate {
     /** Shared by {@link XpRate}: the wall-clock rate of the blocks in the window ending at {@code now}. */
     static double windowRate(Deque<? extends WindowBlock> blocks, long windowMs, long now) {
         long window = Math.max(1L, Math.min(MAX_WINDOW_MS, windowMs));
+        // Not mining for a few seconds: the figure stops where it stood then.
+        now = Math.min(now, blocks.peekLast().at() + PAUSE_MS);
         long from = now - window;
         double gain = 0.0;
         var it = blocks.descendingIterator();

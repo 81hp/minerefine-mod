@@ -42,6 +42,10 @@ final class ExtrasClient {
     private final minerefinehud.mine.XpRate xpRate = new minerefinehud.mine.XpRate();
     private final RareDrops.Counter drops;
     private final StatsPoller statsPoller;
+    private final ProfilePoller profilePoller;
+    private final minerefinehud.mine.ExpTotal profileExp = new minerefinehud.mine.ExpTotal();
+    /** The profile rate as it stood when mining stopped, so it can be read after. */
+    private double profileRateHeld = Double.NaN;
 
     ExtrasClient(ModConfig config, Runnable save, BooleanSupplier onMineRefine, BooleanSupplier seenMineRefine,
                  Runnable ping) {
@@ -52,11 +56,15 @@ final class ExtrasClient {
         this.drops = new RareDrops.Counter(config.dropData);
         this.statsPoller = new StatsPoller(config, save, onMineRefine, this::readStats);
         this.outpostPoller = new OutpostPoller(config, save, onMineRefine, this::readOutposts);
+        this.profilePoller = new ProfilePoller(config, save, onMineRefine,
+                () -> miningRate.mining(System.currentTimeMillis()) || xpRate.mining(System.currentTimeMillis()),
+                this::readProfile);
     }
 
     void register() {
         statsPoller.register();
         outpostPoller.register();
+        profilePoller.register();
         ClientTickEvents.END_CLIENT_TICK.register(client -> {
             long now = System.currentTimeMillis();
             miningRate.tick(now);
@@ -69,6 +77,7 @@ final class ExtrasClient {
             if (client != null && client.player != null) {
                 statsPoller.tick(client, now);
                 outpostPoller.tick(client, now);
+                profilePoller.tick(client, now);
                 if (config.showBeacon && beacon.warnNow(now, config.beaconWarnSeconds * 1000L)) {
                     ping.run();
                 }
@@ -89,6 +98,7 @@ final class ExtrasClient {
     void onJoin() {
         statsPoller.onJoin();
         outpostPoller.onJoin();
+        profilePoller.onJoin();
         outpostPings.clear();
         beacon.clear();
     }
@@ -212,9 +222,24 @@ final class ExtrasClient {
         if (config.showOutposts) {
             readOutposts(items, now);
         }
+        if (config.showXp && config.xpFromProfile) {
+            readProfile(items, now);
+        }
         if (readStats(items, now)) {
             statsPoller.learnTitle(title);
         }
+    }
+
+    /** The total EXP on the head in a /profile menu; true if it was there. */
+    boolean readProfile(List<ShopItemParser.ItemView> items, long now) {
+        for (ShopItemParser.ItemView item : items) {
+            var total = minerefinehud.mine.ExpTotal.parse(item.lore());
+            if (total.isPresent()) {
+                profileExp.observe(total.getAsLong(), now);
+                return true;
+            }
+        }
+        return false;
     }
 
     // ----------------------------------------------------------- panels
@@ -225,8 +250,9 @@ final class ExtrasClient {
         }
         String mine = miningRate.mine();
         double perHour = minePerHour(mine);
-        ExtrasHud.Xp xp = config.showXp && xpRate.any()
-                ? new ExtrasHud.Xp(xpPerHour(), xpRate.session()) : null;
+        boolean fromProfile = fromProfile();
+        ExtrasHud.Xp xp = config.showXp && (fromProfile || xpRate.any())
+                ? new ExtrasHud.Xp(xpPerHour(), fromProfile ? profileExp.session() : xpRate.session()) : null;
         return ExtrasHud.miningPanel(new ExtrasHud.Mining(mine, balance, perHour, miningRate.session(mine),
                 miningRate.miningMs(), ExtrasHud.etas(progress, mine, perHour)), xp);
     }
@@ -243,12 +269,32 @@ final class ExtrasClient {
                         : miningRate.perHour(mine, config.mineRateBlocks));
     }
 
+    /** Whether EXP is measured from /profile: chosen, and read at least once. */
+    private boolean fromProfile() {
+        return config.xpFromProfile && profileExp.any();
+    }
+
     private double xpPerHour() {
         long now = System.currentTimeMillis();
-        return heldXp.get(now, config.mineRateSeconds + "|" + config.mineRateBlocks,
-                () -> config.mineRateSeconds > 0
-                        ? xpRate.perHourOver(config.mineRateSeconds * 1000L, now)
-                        : xpRate.perHour(config.mineRateBlocks));
+        return heldXp.get(now, config.mineRateSeconds + "|" + config.mineRateBlocks + "|" + fromProfile(),
+                () -> {
+                    if (fromProfile()) {
+                        boolean mining = miningRate.mining(now) || xpRate.mining(now);
+                        boolean fresh = !profileExp.stale(now);
+                        // Only measured while mining; once it stops the figure stays where it was to be read.
+                        if (mining && fresh) {
+                            profileRateHeld = profileExp.perHourOver(
+                                    config.mineRateSeconds > 0 ? config.mineRateSeconds * 1000L : 60_000L);
+                        }
+                        // Mining but no recent reading (the check is held back): the action bar steps in.
+                        if (!Double.isNaN(profileRateHeld) && (fresh || !mining)) {
+                            return profileRateHeld;
+                        }
+                    }
+                    return config.mineRateSeconds > 0
+                            ? xpRate.perHourOver(config.mineRateSeconds * 1000L, now)
+                            : xpRate.perHour(config.mineRateBlocks);
+                });
     }
 
     /** The mine being measured, to look its balance up. */
@@ -303,6 +349,8 @@ final class ExtrasClient {
     void resetMiningRate() {
         miningRate.reset();
         xpRate.reset();
+        profileExp.reset();
+        profileRateHeld = Double.NaN;
         heldMine.reset();
         heldXp.reset();
     }
@@ -328,6 +376,15 @@ final class ExtrasClient {
         out.add("exp rate: " + (xpRate.any() ? Math.round(xpPerHour()) + "/h, +"
                 + Math.round(xpRate.session()) + " this session, mining "
                 + (xpRate.mining(now) ? "now" : "stopped") : "no EXP line read yet"));
+        String profile = "off";
+        if (config.xpFromProfile) {
+            profile = profileExp.total().isPresent()
+                    ? "total " + profileExp.total().getAsLong() + ", " + Math.round(profileExp.perHourOver(60_000L))
+                            + "/h over 1 min, +" + Math.round(profileExp.session()) + " this session, auto "
+                            + profilePoller.describe()
+                    : "no reading yet, auto " + profilePoller.describe();
+        }
+        out.add("exp from /profile: " + profile);
         out.add("stats: " + config.statsData.stats.size() + " read "
                 + (config.statsData.readAt > 0 ? ExtrasHud.ago(now - config.statsData.readAt) : "never")
                 + ", auto " + statsPoller.describe() + ", title \"" + config.statsTitle + "\"");

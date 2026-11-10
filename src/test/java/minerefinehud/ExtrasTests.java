@@ -5,6 +5,7 @@ import minerefinehud.drops.RareDrops;
 import minerefinehud.hud.ExtrasHud;
 import minerefinehud.hud.HudModel;
 import minerefinehud.job.JobCalc;
+import minerefinehud.mine.ExpTotal;
 import minerefinehud.mine.HeldRate;
 import minerefinehud.mine.MiningRate;
 import minerefinehud.mine.XpRate;
@@ -36,6 +37,7 @@ public final class ExtrasTests {
         vaultIsNotMining();
         rateOverWindow();
         heldRate();
+        expTotal();
         panels();
         beacon();
         outposts();
@@ -338,6 +340,54 @@ public final class ExtrasTests {
         h.reset();
         live[0] = 7.0;
         eq("held: reset", 7.0, h.get(1_001L, "b", () -> live[0]));
+    }
+
+    /** EXP per hour from the total in /profile. */
+    private static void expTotal() {
+        eq("profile: the head's lore", 653_952_884L,
+                ExpTotal.parse(List.of("", "REBIRTH 3", "2,707,799/3,500,000 EXP (77.87%)", "FREE: EMERALD",
+                        "TOTAL EXP: \u2726 653,952,884")).orElse(-1));
+        eq("profile: colour codes", 1_200L, ExpTotal.parse(List.of("§bTOTAL EXP: §f1,200")).orElse(-1));
+        yes("profile: the level line is not the total",
+                ExpTotal.parse(List.of("2,707,799/3,500,000 EXP (77.87%)")).isEmpty());
+        yes("profile: nothing", ExpTotal.parse(List.of()).isEmpty() && ExpTotal.parse(null).isEmpty());
+
+        ExpTotal e = new ExpTotal();
+        long t = 1_000_000L;
+        yes("profile: no reading, no rate", Double.isNaN(e.perHourOver(60_000L)) && !e.any());
+        e.observe(1_000_000L, t);
+        yes("profile: one reading gives no rate", Double.isNaN(e.perHourOver(60_000L)));
+        eq("profile: the first reading is a baseline", 0.0, e.session());
+        // +500,000 per 30 s: 60m an hour.
+        for (int i = 1; i <= 10; i++) {
+            e.observe(1_000_000L + 500_000L * i, t + 30_000L * i);
+        }
+        eq("profile: rate over 30 s", 60_000_000.0, e.perHourOver(30_000L));
+        eq("profile: rate over 5 min", 60_000_000.0, e.perHourOver(300_000L));
+        eq("profile: session", 5_000_000.0, e.session());
+        // Faster for the last 30 s.
+        e.observe(1_000_000L + 5_000_000L + 1_500_000L, t + 330_000L);
+        eq("profile: the last 30 s alone", 180_000_000.0, e.perHourOver(30_000L));
+        yes("profile: 1 min mixes", Math.abs(e.perHourOver(60_000L) - 120_000_000.0) < 1.0);
+        yes("profile: fresh readings are not stale", !e.stale(t + 340_000L));
+        yes("profile: old readings are stale", e.stale(t + 330_000L + ExpTotal.MAX_GAP_MS + 1L));
+
+        // A long gap: what came in meanwhile is not counted, and the rate starts again.
+        double before = e.session();
+        long later = t + 330_000L + 600_000L;
+        e.observe(900_000_000L, later);
+        eq("profile: a gap counts nothing", before, e.session());
+        yes("profile: and gives no rate yet", Double.isNaN(e.perHourOver(60_000L)));
+        e.observe(900_000_000L + 100_000L, later + 30_000L);
+        eq("profile: then counts again", before + 100_000L, e.session());
+        eq("profile: at the new rate", 12_000_000.0, e.perHourOver(60_000L));
+        // The total falls (a rebirth): start again, never a negative rate.
+        e.observe(5_000L, later + 60_000L);
+        eq("profile: a fall counts nothing", before + 100_000L, e.session());
+        e.observe(5_000L + 10_000L, later + 90_000L);
+        eq("profile: counts from the new total", before + 110_000L, e.session());
+        e.reset();
+        yes("profile: reset", !e.any() && e.session() == 0.0 && Double.isNaN(e.perHourOver(60_000L)));
     }
 
     /** A user took Rosewood out of their vault: 174,318b/h and +15,041b in the session. */

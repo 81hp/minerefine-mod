@@ -443,11 +443,14 @@ public final class SettingsScreen extends Screen {
         cycle(1, 0, "Rate from", () -> config.mineRateBlocks, v -> config.mineRateBlocks = v,
                 new int[] { 1, 3, 5, 10, 20, 50 }, v -> v == 1 ? "last block" : "last " + v + " blocks");
 
-        Button xp = toggleAt(x(0), y(1), "EXP per hour",
-                () -> config.showXp, v -> config.showXp = v);
+        Button xp = cycle(0, 1, "EXP from", () -> !config.showXp ? 0 : config.xpFromProfile ? 2 : 1, v -> {
+                    config.showXp = v > 0;
+                    config.xpFromProfile = v == 2;
+                }, new int[] { 0, 1, 2 }, v -> v == 0 ? "off" : v == 1 ? "action bar" : "/profile");
         xp.setTooltip(Tooltip.create(Component.literal("Adds a row with the EXP you get per hour while mining, "
-                + "and what you earned this session, to the Mining panel. Read from the +EXP on the action bar, "
-                + "measured the same way as Mining per hour.")));
+                + "and what you earned this session, to the Mining panel. \"action bar\" reads the +EXP "
+                + "on the action bar. \"/profile\" runs /profile every 30 seconds while you mine, without "
+                + "opening it, and measures how much your total EXP rose: exact, but it sends a command.")));
         Button window = cycle(1, 1, "Rate over", () -> config.mineRateSeconds, v -> config.mineRateSeconds = v,
                 new int[] { 0, 30, 60, 120, 300, 600 },
                 v -> v == 0 ? "off" : v < 60 ? v + " sec" : v / 60 + " min");

@@ -495,6 +495,12 @@ public final class ModConfig {
      */
     public int mineRateSeconds = 0;
 
+    /**
+     * EXP per hour from the total in /profile (read every 30 seconds while mining) instead of the
+     * action bar's +EXP. Off until chosen, since it sends a command.
+     */
+    public boolean xpFromProfile = false;
+
     /** The player's stats, read from /stats. */
     public boolean showStats = false;
     /** Runs /stats by itself every so often while the panel is on, and reads it unseen. */

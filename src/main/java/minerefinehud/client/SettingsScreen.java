@@ -440,24 +440,20 @@ public final class SettingsScreen extends Screen {
         mining.setTooltip(Tooltip.create(Component.literal("A panel with what you mine per hour, worked out "
                 + "from what each block adds to the balance on the action bar and how long it took, what you "
                 + "mined this session, and how long until each progress bar paid in that resource fills.")));
-        // One button for both ways of measuring: the last blocks, or the last minutes (1, 2, 5, 10).
-        // Minutes are listed as 1000 + the minutes, so one number says which it is.
-        cycle(1, 0, "Rate from",
-                () -> config.mineRateMinutes > 0 ? 1000 + config.mineRateMinutes : config.mineRateBlocks,
-                v -> {
-                    config.mineRateMinutes = v > 1000 ? v - 1000 : 0;
-                    if (v <= 1000) {
-                        config.mineRateBlocks = v;
-                    }
-                },
-                new int[] { 1, 3, 5, 10, 20, 50, 1001, 1002, 1005, 1010 },
-                v -> v > 1000 ? "last " + (v - 1000) + " min" : v == 1 ? "last block" : "last " + v + " blocks");
+        cycle(1, 0, "Rate from", () -> config.mineRateBlocks, v -> config.mineRateBlocks = v,
+                new int[] { 1, 3, 5, 10, 20, 50 }, v -> v == 1 ? "last block" : "last " + v + " blocks");
 
-        Button xp = toggleAt(x(0), y(1), COLUMN_WIDTH * 2 + 10, "EXP per hour in the Mining panel",
+        Button xp = toggleAt(x(0), y(1), "EXP per hour",
                 () -> config.showXp, v -> config.showXp = v);
         xp.setTooltip(Tooltip.create(Component.literal("Adds a row with the EXP you get per hour while mining, "
                 + "and what you earned this session, to the Mining panel. Read from the +EXP on the action bar, "
-                + "averaged over the same blocks or minutes as Mining per hour.")));
+                + "measured the same way as Mining per hour.")));
+        Button window = cycle(1, 1, "Rate over", () -> config.mineRateSeconds, v -> config.mineRateSeconds = v,
+                new int[] { 0, 30, 60, 120, 300, 600 },
+                v -> v == 0 ? "off" : v < 60 ? v + " sec" : v / 60 + " min");
+        window.setTooltip(Tooltip.create(Component.literal("Mats and EXP per hour from what you got in the "
+                + "last 30 seconds, 1, 2, 5 or 10 minutes, over that time, so one lucky Fortune roll does not "
+                + "swing it and the number falls when you stop mining. Off uses \"Rate from\".")));
 
         Button stats = toggleAt(x(0), y(2), "Stats panel", () -> config.showStats, v -> config.showStats = v);
         stats.setTooltip(Tooltip.create(Component.literal("Your stats from /stats: Fortune, Luck and the rest. "
@@ -1330,9 +1326,9 @@ public final class SettingsScreen extends Screen {
                 .bounds(x, y, width, 20).build());
     }
 
-    private void cycle(int column, int row, String label, IntSupplier get, IntConsumer set,
+    private Button cycle(int column, int row, String label, IntSupplier get, IntConsumer set,
                        int[] values, IntFunction<String> show) {
-        addRenderableWidget(Button.builder(Component.literal(label + ": " + show.apply(get.getAsInt())), b -> {
+        return addRenderableWidget(Button.builder(Component.literal(label + ": " + show.apply(get.getAsInt())), b -> {
                     set.accept(next(values, get.getAsInt()));
                     b.setMessage(Component.literal(label + ": " + show.apply(get.getAsInt())));
                     onChange.run();

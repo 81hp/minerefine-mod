@@ -33,7 +33,7 @@ public final class ExtrasTests {
         statsUpdates();
         miningRate();
         vaultIsNotMining();
-        rateOverMinutes();
+        rateOverWindow();
         panels();
         beacon();
         outposts();
@@ -261,41 +261,54 @@ public final class ExtrasTests {
         eq("reset", 0.0, fresh.session("Shale"));
     }
 
-    /** The rate over the last 1, 2, 5 or 10 minutes instead of the last blocks. */
-    private static void rateOverMinutes() {
+    /** The rate over the last 30 seconds, 1, 2, 5 or 10 minutes: wall clock, falls when mining stops. */
+    private static void rateOverWindow() {
         MiningRate r = new MiningRate();
         long t = 0L;
         double balance = 0.0;
         r.observe("Shale", balance, t);
+        yes("window: no block, no rate", Double.isNaN(r.perHourOver("Shale", 30_000L, t)));
         // 3 minutes at +100 a second, then 3 minutes at +300 a second, one block a second.
         for (int i = 1; i <= 360; i++) {
             t += 1_000L;
             r.tick(t);
             balance += 100.0 * (i <= 180 ? 1 : 3);
             r.observe("Shale", balance, t);
+            if (i == 1) {
+                eq("window: right after the first block", 360_000.0, r.perHourOver("Shale", 30_000L, t));
+            }
         }
-        yes("minutes: there is a rate", !Double.isNaN(r.perHourOver("Shale", 60_000L)));
-        eq("1 min: only the last minute", 300.0 * 3_600.0, r.perHourOver("Shale", 60_000L));
-        eq("2 min: still only the fast part", 300.0 * 3_600.0, r.perHourOver("Shale", 120_000L));
-        // 5 min back from the last block: 2 min slow of the last 5 -> the fast 180 blocks + 120 slow ones.
-        eq("5 min mixes both", (180 * 300.0 + 120 * 100.0) * 3_600.0 / 300.0, r.perHourOver("Shale", 300_000L));
-        eq("10 min before it has filled is what there is", (180 * 300.0 + 180 * 100.0) * 3_600.0 / 360.0,
-                r.perHourOver("Shale", 600_000L));
-        yes("another mine: none", Double.isNaN(r.perHourOver("Amber", 60_000L)));
+        eq("30 s: only the fast part", 300.0 * 3_600.0, r.perHourOver("Shale", 30_000L, t));
+        eq("1 min", 300.0 * 3_600.0, r.perHourOver("Shale", 60_000L, t));
+        eq("5 min mixes both", (180 * 300.0 + 120 * 100.0) * 3_600.0 / 300.0, r.perHourOver("Shale", 300_000L, t));
+        eq("10 min before it has filled is over what there is", (180 * 300.0 + 180 * 100.0) * 3_600.0 / 360.0,
+                r.perHourOver("Shale", 600_000L, t));
+        yes("another mine: none", Double.isNaN(r.perHourOver("Amber", 60_000L, t)));
+
+        // Mining stops: the 30 s rate falls, and is 0 once a whole window has passed with nothing.
+        double half = r.perHourOver("Shale", 30_000L, t + 15_000L);
+        eq("15 s of nothing in a 30 s window halves it", 300.0 * 3_600.0 * 15.0 / 30.0, half);
+        eq("a whole window of nothing is 0", 0.0, r.perHourOver("Shale", 30_000L, t + 30_000L));
+        eq("the 1 min rate is still there after 30 s", 300.0 * 30.0 * 3_600.0 / 60.0,
+                r.perHourOver("Shale", 60_000L, t + 30_000L));
 
         XpRate e = new XpRate();
         long u = 1_000_000L;
+        yes("xp window: no blocks, no rate", Double.isNaN(e.perHourOver(60_000L, u)));
         for (int i = 0; i <= 120; i++) {
             e.observe(1_000, i, u + i * 1_000L);
         }
-        yes("xp minutes: 1000 a second is 3.6m an hour", Math.abs(e.perHourOver(60_000L) - 3_600_000.0) < 1.0);
-        yes("xp minutes: no blocks, no rate", Double.isNaN(new XpRate().perHourOver(60_000L)));
-        // Old blocks beyond the longest window are dropped, but a long session stays bounded.
+        long end = u + 120_000L;
+        yes("xp window: 1000 a second is 3.6m an hour", Math.abs(e.perHourOver(60_000L, end) - 3_600_000.0) < 1.0);
+        yes("xp window: halves after 60 s of nothing in a 2 min window",
+                Math.abs(e.perHourOver(120_000L, end + 60_000L) - 3_600_000.0 * 60.0 / 120.0) < 1.0);
+        eq("xp window: 0 after a whole window", 0.0, e.perHourOver(30_000L, end + 30_000L));
         XpRate longRun = new XpRate();
         for (int i = 0; i < 4_000; i++) {
             longRun.observe(10, i, u + i * 1_000L);
         }
-        yes("xp minutes: still right after a long session", Math.abs(longRun.perHourOver(600_000L) - 36_000.0) < 1.0);
+        yes("xp window: right after a long session",
+                Math.abs(longRun.perHourOver(600_000L, u + 3_999_000L) - 36_000.0) < 1.0);
     }
 
     /** A user took Rosewood out of their vault: 174,318b/h and +15,041b in the session. */

@@ -36,7 +36,7 @@ public final class XpRate {
     public static final long MAX_WINDOW_MS = MiningRate.MAX_WINDOW_MS;
     private static final int KEEP_BLOCKS = 5_000;
 
-    private record Block(double gain, long tookMs, long at) {}
+    private record Block(double gain, long tookMs, long at) implements MiningRate.WindowBlock {}
 
     private final Deque<Block> blocks = new ArrayDeque<>();
     private String lastKey = "";
@@ -134,26 +134,15 @@ public final class XpRate {
     }
 
     /**
-     * EXP per hour over the blocks of the last {@code windowMs}, counted back from the latest block,
-     * NaN until two lines have come. Same rule as {@link MiningRate#perHourOver}.
+     * EXP per hour from what came in the last {@code windowMs} up to {@code now}, over that time:
+     * falls by itself when mining stops. Same rule as {@link MiningRate#perHourOver}; NaN until
+     * two lines have come, 0 once nothing came for a whole window.
      */
-    public double perHourOver(long windowMs) {
+    public double perHourOver(long windowMs, long now) {
         if (blocks.isEmpty()) {
             return Double.NaN;
         }
-        long from = blocks.peekLast().at() - Math.max(1L, Math.min(MAX_WINDOW_MS, windowMs));
-        double gained = 0.0;
-        long ms = 0L;
-        var it = blocks.descendingIterator();
-        while (it.hasNext()) {
-            Block b = it.next();
-            if (b.at() <= from) {
-                break;
-            }
-            gained += b.gain();
-            ms += b.tookMs();
-        }
-        return ms <= 0L ? Double.NaN : gained / ms * 3_600_000.0;
+        return MiningRate.windowRate(blocks, windowMs, now);
     }
 
     /** EXP counted since joining or the last reset. */

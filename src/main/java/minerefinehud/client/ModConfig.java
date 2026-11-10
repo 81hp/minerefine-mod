@@ -489,8 +489,11 @@ public final class ModConfig {
     public boolean showMiningRate = false;
     /** The rate is what the last this many blocks brought, over the time they took; 1 is the last block alone. */
     public int mineRateBlocks = 10;
-    /** 1, 2, 5 or 10: the rate is what the last this many minutes brought instead; 0 uses the blocks above. */
-    public int mineRateMinutes = 0;
+    /**
+     * 30, 60, 120, 300 or 600: the rate is what came in the last this many seconds, over those
+     * seconds, so it falls when mining stops; 0 uses the blocks above.
+     */
+    public int mineRateSeconds = 0;
 
     /** The player's stats, read from /stats. */
     public boolean showStats = false;
@@ -885,8 +888,9 @@ public final class ModConfig {
         bossReminderVolume = Math.max(0, Math.min(100, bossReminderVolume));
 
         mineRateBlocks = Math.max(1, Math.min(minerefinehud.mine.MiningRate.MAX_BLOCKS, mineRateBlocks));
-        if (mineRateMinutes != 1 && mineRateMinutes != 2 && mineRateMinutes != 5 && mineRateMinutes != 10) {
-            mineRateMinutes = 0;
+        if (mineRateSeconds != 30 && mineRateSeconds != 60 && mineRateSeconds != 120
+                && mineRateSeconds != 300 && mineRateSeconds != 600) {
+            mineRateSeconds = 0;
         }
         statsEveryMs = Math.max(StatsPoller.MIN_INTERVAL_MS, statsEveryMs);
         if (statsTitle == null) {

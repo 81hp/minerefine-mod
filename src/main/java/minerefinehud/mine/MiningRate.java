@@ -48,7 +48,7 @@ public final class MiningRate {
     /** Most blocks kept, even for the longest window. */
     private static final int KEEP_BLOCKS = 5_000;
 
-    private record Block(double gain, long tookMs, long at) {}
+    private record Block(double gain, long tookMs, long at) implements WindowBlock {}
 
     private final Deque<Block> blocks = new ArrayDeque<>();
     private final Map<String, Double> session = new HashMap<>();
@@ -173,28 +173,44 @@ public final class MiningRate {
     }
 
     /**
-     * Per hour from the blocks of the last {@code windowMs} of {@code mine}, or NaN before the first
-     * block. The window counts back from the latest block, so the figure stays put when mining
-     * stops, and it is what those blocks brought over the time they took, so a break inside the
-     * window does not drag it down. Before the window has filled it is what there is so far.
+     * Per hour from everything {@code mine} brought in the last {@code windowMs} up to {@code now},
+     * over that time: so it falls by itself when mining stops, and a walk to the shop inside the
+     * window counts against it. Until the window has filled (a minute after the first block, for a
+     * minute-long window) it is over the time since the first block, so the first figure is as
+     * right as a block-by-block one. NaN before the first block; 0 once nothing came for a whole window.
      */
-    public double perHourOver(String mine, long windowMs) {
+    public double perHourOver(String mine, long windowMs, long now) {
         if (!key(mine).equals(currency) || blocks.isEmpty()) {
             return Double.NaN;
         }
-        long from = blocks.peekLast().at() - Math.max(1L, Math.min(MAX_WINDOW_MS, windowMs));
+        return windowRate(blocks, windowMs, now);
+    }
+
+    /** Shared by {@link XpRate}: the wall-clock rate of the blocks in the window ending at {@code now}. */
+    static double windowRate(Deque<? extends WindowBlock> blocks, long windowMs, long now) {
+        long window = Math.max(1L, Math.min(MAX_WINDOW_MS, windowMs));
+        long from = now - window;
         double gain = 0.0;
-        long took = 0L;
         var it = blocks.descendingIterator();
         while (it.hasNext()) {
-            Block b = it.next();
+            WindowBlock b = it.next();
             if (b.at() <= from) {
                 break;
             }
             gain += b.gain();
-            took += b.tookMs();
         }
-        return took <= 0L ? Double.NaN : gain * 3_600_000.0 / took;
+        WindowBlock first = blocks.peekFirst();
+        // Mining began when the first block's own time started, if that is inside the window.
+        long since = Math.max(from, first.at() - first.tookMs());
+        long elapsed = now - since;
+        return elapsed <= 0L ? Double.NaN : gain * 3_600_000.0 / elapsed;
+    }
+
+    /** A block as the window sees it. */
+    interface WindowBlock {
+        double gain();
+        long tookMs();
+        long at();
     }
 
     /** Mined from {@code mine} since joining. */

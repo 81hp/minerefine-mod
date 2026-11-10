@@ -232,12 +232,14 @@ final class ExtrasClient {
     }
 
     private double minePerHour(String mine) {
-        return config.mineRateMinutes > 0 ? miningRate.perHourOver(mine, config.mineRateMinutes * 60_000L)
+        return config.mineRateSeconds > 0
+                ? miningRate.perHourOver(mine, config.mineRateSeconds * 1000L, System.currentTimeMillis())
                 : miningRate.perHour(mine, config.mineRateBlocks);
     }
 
     private double xpPerHour() {
-        return config.mineRateMinutes > 0 ? xpRate.perHourOver(config.mineRateMinutes * 60_000L)
+        return config.mineRateSeconds > 0
+                ? xpRate.perHourOver(config.mineRateSeconds * 1000L, System.currentTimeMillis())
                 : xpRate.perHour(config.mineRateBlocks);
     }
 

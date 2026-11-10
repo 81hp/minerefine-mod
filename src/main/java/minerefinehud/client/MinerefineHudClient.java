@@ -207,6 +207,7 @@ public final class MinerefineHudClient implements ClientModInitializer {
         priceStore.load(prices);
         prices.importLearnedTiers(config.learnedTierCounts);
         PriceStore.loadVerifiedPrices(prices);
+        JobSource.set(catalogSource::catalog, prices, () -> config.mineWorlds);
 
         halloween = new HalloweenClient(config, () -> config.save(configFile), () -> {
             if (config.bossReminderVolume > 0) {
@@ -226,7 +227,11 @@ public final class MinerefineHudClient implements ClientModInitializer {
                 this::readBossIndex);
         bossIndex.register();
         extras = new ExtrasClient(config, () -> config.save(configFile), halloween::onMineRefine,
-                halloween::seenMineRefine);
+                halloween::seenMineRefine, () -> {
+                    if (config.bossReminderVolume > 0) {
+                        playReminderSound(Minecraft.getInstance());
+                    }
+                });
         extras.register();
 
         registerKeyBindings();
@@ -362,7 +367,9 @@ public final class MinerefineHudClient implements ClientModInitializer {
                 minerefinehud.hud.SamplePanels.abilities(),
                 minerefinehud.hud.SamplePanels.mining(),
                 minerefinehud.hud.SamplePanels.stats(),
-                minerefinehud.hud.SamplePanels.drops());
+                minerefinehud.hud.SamplePanels.drops(),
+                minerefinehud.hud.SamplePanels.beacon(),
+                minerefinehud.hud.SamplePanels.outposts());
     }
 
     /**
@@ -439,6 +446,17 @@ public final class MinerefineHudClient implements ClientModInitializer {
             movables.add(new Movable(new HudPositionScreen.Panel("Rare drops", extras.dropsPanel(now),
                     config.dropsPlacement(), ModConfig.DEFAULT_DROPS_PLACEMENT, config.dropsLook.scale, 1.0, HudRenderer.Look.of(config, config.dropsLook)),
                     config::setDropsPlacement, config.dropsLook));
+        }
+        if (config.showBeacon) {
+            List<HudModel.Line> beaconPreview = extras.beaconPanel(now);
+            movables.add(new Movable(new HudPositionScreen.Panel("Beacon Mine", beaconPreview,
+                    config.beaconPlacement(), ModConfig.DEFAULT_BEACON_PLACEMENT, config.beaconLook.scale, 1.0, HudRenderer.Look.of(config, config.beaconLook)),
+                    config::setBeaconPlacement, config.beaconLook));
+        }
+        if (config.showOutposts) {
+            movables.add(new Movable(new HudPositionScreen.Panel("Outposts", extras.outpostPanel(now),
+                    config.outpostPlacement(), ModConfig.DEFAULT_OUTPOST_PLACEMENT, config.outpostLook.scale, 1.0, HudRenderer.Look.of(config, config.outpostLook)),
+                    config::setOutpostPlacement, config.outpostLook));
         }
         movables.add(new Movable(new HudPositionScreen.Panel("Bosses", bossPreview,
                 config.bossPlacement(), ModConfig.DEFAULT_BOSS_PLACEMENT, config.bossLook.scale, 1.0, HudRenderer.Look.of(config, config.bossLook)),
@@ -784,13 +802,18 @@ public final class MinerefineHudClient implements ClientModInitializer {
         }
         drawPanel(context, client, extras.statsPanel(), config.statsPlacement(), config.statsLook, style, theme);
         drawPanel(context, client, extras.dropsPanel(now), config.dropsPlacement(), config.dropsLook, style, theme);
+        drawPanel(context, client, extras.beaconPanel(now), config.beaconPlacement(), config.beaconLook, style, theme);
+        drawPanel(context, client, extras.outpostPanel(now), config.outpostPlacement(), config.outpostLook, style, theme);
         drawPanel(context, client, HudModel.bossPanel(bosses, options, halloween.reforgerRows(now)),
                 config.bossPlacement(), config.bossLook, style, theme);
 
         List<String> due = config.bossReminder
                 ? BossAlerts.active(bosses, reminderLeadMs()).stream().map(BossTracker.BossView::displayName).toList()
                 : List.of();
-        drawPanel(context, client, HudModel.alertPanel(due, halloween.alerts(now, false)),
+        List<String> otherAlerts = new java.util.ArrayList<>(halloween.alerts(now, false));
+        otherAlerts.addAll(extras.beaconAlerts(now));
+        otherAlerts.addAll(extras.outpostAlerts(now));
+        drawPanel(context, client, HudModel.alertPanel(due, otherAlerts),
                 config.alertPlacement(), config.alertLook, style, theme);
     }
 
@@ -980,6 +1003,23 @@ public final class MinerefineHudClient implements ClientModInitializer {
         mineCosts = currentMine.map(m -> MineCosts.of(catalog.serverName(m.name()), Optional.of(m),
                 prices, config.showArmorPieces));
         currentWorld = BossWorlds.currentWorld(currentMine, resourcePickups.lastWorldTag());
+        learnMineWorld();
+    }
+
+    /**
+     * A mine the data does not list gets its dimension from the world tag on what it drops, so the
+     * job calculator can group it ("SIFTBOUND" is the Sift). Saved only when it changes.
+     */
+    private void learnMineWorld() {
+        currentMine.filter(m -> m.world().isBlank() && !m.name().isBlank()).ifPresent(m -> {
+            resourcePickups.lastWorldTag().flatMap(minerefinehud.job.JobWorlds::fromTag).ifPresent(world -> {
+                String key = catalogSource.catalog().serverName(m.name()).trim().toLowerCase(java.util.Locale.ROOT);
+                if (!world.equals(config.mineWorlds.get(key))) {
+                    config.mineWorlds.put(key, world);
+                    config.save(configFile);
+                }
+            });
+        });
     }
 
     // ------------------------------------------------------------- action bar
@@ -1121,6 +1161,7 @@ public final class MinerefineHudClient implements ClientModInitializer {
             config.save(configFile);
         }
 
+        extras.onXp(text, r.amount(), now);
         lastActionBarReading = reading;
         lastActionBarCurrency = currency;
         balanceBeforeLastReading = currency.flatMap(balances::get);

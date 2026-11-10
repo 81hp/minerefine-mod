@@ -141,6 +141,13 @@ public final class ModConfig {
     /** The job calculator's "block rate" field, in millions of blocks per credit. */
     public double blocksPerCreditMillions = 200.0;
 
+    /** The job calculator's rate as the player typed it, and the mines in the saved job. */
+    public String jobRate = minerefinehud.job.JobCalc.DEFAULT_RATE;
+    public java.util.List<String> jobMines = new java.util.ArrayList<>();
+    /** Pieces left out of the job, "jade|charm", and the dimension learned for mines the data lacks. */
+    public java.util.List<String> jobSkips = new java.util.ArrayList<>();
+    public java.util.Map<String, String> mineWorlds = new java.util.LinkedHashMap<>();
+
     public int maxBosses = 5;
 
     // ------------------------------------------------------------- rows shown
@@ -298,7 +305,7 @@ public final class ModConfig {
     /** Every panel's look, for settings that change them all at once. */
     public java.util.List<Look> allLooks() {
         return java.util.List.of(mineLook, bossLook, progressLook, alertLook, hwStatsLook, hwPumpkinLook, hwAbilityLook,
-                miningLook, statsLook, dropsLook);
+                miningLook, statsLook, dropsLook, beaconLook, outpostLook);
     }
 
     /** Size a panel is drawn at: its own size times the whole HUD's. */
@@ -362,6 +369,8 @@ public final class ModConfig {
         colorBarDone = fresh.colorBarDone;
         colorBarTrack = fresh.colorBarTrack;
         colorFrame = fresh.colorFrame;
+        menuAccent = fresh.menuAccent;
+        menuBackground = fresh.menuBackground;
     }
 
     // ------------------------------------------------------------- Halloween
@@ -504,6 +513,29 @@ public final class ModConfig {
     /** Every item's all-time count and the latest drops. Written by the mod. */
     public minerefinehud.drops.RareDrops.Saved dropData = new minerefinehud.drops.RareDrops.Saved();
 
+    /** The Beacon Mine reset timer, by Arreba. */
+    public boolean showBeacon = false;
+    /** Seconds before the reset the title and ping come; 0 for neither. */
+    public int beaconWarnSeconds = 15;
+
+    /** The settings menu's accent colour, as #RRGGBB. By Arreba. */
+    public String menuAccent = "#FFD24A";
+    /** The settings menu's background colour, as #RRGGBB. */
+    public String menuBackground = "#182221";
+
+    /** An EXP per hour row in the Mining panel, from the EXP on the mining action bar. */
+    public boolean showXp = false;
+
+    /** When each outpost opens, read from /outpost. */
+    public boolean showOutposts = false;
+    /** Runs /outpost by itself every so often while the panel is on, and reads it unseen. */
+    public boolean outpostAuto = true;
+    public long outpostEveryMs = 15L * 60_000L;
+    /** Seconds before an outpost opens that the title and ping come; 0 for neither. */
+    public int outpostWarnSeconds = 60;
+    /** The last readings, counted forward from. Written by the mod. */
+    public minerefinehud.outpost.OutpostTimers.Saved outpostData = new minerefinehud.outpost.OutpostTimers.Saved();
+
     /** Clear of the other panels' default spots: under the mine panel, and both right corners are taken. */
     public static final HudLayout.Placement DEFAULT_MINING_PLACEMENT =
             new HudLayout.Placement(Anchor.TOP_CENTER, 0, 24);
@@ -511,6 +543,22 @@ public final class ModConfig {
             new HudLayout.Placement(Anchor.TOP_RIGHT, -4, 4);
     public static final HudLayout.Placement DEFAULT_DROPS_PLACEMENT =
             new HudLayout.Placement(Anchor.BOTTOM_LEFT, 4, -48);
+
+    public static final HudLayout.Placement DEFAULT_BEACON_PLACEMENT =
+            new HudLayout.Placement(Anchor.TOP_RIGHT, -4, 100);
+
+    public String beaconAnchor = DEFAULT_BEACON_PLACEMENT.anchor().name();
+    public int beaconX = DEFAULT_BEACON_PLACEMENT.offsetX();
+    public int beaconY = DEFAULT_BEACON_PLACEMENT.offsetY();
+    public Look beaconLook = new Look();
+
+    public static final HudLayout.Placement DEFAULT_OUTPOST_PLACEMENT =
+            new HudLayout.Placement(Anchor.TOP_RIGHT, -4, 150);
+
+    public String outpostAnchor = DEFAULT_OUTPOST_PLACEMENT.anchor().name();
+    public int outpostX = DEFAULT_OUTPOST_PLACEMENT.offsetX();
+    public int outpostY = DEFAULT_OUTPOST_PLACEMENT.offsetY();
+    public Look outpostLook = new Look();
 
     public String miningAnchor = DEFAULT_MINING_PLACEMENT.anchor().name();
     public int miningX = DEFAULT_MINING_PLACEMENT.offsetX();
@@ -557,6 +605,28 @@ public final class ModConfig {
         dropsAnchor = p.anchor().name();
         dropsX = p.offsetX();
         dropsY = p.offsetY();
+    }
+
+    public HudLayout.Placement beaconPlacement() {
+        return new HudLayout.Placement(
+                Anchor.parse(beaconAnchor).orElse(DEFAULT_BEACON_PLACEMENT.anchor()), beaconX, beaconY);
+    }
+
+    public HudLayout.Placement outpostPlacement() {
+        return new HudLayout.Placement(
+                Anchor.parse(outpostAnchor).orElse(DEFAULT_OUTPOST_PLACEMENT.anchor()), outpostX, outpostY);
+    }
+
+    public void setOutpostPlacement(HudLayout.Placement p) {
+        outpostAnchor = p.anchor().name();
+        outpostX = p.offsetX();
+        outpostY = p.offsetY();
+    }
+
+    public void setBeaconPlacement(HudLayout.Placement p) {
+        beaconAnchor = p.anchor().name();
+        beaconX = p.offsetX();
+        beaconY = p.offsetY();
     }
 
     public java.util.Set<String> statsHiddenSet() {
@@ -686,6 +756,18 @@ public final class ModConfig {
         }
         if (learnedProgression == null) {
             learnedProgression = new java.util.LinkedHashMap<>();
+        }
+        if (jobRate == null) {
+            jobRate = minerefinehud.job.JobCalc.DEFAULT_RATE;
+        }
+        if (jobSkips == null) {
+            jobSkips = new java.util.ArrayList<>();
+        }
+        if (mineWorlds == null) {
+            mineWorlds = new java.util.LinkedHashMap<>();
+        }
+        if (jobMines == null) {
+            jobMines = new java.util.ArrayList<>();
         }
         if (learnedTierCounts == null) {
             learnedTierCounts = new java.util.LinkedHashMap<>();
@@ -820,6 +902,14 @@ public final class ModConfig {
         miningLook = fix(miningLook, 1.0);
         statsLook = fix(statsLook, 1.0);
         dropsLook = fix(dropsLook, 1.0);
+        beaconLook = fix(beaconLook, 1.0);
+        beaconWarnSeconds = Math.max(0, Math.min(60, beaconWarnSeconds));
+        outpostLook = fix(outpostLook, 1.0);
+        menuAccent = Theme.format(Theme.parseOr(menuAccent, 0xFFFFD24A));
+        menuBackground = Theme.format(Theme.parseOr(menuBackground, 0xFF182221));
+        outpostWarnSeconds = Math.max(0, Math.min(600, outpostWarnSeconds));
+        outpostEveryMs = Math.max(OutpostPoller.MIN_INTERVAL_MS, outpostEveryMs);
+        outpostData = minerefinehud.outpost.OutpostTimers.repair(outpostData);
     }
 
     public static final int MAX_BOSSES = 15;

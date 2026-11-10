@@ -1,7 +1,9 @@
 package minerefinehud.hud;
 
+import minerefinehud.beacon.BeaconTimer;
 import minerefinehud.drops.RareDrops;
 import minerefinehud.halloween.HalloweenHud;
+import minerefinehud.outpost.OutpostTimers;
 import minerefinehud.hud.HudModel.Cell;
 import minerefinehud.hud.HudModel.Line;
 import minerefinehud.hud.HudModel.Style;
@@ -41,6 +43,11 @@ public final class ExtrasHud {
                          List<Eta> etas) {}
 
     public static List<Line> miningPanel(Mining m) {
+        return miningPanel(m, null);
+    }
+
+    /** The mining panel with a row of EXP per hour under the session, when {@code xp} is given. */
+    public static List<Line> miningPanel(Mining m, Xp xp) {
         List<Line> lines = new ArrayList<>();
         lines.add(Line.header("Mining", "pickaxe"));
         if (m == null || m.mine() == null || m.mine().isBlank()) {
@@ -54,6 +61,11 @@ public final class ExtrasHud {
             lines.add(HalloweenHud.figures(HudModel.Kind.ROW, "Session", "", "+" + HalloweenHud.compact(m.session()),
                     m.miningMs() >= 60_000L ? eta(m.miningMs()) : ""));
         }
+        if (xp != null && xp.session() > 0.0) {
+            String xpRate = Double.isNaN(xp.perHour()) ? "…/h"
+                    : HalloweenHud.compact(Math.max(0.0, xp.perHour())) + "/h";
+            lines.add(HalloweenHud.figures(HudModel.Kind.ROW, "EXP", "", "+" + HalloweenHud.compact(xp.session()), xpRate));
+        }
         if (!m.etas().isEmpty()) {
             lines.add(Line.section("AT THIS RATE"));
             for (Eta e : m.etas()) {
@@ -63,6 +75,12 @@ public final class ExtrasHud {
         }
         return lines;
     }
+
+    /**
+     * @param perHour EXP per hour, NaN while too little is measured
+     * @param session EXP since joining
+     */
+    public record Xp(double perHour, double session) {}
 
     /**
      * Every progress bar paid in {@code currency} that is still short, with how long the rest takes
@@ -155,6 +173,63 @@ public final class ExtrasHud {
         }
         if (shown == 0) {
             lines.add(Line.of("every stat is hidden in Settings", Style.DIM));
+        }
+        return lines;
+    }
+
+    // ------------------------------------------------------------ beacon
+
+    /**
+     * The Beacon Mine timer. {@code remainingMs} is -1 until the first reset has been seen;
+     * {@code urgent} turns the time red.
+     */
+    public static List<Line> beaconPanel(long remainingMs, boolean urgent) {
+        List<Line> lines = new ArrayList<>();
+        lines.add(Line.header("Beacon Mine", "item:beacon"));
+        if (remainingMs < 0L) {
+            lines.add(Line.of("waiting for a reset", Style.DIM));
+            return lines;
+        }
+        long secs = remainingMs / 1000L;
+        String time = String.format(Locale.ROOT, "%d:%02d", secs / 60L, secs % 60L);
+        Style style = urgent ? Style.WARN : Style.VALUE;
+        lines.add(Line.row("Next reset", "", style, Cell.of(time, style)));
+        lines.add(Line.bar(remainingMs / (double) BeaconTimer.CYCLE_MS));
+        return lines;
+    }
+
+    /** The reminder text for the title: the mine just reset, or is about to. */
+    public static List<String> beaconAlerts(long remainingMs, boolean justReset, long warnMs) {
+        List<String> out = new ArrayList<>();
+        if (justReset) {
+            out.add("Beacon Mine has reset!");
+        } else if (remainingMs >= 0L && warnMs > 0L && remainingMs <= warnMs) {
+            out.add("Beacon Mine resets in " + Math.max(1L, remainingMs / 1000L) + "s");
+        }
+        return out;
+    }
+
+    // ---------------------------------------------------------- outposts
+
+    /** Each outpost and when it opens, or how long its battle has left. */
+    public static List<Line> outpostPanel(List<OutpostTimers.View> views, long warnMs) {
+        List<Line> lines = new ArrayList<>();
+        lines.add(Line.header("Outposts", "item:nether_star"));
+        if (views.isEmpty()) {
+            lines.add(Line.of("open /outpost once to read the times", Style.DIM));
+            return lines;
+        }
+        for (OutpostTimers.View v : views) {
+            String name = OutpostTimers.shortName(v.name());
+            String guess = v.estimated() ? "~" : "";
+            if (v.phase() == OutpostTimers.Phase.BATTLE) {
+                String text = "OPEN " + guess + OutpostTimers.clock(v.ms());
+                lines.add(Line.status(name, Style.LABEL, new Cell(text, Style.GOOD, text)));
+            } else {
+                Style style = warnMs > 0L && v.ms() <= warnMs ? Style.WARN : Style.VALUE;
+                String text = guess + OutpostTimers.clock(v.ms());
+                lines.add(Line.status(name, Style.LABEL, new Cell(text, style, text)));
+            }
         }
         return lines;
     }

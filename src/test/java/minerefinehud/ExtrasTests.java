@@ -1,9 +1,13 @@
 package minerefinehud;
 
+import minerefinehud.beacon.BeaconTimer;
 import minerefinehud.drops.RareDrops;
 import minerefinehud.hud.ExtrasHud;
 import minerefinehud.hud.HudModel;
+import minerefinehud.job.JobCalc;
 import minerefinehud.mine.MiningRate;
+import minerefinehud.mine.XpRate;
+import minerefinehud.outpost.OutpostTimers;
 import minerefinehud.stats.PlayerStats;
 
 import java.util.List;
@@ -22,6 +26,7 @@ public final class ExtrasTests {
 
     public static void main(String[] args) {
         drops();
+        job();
         dropSpoofs();
         dropCounting();
         stats();
@@ -29,6 +34,9 @@ public final class ExtrasTests {
         miningRate();
         vaultIsNotMining();
         panels();
+        beacon();
+        outposts();
+        xp();
 
         System.out.println();
         System.out.println("passed: " + passed + "   failed: " + failed);
@@ -295,6 +303,214 @@ public final class ExtrasTests {
         eq("and keeps counting", 67.0, r.session("Rosewood"));
     }
 
+    /** From the /outpost screenshots, 2026-11-09. */
+    private static void xp() {
+        yes("xp: read from the mining line",
+                XpRate.parse("+140,732 EXP   +34.20 Coins   +0.135 Tokens  |  1.55B[block/cobblestone]")
+                        .orElse(-1) == 140_732.0);
+        yes("xp: colour codes", XpRate.parse("§b+1,200 EXP §7| §f1.55B[block/cobblestone]").orElse(-1) == 1_200.0);
+        yes("xp: a decimal", XpRate.parse("+734.5 EXP  +2.04 Coins").orElse(-1) == 734.5);
+        yes("xp: a suffix", XpRate.parse("+1.5M EXP | 3B[block/sponge]").orElse(-1) == 1_500_000.0);
+        yes("xp: coins are not exp", XpRate.parse("+34.20 Coins  +0.135 Tokens").isEmpty());
+        yes("xp: the idle line has none", XpRate.parse("267.1/267.1 \u2764   24,290 \u26e8").isEmpty());
+        yes("xp: hunting exp is its own line", XpRate.parse("Hunting EXP").isEmpty());
+        yes("xp: nothing", XpRate.parse("").isEmpty() && XpRate.parse(null).isEmpty());
+
+        XpRate x = new XpRate();
+        long t = 1_000_000L;
+        yes("xp: no rate before a block", Double.isNaN(x.perHour(10)));
+        x.observe(1_000, 100, t);
+        yes("xp: the first line counts for the session", x.session() == 1_000.0);
+        yes("xp: but gives no rate", Double.isNaN(x.perHour(10)));
+        x.observe(1_000, 101, t + 2_000L);
+        yes("xp: 1000 in 2s is 1.8m an hour", Math.abs(x.perHour(10) - 1_800_000.0) < 1.0);
+        x.observe(1_000, 101, t + 3_000L);
+        yes("xp: the same line again is not counted", x.session() == 2_000.0);
+        x.observe(2_000, 102, t + 6_000L);
+        // blocks: 1000 in 2s, 2000 in 4s -> 3000 / 6s = 1.8m
+        yes("xp: two blocks together", Math.abs(x.perHour(10) - 1_800_000.0) < 1.0);
+        yes("xp: last block alone", Math.abs(x.perHour(1) - 1_800_000.0) < 1.0);
+        yes("xp: session adds up", x.session() == 4_000.0);
+
+        x.observe(500, 103, t + 6_000L + 5 * 60_000L);
+        yes("xp: after a break the first line is a baseline, rate restarts", Double.isNaN(x.perHour(10)));
+        yes("xp: and is still in the session", x.session() == 4_500.0);
+        x.observe(500, 104, t + 6_000L + 5 * 60_000L + 1_000L);
+        yes("xp: 500 in 1s", Math.abs(x.perHour(10) - 1_800_000.0) < 1.0);
+
+        XpRate slow = new XpRate();
+        slow.observe(100, 1, t);
+        slow.observe(100, 2, t + 20_000L);
+        yes("xp: a long gap counts as 10s, not 20s", Math.abs(slow.perHour(10) - 36_000.0) < 1.0);
+
+        XpRate timed = new XpRate();
+        timed.tick(t);
+        timed.observe(10, 1, t);
+        for (int i = 1; i <= 120; i++) {
+            timed.tick(t + i * 1_000L);
+            if (i % 5 == 0) {
+                timed.observe(10, 1 + i, t + i * 1_000L);
+            }
+        }
+        yes("xp: mining time runs while lines come", timed.miningMs() >= 110_000L);
+        timed.reset();
+        yes("xp: reset empties it", !timed.any() && timed.session() == 0.0 && timed.miningMs() == 0L
+                && Double.isNaN(timed.perHour(10)));
+
+        var mine = new ExtrasHud.Mining("Shale", OptionalLong.of(36_420_000_000L), 1_250_000_000.0,
+                4_510_000_000.0, 3L * 3_600_000L, List.of());
+        yes("xp panel: no EXP row unless asked", ExtrasHud.miningPanel(mine).size() == ExtrasHud.miningPanel(mine, null).size());
+        var plain = ExtrasHud.miningPanel(mine, null);
+        var withXp = ExtrasHud.miningPanel(mine, new ExtrasHud.Xp(1_200_000.0, 4_100_000.0));
+        yes("xp panel: one row more", withXp.size() == plain.size() + 1);
+        var row = withXp.get(withXp.size() - 1);
+        yes("xp panel: EXP row has the session and the rate", row.text().startsWith("EXP") && row.text().contains("+4.1m")
+                && row.text().contains("1.2m/h"));
+        yes("xp panel: sits under the session row", withXp.get(withXp.size() - 2).text().startsWith("Session"));
+        var measuring = ExtrasHud.miningPanel(mine, new ExtrasHud.Xp(Double.NaN, 1_500.0));
+        yes("xp panel: no rate yet", measuring.get(measuring.size() - 1).text().contains("\u2026/h"));
+        yes("xp panel: nothing earned yet adds no row",
+                ExtrasHud.miningPanel(mine, new ExtrasHud.Xp(Double.NaN, 0.0)).size() == plain.size());
+        yes("xp panel: the sample has the row", minerefinehud.hud.SamplePanels.mining().stream()
+                .anyMatch(l -> l.text().startsWith("EXP")));
+    }
+
+    private static void outposts() {
+        List<String> lore = List.of("", "♝ King - Arreba__", "♗ Prince VACANT", "", "ᴏᴘᴇɴs ɪɴ: 3h 58m 40s", "",
+                "YOU HOLD SEAT #1", "", "CLICK FOR MORE INFO");
+        Optional<OutpostTimers.Reading> r = OutpostTimers.read("Ruins Outpost", lore);
+        yes("outpost: read from the menu", r.isPresent() && r.get().name().equals("Ruins")
+                && r.get().opensInMs() == (3 * 3600 + 58 * 60 + 40) * 1000L);
+        yes("outpost: plain capitals too", OutpostTimers.read("Sift Outpost", List.of("OPENS IN: 1h 17m 55s"))
+                .map(x -> x.opensInMs() == (3600 + 17 * 60 + 55) * 1000L).orElse(false));
+        yes("outpost: colour codes in the name", OutpostTimers.read("§6§lSift Outpost", List.of("opens in: 5m"))
+                .map(x -> x.name().equals("Sift")).orElse(false));
+        yes("outpost: not an outpost", OutpostTimers.read("Gold Block", lore).isEmpty());
+        yes("outpost: no time line", OutpostTimers.read("Ruins Outpost", List.of("CLICK FOR MORE INFO")).isEmpty());
+        yes("outpost: unreadable time", OutpostTimers.read("Ruins Outpost", List.of("OPENS IN: soon")).isEmpty());
+        yes("outpost: null", OutpostTimers.read(null, null).isEmpty());
+        eq("outpost: a menu with two", 2, OutpostTimers.readAll(
+                List.of("Ruins Outpost", "Glass Pane", "Sift Outpost", "Ruins Outpost"),
+                List.of(lore, List.of(), List.of("OPENS IN: 1h"), lore)).size());
+
+        long h = 3_600_000L;
+        OutpostTimers.Saved saved = OutpostTimers.update(null, List.of(
+                new OutpostTimers.Reading("Ruins", 4 * h), new OutpostTimers.Reading("Sift", h)), 1_000L);
+        List<OutpostTimers.View> v0 = OutpostTimers.views(saved, 1_000L);
+        eq("outpost: soonest first", "Sift", v0.get(0).name());
+        eq("outpost: counts down", OutpostTimers.Phase.WAITING, v0.get(0).phase());
+        eq("outpost: time left", h, v0.get(0).ms());
+        yes("outpost: read, not guessed", !v0.get(0).estimated());
+
+        long opens = 1_000L + h;
+        OutpostTimers.View open = OutpostTimers.views(saved, opens + 60_000L).get(0);
+        eq("outpost: open for the battle", OutpostTimers.Phase.BATTLE, open.phase());
+        eq("outpost: battle time left", 4 * 60_000L, open.ms());
+        yes("outpost: battle start is still read", !open.estimated());
+
+        long afterBattle = opens + OutpostTimers.BATTLE_MS;
+        OutpostTimers.View waiting = named(OutpostTimers.views(saved, afterBattle + 1_000L), "Sift");
+        eq("outpost: four hours after the battle", OutpostTimers.Phase.WAITING, waiting.phase());
+        eq("outpost: time to the next", OutpostTimers.WAIT_MS - 1_000L, waiting.ms());
+        yes("outpost: next one is a guess", waiting.estimated());
+        OutpostTimers.View second = named(OutpostTimers.views(saved,
+                opens + OutpostTimers.BATTLE_MS + OutpostTimers.WAIT_MS + 30_000L), "Sift");
+        eq("outpost: second battle", OutpostTimers.Phase.BATTLE, second.phase());
+        eq("outpost: second battle time", OutpostTimers.BATTLE_MS - 30_000L, second.ms());
+
+        yes("outpost: no recheck before it opens", !OutpostTimers.needsRecheck(saved, opens));
+        yes("outpost: no recheck during the battle", !OutpostTimers.needsRecheck(saved, opens + 60_000L));
+        yes("outpost: recheck after the battle", OutpostTimers.needsRecheck(saved, afterBattle));
+        OutpostTimers.Saved reread = OutpostTimers.update(saved,
+                List.of(new OutpostTimers.Reading("Sift", 4 * h - 30_000L)), afterBattle + 5_000L);
+        yes("outpost: reading again settles it", !OutpostTimers.needsRecheck(
+                OutpostTimers.update(reread, List.of(new OutpostTimers.Reading("Ruins", h)), afterBattle + 5_000L),
+                afterBattle + 6_000L));
+        eq("outpost: other outposts kept", 2, reread.outposts.size());
+        eq("outpost: the old reading is not changed", 1_000L + h, saved.outposts.get(1).opensAt);
+        eq("outpost: repaired nothing", 0, OutpostTimers.repair(null).outposts.size());
+
+        eq("outpost: clock hours", "3:58:40", OutpostTimers.clock((3 * 3600 + 58 * 60 + 40) * 1000L));
+        eq("outpost: clock minutes", "4:12", OutpostTimers.clock(4 * 60_000L + 12_000L));
+        eq("outpost: short name", "Ruins", OutpostTimers.shortName("Ruins Outpost"));
+        eq("outpost: short name without the word", "Ruins", OutpostTimers.shortName("Ruins"));
+
+        eq("outpost alert: nothing yet", List.of(), OutpostTimers.alerts(v0, 60_000L));
+        eq("outpost alert: opens soon", List.of("Sift Outpost opens in 0:45"),
+                OutpostTimers.alerts(OutpostTimers.views(saved, opens - 45_000L).subList(0, 1), 60_000L));
+        eq("outpost alert: just open", List.of("Sift Outpost is open!"),
+                OutpostTimers.alerts(OutpostTimers.views(saved, opens + 2_000L).subList(0, 1), 60_000L));
+        eq("outpost alert: open a while", List.of(),
+                OutpostTimers.alerts(OutpostTimers.views(saved, opens + 60_000L).subList(0, 1), 60_000L));
+
+        OutpostTimers.Pings pings = new OutpostTimers.Pings();
+        yes("outpost ping: quiet", !pings.due(OutpostTimers.views(saved, 2_000L), 60_000L));
+        yes("outpost ping: warning", pings.due(OutpostTimers.views(saved, opens - 50_000L), 60_000L));
+        yes("outpost ping: once", !pings.due(OutpostTimers.views(saved, opens - 40_000L), 60_000L));
+        yes("outpost ping: opening", pings.due(OutpostTimers.views(saved, opens + 1_000L), 60_000L));
+        yes("outpost ping: once open", !pings.due(OutpostTimers.views(saved, opens + 3_000L), 60_000L));
+        yes("outpost ping: off", !new OutpostTimers.Pings().due(OutpostTimers.views(saved, opens - 10_000L), 0L));
+
+        List<HudModel.Line> panel = ExtrasHud.outpostPanel(OutpostTimers.views(saved, 1_000L), 60_000L);
+        yes("outpost panel: header", panel.get(0).text().equals("Outposts"));
+        yes("outpost panel: soonest row", panel.get(1).text().contains("Sift") && panel.get(1).text().contains("1:00:00"));
+        yes("outpost panel: empty says how", ExtrasHud.outpostPanel(List.of(), 0L).stream()
+                .anyMatch(l -> l.text().contains("/outpost")));
+        yes("outpost panel: battle", ExtrasHud.outpostPanel(OutpostTimers.views(saved, opens + 60_000L), 0L).stream()
+                .anyMatch(l -> l.text().contains("OPEN 4:00")));
+        yes("outpost panel: guess marked", ExtrasHud.outpostPanel(OutpostTimers.views(saved, afterBattle + 1_000L), 0L)
+                .stream().anyMatch(l -> l.text().contains("~")));
+    }
+
+    private static OutpostTimers.View named(List<OutpostTimers.View> views, String name) {
+        return views.stream().filter(v -> v.name().equals(name)).findFirst().orElseThrow();
+    }
+
+    private static void beacon() {
+        yes("beacon: server line", BeaconTimer.isReset("Beacon Mine has reset!"));
+        yes("beacon: any case, with a prefix", BeaconTimer.isReset("[Mines] BEACON MINE HAS RESET!"));
+        yes("beacon: another line", !BeaconTimer.isReset("Rubble Mine has reset!"));
+        yes("beacon: player chat does not count", !BeaconTimer.isReset("Steve: beacon mine has reset"));
+        yes("beacon: angle bracket chat does not count", !BeaconTimer.isReset("<Steve> beacon mine has reset"));
+        yes("beacon: null", !BeaconTimer.isReset(null));
+
+        BeaconTimer t = new BeaconTimer();
+        eq("beacon: unknown", -1L, t.remaining(1_000L));
+        yes("beacon: unknown never warns", !t.warnNow(1_000L, 15_000L));
+        t.onReset(10_000L);
+        eq("beacon: right after", BeaconTimer.CYCLE_MS, t.remaining(10_000L));
+        eq("beacon: a minute in", 240_000L, t.remaining(70_000L));
+        eq("beacon: a missed reset keeps cycling", 240_000L, t.remaining(70_000L + BeaconTimer.CYCLE_MS));
+        eq("beacon: clock behind the reset", BeaconTimer.CYCLE_MS, t.remaining(5_000L));
+        yes("beacon: notice just after", t.justReset(11_000L));
+        yes("beacon: notice gone", !t.justReset(10_000L + BeaconTimer.NOTICE_MS));
+
+        long warnAt = 10_000L + BeaconTimer.CYCLE_MS - 15_000L;
+        yes("beacon: quiet before the warning", !t.warnNow(warnAt - 1L, 15_000L));
+        yes("beacon: warns at 15s", t.warnNow(warnAt, 15_000L));
+        yes("beacon: warns only once", !t.warnNow(warnAt + 5_000L, 15_000L));
+        yes("beacon: warns again next cycle", !t.warnNow(warnAt + 20_000L, 15_000L)
+                && t.warnNow(warnAt + BeaconTimer.CYCLE_MS, 15_000L));
+        BeaconTimer quiet = new BeaconTimer();
+        quiet.onReset(0L);
+        yes("beacon: warning off", !quiet.warnNow(BeaconTimer.CYCLE_MS - 1_000L, 0L));
+        t.clear();
+        yes("beacon: cleared", !t.known() && t.remaining(99_000L) == -1L);
+
+        List<HudModel.Line> waiting = ExtrasHud.beaconPanel(-1L, false);
+        yes("beacon panel: waiting", waiting.stream().anyMatch(l -> l.text().contains("waiting for a reset")));
+        List<HudModel.Line> running = ExtrasHud.beaconPanel(160_000L, false);
+        yes("beacon panel: time", running.stream().anyMatch(l -> l.text().contains("Next reset") && l.text().contains("2:40")));
+        yes("beacon panel: bar", running.stream().anyMatch(l -> l.style() == HudModel.Style.BAR
+                && Math.abs(l.progress() - 160_000.0 / BeaconTimer.CYCLE_MS) < 1e-9));
+        yes("beacon panel: urgent is a warning", ExtrasHud.beaconPanel(9_000L, true).stream()
+                .anyMatch(l -> l.text().contains("0:09") && l.style() == HudModel.Style.WARN));
+        eq("beacon alert: nothing", List.of(), ExtrasHud.beaconAlerts(100_000L, false, 15_000L));
+        eq("beacon alert: soon", List.of("Beacon Mine resets in 11s"), ExtrasHud.beaconAlerts(11_200L, false, 15_000L));
+        eq("beacon alert: reset", List.of("Beacon Mine has reset!"), ExtrasHud.beaconAlerts(300_000L, true, 15_000L));
+        eq("beacon alert: warning off", List.of(), ExtrasHud.beaconAlerts(5_000L, false, 0L));
+    }
+
     private static void panels() {
         eq("eta minutes", "12m", ExtrasHud.eta(12 * 60_000L + 5_000L));
         eq("eta hours", "2h 13m", ExtrasHud.eta((2 * 60 + 13) * 60_000L));
@@ -331,6 +547,67 @@ public final class ExtrasTests {
         yes("drops panel latest", drops.stream().anyMatch(l -> l.text().contains("2m ago")));
         yes("empty drops panel", ExtrasHud.dropsPanel(List.of(), List.of(), 0L).stream()
                 .anyMatch(l -> l.text().contains("none yet")));
+    }
+
+
+    // ------------------------------------------------------------------- job
+
+    private static void job() {
+        eq("amount 1B", 1e9, JobCalc.parseAmount("1B").getAsDouble());
+        eq("amount 1.25b", 1.25e9, JobCalc.parseAmount(" 1.25b ").getAsDouble());
+        eq("amount 250M", 2.5e8, JobCalc.parseAmount("250M").getAsDouble());
+        eq("amount plain", 5000.0, JobCalc.parseAmount("5,000").getAsDouble());
+        yes("amount junk", JobCalc.parseAmount("abc").isEmpty() && JobCalc.parseAmount("").isEmpty()
+                && JobCalc.parseAmount(null).isEmpty() && JobCalc.parseAmount("0").isEmpty());
+        eq("rate 1B", 1e9, JobCalc.parseRate("1B").getAsDouble());
+        eq("rate 1.5B", 1.5e9, JobCalc.parseRate("1.5B").getAsDouble());
+        eq("rate 1B/1c", 1e9, JobCalc.parseRate("1B/1c").getAsDouble());
+        eq("rate 1.25B/1c", 1.25e9, JobCalc.parseRate("1.25B/1c").getAsDouble());
+        eq("rate per credit", 1e9, JobCalc.parseRate("1b per credit").getAsDouble());
+        eq("rate 2B/2c", 1e9, JobCalc.parseRate("2B/2c").getAsDouble());
+        yes("rate half typed", JobCalc.parseRate("1.").isEmpty() && JobCalc.parseRate("B").isEmpty()
+                && JobCalc.parseRate("1B/0c").isEmpty());
+
+        List<JobCalc.Part> jade = List.of(new JobCalc.Part("sword", OptionalLong.of(136_510_000_000L)),
+                new JobCalc.Part("charm", OptionalLong.of(70_290_000_000L)),
+                new JobCalc.Part("boots", OptionalLong.of(112_780_000_000L)));
+        JobCalc.Entry full = JobCalc.entry("Jade", jade, List.of(), 1);
+        eq("entry sums every piece", 319_580_000_000L, full.mats());
+        JobCalc.Entry noCharm = JobCalc.entry("Jade", jade, List.of(JobCalc.skipKey("JADE", "Charm")), 1);
+        eq("a left-out piece is not counted", 249_290_000_000L, noCharm.mats());
+        eq("skip key", "jade|charm", JobCalc.skipKey(" Jade ", "CHARM"));
+        var unpriced = JobCalc.entry("New", List.of(new JobCalc.Part("sword", OptionalLong.empty()),
+                new JobCalc.Part("charm", OptionalLong.of(5L))), List.of(), 1);
+        eq("unpriced piece counted as missing", 1, unpriced.missing());
+        eq("unpriced piece adds nothing", 5L, unpriced.mats());
+        eq("skipping the unpriced piece clears it", 0, JobCalc.entry("New",
+                List.of(new JobCalc.Part("sword", OptionalLong.empty())), List.of("new|sword"), 1).missing());
+        JobCalc.Total t = JobCalc.total(List.of(noCharm, new JobCalc.Entry("Sift", 240_000_000_000L, 2, 0), unpriced),
+                java.util.OptionalDouble.of(1e9));
+        eq("total mats", 729_290_000_005.0, t.mats());
+        eq("total credits", 729.290000005, t.credits());
+        eq("total unknown", 1, t.unknown());
+        yes("no rate gives NaN", Double.isNaN(JobCalc.total(List.of(noCharm), java.util.OptionalDouble.empty()).credits()));
+        eq("world tag", "Sift", minerefinehud.job.JobWorlds.fromTag("SIFTBOUND").get());
+        yes("not a world tag", minerefinehud.job.JobWorlds.fromTag("RARE").isEmpty()
+                && minerefinehud.job.JobWorlds.fromTag("BOUND").isEmpty() && minerefinehud.job.JobWorlds.fromTag(null).isEmpty());
+        eq("known Sift mine", "Sift", minerefinehud.job.JobWorlds.of("Jade", java.util.Map.of()));
+        eq("learned world wins", "Dunes", minerefinehud.job.JobWorlds.of("Jade", java.util.Map.of("jade", "Dunes")));
+        eq("unlisted mine goes to the Sift", "Sift", minerefinehud.job.JobWorlds.of("Petal", null));
+        yes("known mines only", minerefinehud.job.JobWorlds.known("Petal", null)
+                && !minerefinehud.job.JobWorlds.known("Great Fruit", java.util.Map.of())
+                && minerefinehud.job.JobWorlds.known("Zorp", java.util.Map.of("zorp", "Sift")));
+        eq("eleven Sift mines", 11, minerefinehud.job.JobWorlds.SIFT.size());
+        eq("Sift order starts with Shale", "Shale", minerefinehud.job.JobWorlds.SIFT.get(0).get(0));
+        yes("either spelling is known", minerefinehud.job.JobWorlds.known("Blub", null) && minerefinehud.job.JobWorlds.known("bulb", null));
+        eq("title case", "Ancient Debris", minerefinehud.job.JobWorlds.title("ancient  debris"));
+        eq("mats text", "760.34b", JobCalc.mats(760_340_000_000.0));
+        eq("mats small", "12,345", JobCalc.mats(12_345.0));
+        eq("credits text", "1,000.34c", JobCalc.credits(1000.34));
+        eq("credits none", "?", JobCalc.credits(Double.NaN));
+        eq("counts", java.util.Map.of("a", 2, "b", 1), JobCalc.counts(List.of("a", "b", "a")));
+        eq("remove one", List.of("a", "b"), JobCalc.removeOne(List.of("a", "b", "a"), "a").stream().sorted().toList());
+        eq("remove missing", List.of("a"), JobCalc.removeOne(List.of("a"), "z"));
     }
 
     // ------------------------------------------------------------------ util

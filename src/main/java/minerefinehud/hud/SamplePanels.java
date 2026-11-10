@@ -111,12 +111,27 @@ public final class SamplePanels {
                 Line.status("Harvest Moon", Style.LABEL, new Cell("12.3s", Style.HEADER, "12.3s")));
     }
 
-    /** Shale at 1.25b an hour, with a bar due in two hours. */
+    /** Shale at 1.25b an hour and 1.2m EXP an hour, with a bar due in two hours. */
     public static List<Line> mining() {
         return ExtrasHud.miningPanel(new ExtrasHud.Mining("Shale", OptionalLong.of(36_420_000_000L), 1_250_000_000.0,
                 4_510_000_000.0, 3L * 3_600_000L + 25L * 60_000L,
                 List.of(new ExtrasHud.Eta("Total left", (2L * 60L + 13L) * 60_000L),
-                        new ExtrasHud.Eta("Pickaxe IV", 41L * 60_000L))));
+                        new ExtrasHud.Eta("Pickaxe IV", 41L * 60_000L))),
+                new ExtrasHud.Xp(1_200_000.0, 4_100_000.0));
+    }
+
+    /** Two minutes forty to the next Beacon Mine reset. */
+    public static List<Line> beacon() {
+        return ExtrasHud.beaconPanel(160_000L, false);
+    }
+
+    /** The two outposts from the /outpost screenshots. */
+    public static List<Line> outposts() {
+        long hour = 3_600_000L;
+        minerefinehud.outpost.OutpostTimers.Saved saved = minerefinehud.outpost.OutpostTimers.update(null, List.of(
+                new minerefinehud.outpost.OutpostTimers.Reading("Ruins", 3 * hour + 58 * 60_000L + 40_000L),
+                new minerefinehud.outpost.OutpostTimers.Reading("Sift", hour + 17 * 60_000L + 55_000L)), 0L);
+        return ExtrasHud.outpostPanel(minerefinehud.outpost.OutpostTimers.views(saved, 0L), 60_000L);
     }
 
     /** The stats from the /stats screenshot, Fortune just gone up. */

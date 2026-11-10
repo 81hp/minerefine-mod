@@ -85,11 +85,23 @@ public final class HudRenderer {
 
         Matrix3x2fStack matrices = context.pose();
         matrices.pushMatrix();
+        Smooth.extra(s);
         try {
             matrices.translate(x, y);
             matrices.scale(s, s);
             for (PanelPainter.Op op : painted.ops()) {
                 switch (op) {
+                    case PanelPainter.Round r -> {
+                        if (r.topOnly()) {
+                            Smooth.rectTop(context, r.x1(), r.y1(), r.x2() - r.x1(), r.y2() - r.y1(), r.radius(),
+                                    r.top(), r.bottom());
+                        } else {
+                            Smooth.rect(context, r.x1(), r.y1(), r.x2() - r.x1(), r.y2() - r.y1(), r.radius(),
+                                    r.top(), r.bottom());
+                        }
+                    }
+                    case PanelPainter.Ring r -> Smooth.ring(context, r.x1(), r.y1(), r.x2() - r.x1(),
+                            r.y2() - r.y1(), r.radius(), r.thickness(), r.color());
                     case PanelPainter.Fill f -> context.fill(f.x1(), f.y1(), f.x2(), f.y2(), f.color());
                     case PanelPainter.Gradient g -> context.fillGradient(g.x1(), g.y1(), g.x2(), g.y2(), g.top(), g.bottom());
                     case PanelPainter.Text t -> context.text(font, t.text(), t.x(), t.y(), t.color(), t.shadow());
@@ -97,6 +109,7 @@ public final class HudRenderer {
                 }
             }
         } finally {
+            Smooth.extra(1f);
             matrices.popMatrix();
         }
     }

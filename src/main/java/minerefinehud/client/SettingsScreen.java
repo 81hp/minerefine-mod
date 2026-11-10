@@ -45,7 +45,7 @@ public final class SettingsScreen extends Screen {
 
     private enum Tab {
         GENERAL("General"), STYLE("Style"), COLOURS("Colours"), PANELS("Panels"), MINE("Mine"),
-        BOSSES("Bosses"), PROGRESS("Progress"), HALLOWEEN("Halloween"), EXTRAS("Extras");
+        BOSSES("Bosses"), PROGRESS("Progress"), HALLOWEEN("Halloween"), EXTRAS("Extras"), TIMERS("Timers");
 
         final String label;
 
@@ -59,7 +59,7 @@ public final class SettingsScreen extends Screen {
                            List<HudModel.Line> alert, List<HudModel.Line> halloween,
                            List<HudModel.Line> pumpkin, List<HudModel.Line> abilities,
                            List<HudModel.Line> mining, List<HudModel.Line> stats, List<HudModel.Line> drops,
-                           List<HudModel.Line> beacon) {}
+                           List<HudModel.Line> beacon, List<HudModel.Line> outposts) {}
 
     private static final int COLUMN_WIDTH = 150;
     private static final int ROW_HEIGHT = 22;
@@ -72,8 +72,8 @@ public final class SettingsScreen extends Screen {
     private static final int UI_FG = 0xFFE3ECE8;
     private static final int UI_MUTED = 0xFF8FA49E;
     private static final int UI_OFF = 0xFF4A5856;
-    private static final int UI_ACCENT = 0xFFFFD24A;
-    private static final int UI_ACCENT_INK = 0xFF231A00;
+    private static final int DEFAULT_ACCENT = 0xFFFFD24A;
+    private static final int DEFAULT_MENU_BACKGROUND = 0xFF182221;
 
     /** Quick picks, the design page's. */
     private static final int[] ACCENTS = { 0xFFFFD24A, 0xFF7FE3FF, 0xFFFF8AD8, 0xFF9BFF6B, 0xFFFF9F43, 0xFFFFFFFF };
@@ -106,6 +106,15 @@ public final class SettingsScreen extends Screen {
     private boolean bossesReset;
 
     private Tab tab = Tab.GENERAL;
+
+    /** The tab buttons, which the screen draws itself as pills, and the Done button as the main one. */
+    private final java.util.Map<Button, Tab> tabButtons = new java.util.LinkedHashMap<>();
+    private Button doneButton;
+    /** How far each toggle's switch has slid, 0 off to 1 on. */
+    private final java.util.Map<Button, Float> slide = new java.util.IdentityHashMap<>();
+    /** Where the row of tabs starts and how wide it is. */
+    private int tabsX;
+    private int tabsW;
 
     private record Label(String text, int x, int y) {}
 
@@ -162,6 +171,35 @@ public final class SettingsScreen extends Screen {
         this.resetBosses = resetBosses;
     }
 
+    /** The menu's accent colour, from the setting. */
+    private int accent() {
+        return Theme.parseOr(config.menuAccent, DEFAULT_ACCENT);
+    }
+
+    /** Dark or light text that reads on the accent colour. */
+    private int ink() {
+        int a = accent();
+        return Smooth.contrast(a) == 0xFFFFFFFF ? 0xFFFFFFFF : 0xFF1A1500;
+    }
+
+    /** The menu is a window in the middle, not the whole screen. */
+    private int winW() {
+        return Math.min(this.width - 16, 540);
+    }
+
+    private int winX() {
+        return (this.width - winW()) / 2;
+    }
+
+    /** Inner left and right edges of the window, for the tabs that fill it. */
+    private int winLeft() {
+        return winX() + 8;
+    }
+
+    private int winRight() {
+        return winX() + winW() - 8;
+    }
+
     private int left() {
         return this.width / 2 - COLUMN_WIDTH - 5;
     }
@@ -191,6 +229,8 @@ public final class SettingsScreen extends Screen {
     protected void init() {
         labels.clear();
         controls.clear();
+        tabButtons.clear();
+        slide.clear();
         dragging = null;
         draggingScrollbar = false;
         hexBox = null;
@@ -200,7 +240,7 @@ public final class SettingsScreen extends Screen {
         // Each tab as wide as its name needs plus an even share of what is left, so every name
         // stays readable at GUI scale 4; on the narrowest screen the margins round the names shrink.
         Tab[] tabs = Tab.values();
-        int room = Math.min(this.width - 8, tabs.length * 66);
+        int room = Math.min(winW() - 16, tabs.length * 66);
         int names = 0;
         for (Tab t : tabs) {
             names += this.font.width(t.label);
@@ -216,12 +256,15 @@ public final class SettingsScreen extends Screen {
         int share = Math.max(0, (room - natural) / tabs.length);
         int total = natural + share * tabs.length;
         int tabX = this.width / 2 - total / 2;
+        tabsX = tabX;
+        tabsW = total;
         for (int i = 0; i < tabs.length; i++) {
             Tab t = tabs[i];
             int tw = widths[i] + share;
             Button b = Button.builder(Component.literal(t.label), w -> openTab(t))
                     .bounds(tabX, 28, tw, 20).build();
             b.active = t != tab;
+            tabButtons.put(b, t);
             addRenderableWidget(b);
             tabX += tw + 2;
         }
@@ -236,10 +279,19 @@ public final class SettingsScreen extends Screen {
             case PROGRESS -> progress();
             case HALLOWEEN -> halloween();
             case EXTRAS -> extras();
+            case TIMERS -> timers();
         }
 
-        addRenderableWidget(Button.builder(Component.literal("Done"), b -> onClose())
-                .bounds(this.width / 2 - 100, this.height - 28, 200, 20).build());
+        doneButton = Button.builder(Component.literal("Done"), b -> onClose())
+                .bounds(this.width / 2 - 100, this.height - 28, 200, 20).build();
+        addRenderableWidget(doneButton);
+
+        // The buttons keep their clicks and tooltips; what is seen of them is drawn by skin().
+        for (var child : this.children()) {
+            if (child instanceof Button b) {
+                b.setAlpha(0f);
+            }
+        }
     }
 
     private void openTab(Tab t) {
@@ -384,18 +436,24 @@ public final class SettingsScreen extends Screen {
         cycle(1, 0, "Rate from", () -> config.mineRateBlocks, v -> config.mineRateBlocks = v,
                 new int[] { 1, 3, 5, 10, 20, 50 }, v -> v == 1 ? "last block" : "last " + v + " blocks");
 
-        Button stats = toggleAt(x(0), y(1), "Stats panel", () -> config.showStats, v -> config.showStats = v);
+        Button xp = toggleAt(x(0), y(1), COLUMN_WIDTH * 2 + 10, "EXP per hour in the Mining panel",
+                () -> config.showXp, v -> config.showXp = v);
+        xp.setTooltip(Tooltip.create(Component.literal("Adds a row with the EXP you get per hour while mining, "
+                + "and what you earned this session, to the Mining panel. Read from the +EXP on the action bar, "
+                + "averaged over the same blocks as Mining per hour.")));
+
+        Button stats = toggleAt(x(0), y(2), "Stats panel", () -> config.showStats, v -> config.showStats = v);
         stats.setTooltip(Tooltip.create(Component.literal("Your stats from /stats: Fortune, Luck and the rest. "
                 + "Read whenever you open /stats, and by the automatic check if it is on.")));
-        Button auto = toggleAt(x(1), y(1), "Auto /stats", () -> config.statsAuto, v -> config.statsAuto = v);
+        Button auto = toggleAt(x(1), y(2), "Auto /stats", () -> config.statsAuto, v -> config.statsAuto = v);
         auto.setTooltip(Tooltip.create(Component.literal("While the stats panel is on, runs /stats by itself "
                 + "every so often and reads it without opening it on your screen, like the automatic "
                 + "/bossindex. It waits while you have a menu or chat open, right after any other command, "
                 + "and on an Expedition.")));
 
-        labels.add(new Label("Every", x(0), y(2) + 6));
+        labels.add(new Label("Every", x(0), y(3) + 6));
         int labelWidth = this.font.width("Every") + 6;
-        EditBox every = field(x(0) + labelWidth, y(2), COLUMN_WIDTH - labelWidth,
+        EditBox every = field(x(0) + labelWidth, y(3), COLUMN_WIDTH - labelWidth,
                 minerefinehud.boss.Interval.format(config.statsEveryMs), 24, s -> true, s ->
                         minerefinehud.boss.Interval.parse(s).ifPresent(ms -> {
                             config.statsEveryMs = Math.max(StatsPoller.MIN_INTERVAL_MS, ms);
@@ -422,10 +480,10 @@ public final class SettingsScreen extends Screen {
                                 "Show all", () -> config.statsHidden.clear(), onChange));
                     }
                 })
-                .bounds(x(1), y(2), COLUMN_WIDTH, 20).build());
+                .bounds(x(1), y(3), COLUMN_WIDTH, 20).build());
         pickStats.active = !statNames.isEmpty();
 
-        Button drops = toggleAt(x(0), y(3), "Rare drops panel", () -> config.showDrops, v -> config.showDrops = v);
+        Button drops = toggleAt(x(0), y(4), "Rare drops panel", () -> config.showDrops, v -> config.showDrops = v);
         drops.setTooltip(Tooltip.create(Component.literal("Counts every \"RARITY! You found ...\" drop from chat, "
                 + "also when SecondChat shows it. The same words typed by a player never count.")));
         List<String> rarities = extras.raritiesSeen();
@@ -443,11 +501,11 @@ public final class SettingsScreen extends Screen {
                                 "Show all", () -> config.dropsHiddenRarities.clear(), onChange));
                     }
                 })
-                .bounds(x(1), y(3), COLUMN_WIDTH, 20).build());
+                .bounds(x(1), y(4), COLUMN_WIDTH, 20).build());
 
-        cycle(0, 4, "Items listed", () -> config.dropsRows, v -> config.dropsRows = v,
+        cycle(0, 5, "Items listed", () -> config.dropsRows, v -> config.dropsRows = v,
                 new int[] { 3, 5, 8, 10, 15, 20 }, String::valueOf);
-        cycle(1, 4, "Latest drops", () -> config.dropsRecent, v -> config.dropsRecent = v,
+        cycle(1, 5, "Latest drops", () -> config.dropsRecent, v -> config.dropsRecent = v,
                 new int[] { 0, 1, 3, 5, 10 }, v -> v == 0 ? "off" : String.valueOf(v));
 
         Button session = addRenderableWidget(Button.builder(Component.literal("New session"), b -> {
@@ -455,7 +513,7 @@ public final class SettingsScreen extends Screen {
                     extras.resetMiningRate();
                     onChange.run();
                 })
-                .bounds(x(0), y(5), COLUMN_WIDTH, 20).build());
+                .bounds(x(0), y(6), COLUMN_WIDTH, 20).build());
         session.setTooltip(Tooltip.create(Component.literal("Starts the session drop counts and the mining rate "
                 + "over. All-time drop counts stay.")));
         Button wipe = addRenderableWidget(Button.builder(Component.literal(confirmWipe
@@ -469,21 +527,62 @@ public final class SettingsScreen extends Screen {
                     }
                     rebuildWidgets();
                 })
-                .bounds(x(1), y(5), COLUMN_WIDTH, 20).build());
+                .bounds(x(1), y(6), COLUMN_WIDTH, 20).build());
         wipe.setTooltip(Tooltip.create(Component.literal("Forgets every drop ever counted. Asks twice.")));
-
-        Button beacon = toggleAt(x(0), y(6), "Beacon Mine timer", () -> config.showBeacon, v -> config.showBeacon = v);
-        beacon.setTooltip(Tooltip.create(Component.literal("Counts down to the Beacon Mine reset, started by the "
-                + "server's \"Beacon Mine has reset!\" line in chat. Shows \"waiting for a reset\" until the first "
-                + "one. By Arreba.")));
-        cycle(1, 6, "Warn", () -> config.beaconWarnSeconds, v -> config.beaconWarnSeconds = v,
-                new int[] { 0, 10, 15, 20, 30 }, v -> v == 0 ? "off" : v + "s before");
 
         addRenderableWidget(Button.builder(Component.literal("Move and resize panels..."), b -> {
                     onChange.run();
                     openPositions.run();
                 })
                 .bounds(x(0), y(7), COLUMN_WIDTH * 2 + 10, 20).build());
+    }
+
+    /** The two countdown panels, Beacon Mine and the outposts. By Arreba. */
+    private void timers() {
+        Button beacon = toggleAt(x(0), y(0), "Beacon Mine timer", () -> config.showBeacon, v -> config.showBeacon = v);
+        beacon.setTooltip(Tooltip.create(Component.literal("Counts down to the Beacon Mine reset, started by the "
+                + "server's \"Beacon Mine has reset!\" line in chat. Shows \"waiting for a reset\" until the first "
+                + "one.")));
+        cycle(1, 0, "Warn", () -> config.beaconWarnSeconds, v -> config.beaconWarnSeconds = v,
+                new int[] { 0, 10, 15, 20, 30 }, v -> v == 0 ? "off" : v + "s before");
+
+        Button outposts = toggleAt(x(0), y(1), "Outpost timers", () -> config.showOutposts, v -> config.showOutposts = v);
+        outposts.setTooltip(Tooltip.create(Component.literal("When each outpost opens, read from /outpost without "
+                + "opening it on your screen. An outpost is open for a five minute battle, then closed for four "
+                + "hours; the times are counted on from the last reading and checked again after each battle.")));
+        cycle(1, 1, "Warn", () -> config.outpostWarnSeconds, v -> config.outpostWarnSeconds = v,
+                new int[] { 0, 30, 60, 120, 300 },
+                v -> v == 0 ? "off" : v >= 60 ? (v / 60) + "m before" : v + "s before");
+
+        Button auto = toggleAt(x(0), y(2), "Auto /outpost", () -> config.outpostAuto, v -> config.outpostAuto = v);
+        auto.setTooltip(Tooltip.create(Component.literal("While the outpost panel is on, runs /outpost by itself "
+                + "every so often and reads it without opening it on your screen. It waits while you have a menu "
+                + "or chat open, right after any other command, and on an Expedition.")));
+        labels.add(new Label("Every", x(1), y(2) + 6));
+        int labelWidth = this.font.width("Every") + 6;
+        EditBox every = field(x(1) + labelWidth, y(2), COLUMN_WIDTH - labelWidth,
+                minerefinehud.boss.Interval.format(config.outpostEveryMs), 24, s -> true, s ->
+                        minerefinehud.boss.Interval.parse(s).ifPresent(ms -> {
+                            config.outpostEveryMs = Math.max(OutpostPoller.MIN_INTERVAL_MS, ms);
+                            onChange.run();
+                        }));
+        every.setTooltip(Tooltip.create(Component.literal("How often /outpost is checked: 15m, 1 hour... "
+                + "Shortest 1 minute.")));
+        addRenderableWidget(every);
+
+        Button now = addRenderableWidget(Button.builder(Component.literal("Check /outpost now"), b -> {
+                    onChange.run();
+                    extras.checkOutpostsNow();
+                })
+                .bounds(x(0), y(3), COLUMN_WIDTH, 20).build());
+        now.setTooltip(Tooltip.create(Component.literal("Reads /outpost as soon as it is allowed, "
+                + "with the outpost panel on.")));
+
+        addRenderableWidget(Button.builder(Component.literal("Move and resize panels..."), b -> {
+                    onChange.run();
+                    openPositions.run();
+                })
+                .bounds(x(0), y(4), COLUMN_WIDTH * 2 + 10, 20).build());
     }
 
     private String statsLabel(List<String> known) {
@@ -763,8 +862,8 @@ public final class SettingsScreen extends Screen {
     private void style() {
         listTop = TOP - 4;
         listBottom = contentBottom();
-        listX = 8;
-        listWidth = Math.max(180, Math.min(250, (this.width - 24) * 45 / 100));
+        listX = winLeft();
+        listWidth = Math.max(180, Math.min(250, (winW() - 24) * 45 / 100));
         int w = listWidth - 14;   // room for the scrollbar
         int[] y = { listTop + 4 };
 
@@ -885,10 +984,10 @@ public final class SettingsScreen extends Screen {
                 i -> i == 0 ? "Preview the mine, boss and bar panels together."
                         : "Preview this panel alone, at its real size if it fits.", () -> "");
         int sx = listX + listWidth + 10;
-        pick.place(sx, listTop, Math.min(this.width - 8 - sx, 220));
+        pick.place(sx, listTop, Math.min(winRight() - sx, 220));
         pick.saves = false;
         controls.add(pick);
-        stage(sx, listTop + pick.h + 4, this.width - 8, listBottom);
+        stage(sx, listTop + pick.h + 4, winRight(), listBottom);
     }
 
     private <E extends Enum<E>> Segments styleChoice(String title, E[] values, Function<E, String> label,
@@ -911,6 +1010,7 @@ public final class SettingsScreen extends Screen {
             case SHADE -> "A dark see-through shade.";
             case TOOLTIP -> "Like Minecraft's item tooltips: notched corners and a fading edge in the frame colour.";
             case FRAMED -> "A dark shade with a thin border in the frame colour.";
+            case SMOOTH -> "A soft rounded panel with a tinted title, like the Beacon timer.";
         };
     }
 
@@ -984,7 +1084,11 @@ public final class SettingsScreen extends Screen {
                 new ColourEntry("Warnings", "Bosses due now, the respawn reminder.", () -> config.colorWarn,
                         v -> config.colorWarn = v, d.warn()),
                 new ColourEntry("Dim text", "Hints, credits, bosses still being learned.", () -> config.colorDim,
-                        v -> config.colorDim = v, d.dim()));
+                        v -> config.colorDim = v, d.dim()),
+                new ColourEntry("Menu accent", "This settings menu: the tabs, switches, sliders and the Done button.",
+                        () -> config.menuAccent, v -> config.menuAccent = v, DEFAULT_ACCENT),
+                new ColourEntry("Menu background", "This settings menu's background.",
+                        () -> config.menuBackground, v -> config.menuBackground = v, DEFAULT_MENU_BACKGROUND));
     }
 
     private int entryColour(ColourEntry e) {
@@ -1013,7 +1117,7 @@ public final class SettingsScreen extends Screen {
                 colourIndex = index;
                 rebuildWidgets();
             });
-            row.place(8, top + i * rowH, listW);
+            row.place(winLeft(), top + i * rowH, listW);
             row.h = rowH - 1;
             controls.add(row);
         }
@@ -1021,11 +1125,11 @@ public final class SettingsScreen extends Screen {
             config.resetColors();
             rebuildWidgets();
         });
-        resetAll.place(8, top + entries.size() * rowH + 3, listW);
+        resetAll.place(winLeft(), top + entries.size() * rowH + 3, listW);
         resetAll.tip("Every colour back to the default. The Style tab's presets set the main ones too.");
         controls.add(resetAll);
 
-        int px = 8 + listW + 12;
+        int px = winLeft() + listW + 12;
         // Square, hue strip, hex row and three rows of swatches all have to fit above Done.
         int size = Math.max(60, Math.min(110, contentBottom() - top - 102));
         Picker picker = new Picker();
@@ -1074,7 +1178,7 @@ public final class SettingsScreen extends Screen {
             controls.add(reset);
         }
 
-        stage(px + size + 12, top, this.width - 8, contentBottom());
+        stage(px + size + 12, top, winRight(), contentBottom());
     }
 
     private void loadPicker(int argb) {
@@ -1117,7 +1221,8 @@ public final class SettingsScreen extends Screen {
                 new PanelEntry("Mining", config.miningLook, 1.0, Previews::mining),
                 new PanelEntry("Stats", config.statsLook, 1.0, Previews::stats),
                 new PanelEntry("Rare drops", config.dropsLook, 1.0, Previews::drops),
-                new PanelEntry("Beacon Mine", config.beaconLook, 1.0, Previews::beacon));
+                new PanelEntry("Beacon Mine", config.beaconLook, 1.0, Previews::beacon),
+                new PanelEntry("Outposts", config.outpostLook, 1.0, Previews::outposts));
     }
 
     /** Each panel's own background and size, with that panel drawn as it will look. */
@@ -1135,7 +1240,7 @@ public final class SettingsScreen extends Screen {
                 panelIndex = index;
                 rebuildWidgets();
             });
-            row.place(8, top + i * rowH, listW);
+            row.place(winLeft(), top + i * rowH, listW);
             row.h = rowH - 1;
             controls.add(row);
         }
@@ -1143,10 +1248,10 @@ public final class SettingsScreen extends Screen {
                     onChange.run();
                     openPositions.run();
                 })
-                .bounds(8, Math.min(top + entries.size() * rowH + 3, contentBottom() - 20), listW, 20).build());
+                .bounds(winLeft(), Math.min(top + entries.size() * rowH + 3, contentBottom() - 20), listW, 20).build());
 
-        int cx = 8 + listW + 12;
-        int cw = Math.max(130, Math.min(200, (this.width - cx - 8) * 45 / 100));
+        int cx = winLeft() + listW + 12;
+        int cw = Math.max(130, Math.min(200, (winRight() - cx) * 45 / 100));
         int[] y = { top };
         ModConfig.Look look = entry.look();
 
@@ -1167,7 +1272,7 @@ public final class SettingsScreen extends Screen {
         }).tip("Copies this panel's background and opacity to all the others. Sizes stay as they are."), cx, cw);
         place(y, new Action("Default size", () -> look.scale = entry.defaultScale()), cx, cw);
 
-        stage(cx + cw + 12, top, this.width - 8, contentBottom());
+        stage(cx + cw + 12, top, winRight(), contentBottom());
     }
 
     private void place(int[] y, Control c, int x, int width) {
@@ -1380,7 +1485,7 @@ public final class SettingsScreen extends Screen {
                 int noteW = n.isEmpty() ? 0 : font.width(n) + 4;
                 context.text(font, trim(title, w - noteW), x, ty + 1, UI_MUTED, false);
                 if (!n.isEmpty()) {
-                    context.text(font, n, x + w - font.width(n), ty + 1, UI_ACCENT, false);
+                    context.text(font, n, x + w - font.width(n), ty + 1, accent(), false);
                 }
             }
             int picked = current.getAsInt();
@@ -1391,9 +1496,9 @@ public final class SettingsScreen extends Screen {
                 int by = ty + b[1];
                 boolean on = i == picked;
                 boolean usable = enabled.test(i);
-                int edge = on ? UI_ACCENT : usable && i == hovered ? UI_MUTED : UI_LINE;
-                box(context, bx, by, b[2], 14, on ? UI_ACCENT : UI_RAISED, edge);
-                int ink = on ? UI_ACCENT_INK : usable ? UI_FG : UI_OFF;
+                int edge = on ? accent() : usable && i == hovered ? UI_MUTED : UI_LINE;
+                box(context, bx, by, b[2], 14, on ? accent() : UI_RAISED, edge);
+                int ink = on ? ink() : usable ? UI_FG : UI_OFF;
                 context.text(font, options[i], bx + (b[2] - font.width(options[i])) / 2, by + 3, ink, false);
             }
         }
@@ -1464,9 +1569,9 @@ public final class SettingsScreen extends Screen {
             int trackY = ty + 11 + 3;
             double f = (Math.max(min, Math.min(max, get.getAsDouble())) - min) / (max - min);
             int knob = x + 3 + (int) Math.round(f * (w - 6));
-            context.fill(x, trackY, x + w, trackY + 4, UI_LINE);
+            Smooth.rect(context, x, trackY, w, 4, 2f, UI_LINE);
             if (on) {
-                context.fill(x, trackY, knob, trackY + 4, UI_ACCENT);
+                Smooth.rect(context, x, trackY, Math.max(4, knob - x), 4, 2f, accent());
             }
             boolean hover = on && (dragging == this || contains(mx, my));
             box(context, knob - 3, ty + 11, 6, 10, on ? (hover ? UI_FG : 0xFFCCD6D2) : UI_OFF, UI_LINE);
@@ -1512,14 +1617,14 @@ public final class SettingsScreen extends Screen {
         void draw(GuiGraphicsExtractor context, int mx, int my) {
             int ty = top();
             boolean on = get.getAsBoolean();
-            box(context, x, ty + 1, 9, 9, on ? UI_ACCENT : UI_RAISED, contains(mx, my) ? UI_MUTED : on ? UI_ACCENT : UI_LINE);
+            box(context, x, ty + 1, 9, 9, on ? accent() : UI_RAISED, contains(mx, my) ? UI_MUTED : on ? accent() : UI_LINE);
             if (on) {
                 // A small tick, in pixels.
-                context.fill(x + 2, ty + 5, x + 3, ty + 7, UI_ACCENT_INK);
-                context.fill(x + 3, ty + 6, x + 4, ty + 8, UI_ACCENT_INK);
-                context.fill(x + 4, ty + 5, x + 5, ty + 7, UI_ACCENT_INK);
-                context.fill(x + 5, ty + 4, x + 6, ty + 6, UI_ACCENT_INK);
-                context.fill(x + 6, ty + 3, x + 7, ty + 5, UI_ACCENT_INK);
+                context.fill(x + 2, ty + 5, x + 3, ty + 7, ink());
+                context.fill(x + 3, ty + 6, x + 4, ty + 8, ink());
+                context.fill(x + 4, ty + 5, x + 5, ty + 7, ink());
+                context.fill(x + 5, ty + 4, x + 6, ty + 6, ink());
+                context.fill(x + 6, ty + 3, x + 7, ty + 5, ink());
             }
             context.text(font, trim(title, w - 14), x + 14, ty + 2, UI_FG, false);
         }
@@ -1705,11 +1810,11 @@ public final class SettingsScreen extends Screen {
         void draw(GuiGraphicsExtractor context, int mx, int my) {
             boolean on = picked.getAsBoolean();
             if (on || contains(mx, my)) {
-                box(context, x, y, w, h, on ? UI_RAISED : 0x601B2726, on ? UI_ACCENT : UI_LINE);
+                box(context, x, y, w, h, on ? UI_RAISED : 0x601B2726, on ? accent() : UI_LINE);
             }
             int s = h - 4;
-            context.fill(x + 2, y + 2, x + 2 + s, y + 2 + s, 0xFF000000);
-            context.fill(x + 3, y + 3, x + 1 + s, y + 1 + s, entryColour(entry));
+            Smooth.rect(context, x + 2, y + 2, s, s, 3f, 0x66000000);
+            Smooth.rect(context, x + 3, y + 3, s - 2, s - 2, 2f, entryColour(entry));
             context.text(font, trim(entry.name(), w - s - 10), x + s + 6, y + (h - 8) / 2 + 1, on ? UI_FG : UI_MUTED, false);
         }
 
@@ -1737,7 +1842,7 @@ public final class SettingsScreen extends Screen {
         void draw(GuiGraphicsExtractor context, int mx, int my) {
             boolean on = picked.getAsBoolean();
             if (on || contains(mx, my)) {
-                box(context, x, y, w, h, on ? UI_RAISED : 0x601B2726, on ? UI_ACCENT : UI_LINE);
+                box(context, x, y, w, h, on ? UI_RAISED : 0x601B2726, on ? accent() : UI_LINE);
             }
             context.text(font, trim(name, w - 8), x + 5, y + (h - 8) / 2 + 1, on ? UI_FG : UI_MUTED, false);
         }
@@ -1803,9 +1908,9 @@ public final class SettingsScreen extends Screen {
             }
             int kx = x + (int) Math.round(pickSat * (s - 1));
             int ky = y + (int) Math.round((1 - pickVal) * (s - 1));
-            context.fill(kx - 3, ky - 3, kx + 4, ky + 4, 0xFF000000);
-            context.fill(kx - 2, ky - 2, kx + 3, ky + 3, 0xFFFFFFFF);
-            context.fill(kx - 1, ky - 1, kx + 2, ky + 2, Theme.hsv(pickHue, pickSat, pickVal));
+            Smooth.circle(context, kx + 0.5f, ky + 0.5f, 6.5f, 0x55000000);
+            Smooth.circle(context, kx + 0.5f, ky + 0.5f, 5.5f, 0xFFFFFFFF);
+            Smooth.circle(context, kx + 0.5f, ky + 0.5f, 3.8f, Theme.hsv(pickHue, pickSat, pickVal));
 
             int hy = hueY();
             context.fill(x - 1, hy - 1, x + s + 1, hy + 9, UI_LINE);
@@ -1813,13 +1918,13 @@ public final class SettingsScreen extends Screen {
                 context.fill(x + i, hy, x + i + 1, hy + 8, Theme.hsv(i * 360.0 / s, 1, 1));
             }
             int hx = x + (int) Math.round(pickHue / 360.0 * (s - 1));
-            context.fill(hx - 2, hy - 2, hx + 3, hy + 10, 0xFF000000);
-            context.fill(hx - 1, hy - 1, hx + 2, hy + 9, 0xFFFFFFFF);
+            Smooth.rect(context, hx - 3, hy - 2, 7, 12, 3f, 0x55000000);
+            Smooth.rect(context, hx - 2, hy - 1, 5, 10, 2.5f, 0xFFFFFFFF);
 
             // The colour as it is now, beside the hex box.
             int py = hy + 8 + 6;
-            context.fill(x - 1, py - 1, x + 17, py + 17, UI_LINE);
-            context.fill(x, py, x + 16, py + 16, pickedColour());
+            Smooth.rect(context, x - 1, py - 1, 18, 18, 4f, UI_LINE);
+            Smooth.rect(context, x, py, 16, 16, 3f, pickedColour());
         }
 
         @Override
@@ -1857,15 +1962,15 @@ public final class SettingsScreen extends Screen {
     // --------------------------------------------------------------- drawing
 
     private static void box(GuiGraphicsExtractor context, int x, int y, int w, int h, int fill, int edge) {
-        context.fill(x, y, x + w, y + h, edge);
-        context.fill(x + 1, y + 1, x + w - 1, y + h - 1, fill);
+        Smooth.rect(context, x, y, w, h, 3f, edge);
+        Smooth.rect(context, x + 1, y + 1, w - 2, h - 2, 2f, fill);
     }
 
     private static void swatch(GuiGraphicsExtractor context, int x, int y, int s, int colour, boolean picked, boolean hover) {
-        context.fill(x, y, x + s, y + s, picked ? 0xFFFFFFFF : hover ? UI_MUTED : 0xFF000000);
-        context.fill(x + 1, y + 1, x + s - 1, y + s - 1, picked ? 0xFF000000 : colour);
+        Smooth.rect(context, x, y, s, s, 3f, picked ? 0xFFFFFFFF : hover ? UI_MUTED : 0x66000000);
+        Smooth.rect(context, x + 1, y + 1, s - 2, s - 2, 2f, picked ? 0xFF000000 : colour);
         if (picked) {
-            context.fill(x + 2, y + 2, x + s - 2, y + s - 2, colour);
+            Smooth.rect(context, x + 2, y + 2, s - 4, s - 4, 1.5f, colour);
         }
     }
 
@@ -1884,20 +1989,25 @@ public final class SettingsScreen extends Screen {
     public void extractRenderState(GuiGraphicsExtractor context, int mouseX, int mouseY, float delta) {
         // Background is drawn by renderWithTooltip; see HudPositionScreen for why not here.
         boolean look = lookTab();
+        frame(context);
         if (look) {
-            // A card under the controls, so they read over a busy world.
+            // A darker inset under the controls, so they read over a busy world.
             if (tab == Tab.STYLE) {
-                context.fill(listX, listTop, listX + listWidth, listBottom, UI_CARD);
+                Smooth.rect(context, listX, listTop, listWidth, listBottom - listTop, 8, 0x40000000);
             } else {
-                context.fill(4, TOP - 8, stageX - 6, contentBottom() + 2, UI_CARD);
+                Smooth.rect(context, 4, TOP - 8, stageX - 10, contentBottom() + 10 - (TOP - 8), 8, 0x40000000);
+            }
+        }
+        for (var child : this.children()) {
+            if (child instanceof Button b) {
+                skin(context, b, mouseX, mouseY);
             }
         }
 
         super.extractRenderState(context, mouseX, mouseY, delta);
 
-        context.centeredText(this.font, this.title, this.width / 2, 12, 0xFFFFFFFF);
         for (Label l : labels) {
-            context.text(this.font, l.text(), l.x(), l.y(), 0xFFCCCCCC);
+            context.text(this.font, l.text(), l.x(), l.y(), UI_FG, false);
         }
         if (!look) {
             return;
@@ -1926,8 +2036,8 @@ public final class SettingsScreen extends Screen {
         }
         if (listScrolls()) {
             int[] bar = scrollbar();
-            context.fill(listX + listWidth - 6, listTop + 2, listX + listWidth - 3, listBottom - 2, UI_LINE);
-            context.fill(listX + listWidth - 6, bar[0], listX + listWidth - 3, bar[1], UI_MUTED);
+            Smooth.rect(context, listX + listWidth - 6, listTop + 2, 3, listBottom - listTop - 4, 1.5f, UI_LINE);
+            Smooth.rect(context, listX + listWidth - 6, bar[0], 3, bar[1] - bar[0], 1.5f, UI_MUTED);
         }
 
         if (dragging == null && !draggingScrollbar) {
@@ -1941,6 +2051,81 @@ public final class SettingsScreen extends Screen {
                 }
             }
         }
+    }
+
+    /** The card behind everything: the window, in the middle of the screen. */
+    private int[] cardBounds() {
+        return new int[] { winX(), 6, winX() + winW(), this.height - 6 };
+    }
+
+    /** The rounded card, its header with the title and the strip the tabs sit in. */
+    private void frame(GuiGraphicsExtractor context) {
+        int[] c = cardBounds();
+        int w = c[2] - c[0];
+        int h = c[3] - c[1];
+        Smooth.shadow(context, c[0], c[1], w, h, 10, 6, 0x60000000);
+        int base = Theme.parseOr(config.menuBackground, DEFAULT_MENU_BACKGROUND);
+        Smooth.rect(context, c[0], c[1], w, h, 10, Smooth.alpha(base, 0.95f),
+                Smooth.alpha(Smooth.mix(base, 0xFF000000, 0.45f), 0.95f));
+        Smooth.rectTop(context, c[0], c[1], w, 46, 10, Smooth.alpha(accent(), 0.14f), Smooth.alpha(accent(), 0f));
+        Smooth.ring(context, c[0], c[1], w, h, 10, 1f, UI_LINE);
+
+        Smooth.diamond(context, c[0] + 19, c[1] + 12, 4.4f, accent());
+        context.text(this.font, this.title.getString(), c[0] + 29, c[1] + 8, UI_FG, true);
+        Smooth.rect(context, c[0] + 14, 51, w - 28, 1, 0, 0x14FFFFFF);
+        Smooth.rect(context, c[0] + 14, c[3] - 26, w - 28, 1, 0, 0x14FFFFFF);
+    }
+
+    /** Draws a button the way the rest of the screen looks; the real one is see-through. */
+    private void skin(GuiGraphicsExtractor context, Button b, int mx, int my) {
+        int x = b.getX();
+        int y = b.getY();
+        int w = b.getWidth();
+        int h = b.getHeight();
+        boolean hover = mx >= x && mx < x + w && my >= y && my < y + h;
+        String message = b.getMessage().getString();
+
+        Tab own = tabButtons.get(b);
+        if (own != null) {
+            boolean picked = own == tab;
+            if (picked) {
+                Smooth.rect(context, x, y, w, h, 10, Smooth.alpha(accent(), 0.2f));
+                Smooth.ring(context, x, y, w, h, 10, 1f, Smooth.alpha(accent(), 0.55f));
+            } else if (hover) {
+                Smooth.rect(context, x, y, w, h, 10, 0x14FFFFFF);
+            }
+            context.text(this.font, message, x + (w - this.font.width(message)) / 2, y + (h - 8) / 2,
+                    picked ? 0xFFFFFFFF : hover ? UI_FG : UI_MUTED, false);
+            return;
+        }
+
+        if (b == doneButton) {
+            Smooth.rect(context, x, y, w, h, 6, Smooth.mix(accent(), 0xFFFFFFFF, hover ? 0.3f : 0.12f), accent());
+            context.text(this.font, message, x + (w - this.font.width(message)) / 2, y + (h - 8) / 2,
+                    ink(), false);
+            return;
+        }
+
+        boolean isOn = message.endsWith(": ON");
+        if (isOn || message.endsWith(": OFF")) {
+            String label = message.substring(0, message.lastIndexOf(": "));
+            float t = slide.getOrDefault(b, isOn ? 1f : 0f);
+            t += ((isOn ? 1f : 0f) - t) * 0.3f;
+            slide.put(b, t);
+            Smooth.rect(context, x, y, w, h, 6, hover ? 0xFF223231 : UI_RAISED);
+            context.text(this.font, trim(label, w - 46), x + 10, y + (h - 8) / 2, isOn ? UI_FG : UI_MUTED, false);
+            int sx = x + w - 10 - 26;
+            int sy = y + (h - 14) / 2;
+            Smooth.rect(context, sx, sy, 26, 14, 7, Smooth.mix(UI_OFF, accent(), t));
+            Smooth.circle(context, sx + 7 + 12 * t, sy + 7, 5f, 0xFFFFFFFF);
+            return;
+        }
+
+        Smooth.rect(context, x, y, w, h, 6, !b.active ? 0x80141C1B : hover ? 0xFF2A3A38 : UI_RAISED);
+        Smooth.ring(context, x, y, w, h, 6, 1f, hover ? Smooth.alpha(accent(), 0.5f) : 0x18FFFFFF);
+        String shown = trim(message, w - 10);
+        context.text(this.font, shown, x + (w - this.font.width(shown)) / 2, y + (h - 8) / 2,
+                b.active ? UI_FG : UI_OFF, false);
     }
 
     /** Top and bottom of the scrollbar's thumb. */
@@ -1977,9 +2162,9 @@ public final class SettingsScreen extends Screen {
         int ty = my + 12 + h + 6 > this.height ? Math.max(6, my - h - 8) : my + 12;
         // Its own layer, or text drawn earlier in the frame could show through the box.
         context.nextStratum();
-        context.fill(tx - 4, ty - 4, tx + w + 4, ty + h + 2, 0xF0100010);
-        context.fill(tx - 3, ty - 3, tx + w + 3, ty - 2, 0xFF5A3CA0);
-        context.fill(tx - 3, ty + h, tx + w + 3, ty + h + 1, 0xFF2A1A50);
+        Smooth.shadow(context, tx - 5, ty - 5, w + 10, h + 9, 6, 3, 0x60000000);
+        Smooth.rect(context, tx - 5, ty - 5, w + 10, h + 9, 6, 0xF8121A19);
+        Smooth.ring(context, tx - 5, ty - 5, w + 10, h + 9, 6, 1f, Smooth.alpha(accent(), 0.5f));
         for (int i = 0; i < lines.size(); i++) {
             context.text(font, lines.get(i), tx, ty + i * 10, UI_FG, false);
         }

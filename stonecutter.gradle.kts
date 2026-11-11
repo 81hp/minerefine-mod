@@ -1,10 +1,10 @@
 // Stonecutter's controller: picks which Minecraft version the source in src/ is currently written
-// for. Switch with ./gradlew "Set active project to 26.2" and switch back before committing.
+// for. Switch with ./gradlew "Set active project to 26.3" and switch back before committing.
 plugins {
     id("dev.kikugie.stonecutter")
 }
 
-stonecutter active "26.2"
+stonecutter active "26.3"
 
 // ./gradlew buildAll builds every Minecraft version; the jars land together in build/libs.
 tasks.register("buildAll") {
@@ -20,7 +20,7 @@ tasks.register("testAll") {
     dependsOn(stonecutter.tasks.named("runClientGameTest").map { it.values })
 }
 
-// Plain renames between versions. The source uses the 26.2 names; older versions get the old name
+// Plain renames between versions. The source uses the 26.3 names; older versions get the old name
 // swapped in, in the generated copy only. Anything that changed shape rather than name goes in
 // client/Compat.java behind a `//? if` guard instead.
 // A replacement must never produce text that itself appears in the source as a declaration.

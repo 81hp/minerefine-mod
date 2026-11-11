@@ -18,7 +18,6 @@ import net.minecraft.resources.Identifier;
 import net.minecraft.sounds.SoundEvents;
 import net.minecraft.world.entity.EquipmentSlot;
 import net.minecraft.world.item.ItemStack;
-import org.lwjgl.glfw.GLFW;
 import minerefinehud.boss.BossAlerts;
 import minerefinehud.boss.BossMessageParser;
 import minerefinehud.boss.BossStore;
@@ -261,28 +260,40 @@ public final class MinerefineHudClient implements ClientModInitializer {
         // which is why en_us.json uses key.category.minerefine-hud.main.
         KeyMapping.Category category = KeyMapping.Category.register(Identifier.fromNamespaceAndPath(MOD_ID, "main"));
 
+        // VERSION SENSITIVE. 26.3 replaced GLFW with SDL: Type.KEYSYM is gone (only KEYBOARD and MOUSE
+        // remain) and the key codes are SDL scancodes rather than GLFW keycodes.
+        //? if >=26.3 {
+        /*InputConstants.Type keyType = InputConstants.Type.KEYBOARD;
+        int keyF6 = InputConstants.KEY_F6;
+        int keyUnbound = 0;
+        *///?} else {
+        InputConstants.Type keyType = InputConstants.Type.KEYSYM;
+        int keyF6 = org.lwjgl.glfw.GLFW.GLFW_KEY_F6;
+        int keyUnbound = org.lwjgl.glfw.GLFW.GLFW_KEY_UNKNOWN;
+        //?}
+
         keyPosition = KeyMappingHelper.registerKeyMapping(new KeyMapping(
                 "key.minerefine-hud.position",
-                InputConstants.Type.KEYSYM,
-                GLFW.GLFW_KEY_F6,
+                keyType,
+                keyF6,
                 category));
 
         keyToggle = KeyMappingHelper.registerKeyMapping(new KeyMapping(
                 "key.minerefine-hud.toggle",
-                InputConstants.Type.KEYSYM,
-                GLFW.GLFW_KEY_UNKNOWN,
+                keyType,
+                keyUnbound,
                 category));
 
         keySettings = KeyMappingHelper.registerKeyMapping(new KeyMapping(
                 "key.minerefine-hud.settings",
-                InputConstants.Type.KEYSYM,
-                GLFW.GLFW_KEY_UNKNOWN,
+                keyType,
+                keyUnbound,
                 category));
 
         keyTurret = KeyMappingHelper.registerKeyMapping(new KeyMapping(
                 "key.minerefine-hud.turret",
-                InputConstants.Type.KEYSYM,
-                GLFW.GLFW_KEY_UNKNOWN,
+                keyType,
+                keyUnbound,
                 category));
 
         ClientTickEvents.END_CLIENT_TICK.register(client -> {

@@ -1,6 +1,6 @@
 # MineRefine HUD
 
-A client-side Fabric mod for Minecraft 1.21.11 and 26.1 – 26.2 on the MineRefine server, built to
+A client-side Fabric mod for Minecraft 1.21.11 and 26.1 – 26.3 on the MineRefine server, built to
 run inside Lunar Client.
 
 What it does:
@@ -40,6 +40,7 @@ One jar per Minecraft version lands in `build/libs/`:
 | 1.21.11 | `minerefine-mod-<version>+1.21.11.jar` | `.lunarclient/profiles/1.21/mods/fabric-1.21.11/` |
 | 26.1 – 26.1.2 | `minerefine-mod-<version>+26.1.2.jar` | the profile's `fabric-26.1.x` folder |
 | 26.2 | `minerefine-mod-<version>+26.2.jar` | `.lunarclient/profiles/26/mods/fabric-26.2/` |
+| 26.3 | `minerefine-mod-<version>+26.3.jar` | `.lunarclient/profiles/26/mods/fabric-26.3/` |
 
 Gradle runs on Java 25 (pinned in `gradle/gradle-daemon-jvm.properties`); 1.21.11 is compiled
 with Java 21. Both are downloaded automatically when missing.

@@ -22,10 +22,10 @@ plugins {
 // no longer compiles. Every version is built and game-tested by CI on every push.
 stonecutter {
     create(rootProject) {
-        versions("1.21.11", "26.1.2", "26.2")
+        versions("1.21.11", "26.1.2", "26.2", "26.3")
         // The version the checked-in source is written for. Switch nodes to test another version
-        // (./gradlew "Set active project to 26.2"), but switch back before committing.
-        vcsVersion = "26.2"
+        // (./gradlew "Set active project to 26.3"), but switch back before committing.
+        vcsVersion = "26.3"
     }
 }
 

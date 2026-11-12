@@ -10,6 +10,7 @@ import minerefinehud.client.SettingsScreen;
 import minerefinehud.client.ShopScanner;
 import minerefinehud.client.TurretScreen;
 import minerefinehud.shop.ShopItemParser;
+import com.mojang.blaze3d.platform.InputConstants;
 import java.util.List;
 import net.fabricmc.fabric.api.client.gametest.v1.FabricClientGameTest;
 import net.fabricmc.fabric.api.client.gametest.v1.context.ClientGameTestContext;
@@ -17,7 +18,6 @@ import net.fabricmc.fabric.api.client.gametest.v1.context.TestDedicatedServerCon
 import net.fabricmc.loader.api.FabricLoader;
 import net.minecraft.client.gui.components.EditBox;
 import net.minecraft.network.chat.Component;
-import org.lwjgl.glfw.GLFW;
 
 /**
  * Starts the real game with the mod and walks through everything that touches Minecraft, so a
@@ -32,6 +32,12 @@ public class MinerefineClientGameTest implements FabricClientGameTest {
     private static final String ACTION_BAR = "MineRefine HUD action bar check";
     private static final String SHOP_ITEM = "Test Shop Item";
     private static final String SHOP_LORE = "Cost: 5 Test Coins";
+
+    // InputConstants.KEY_* has the right value on every version (GLFW keycodes on <=26.2,
+    // SDL scancodes on 26.3), so no guard needed.
+    private static final int KEY_F6 = InputConstants.KEY_F6;
+    private static final int KEY_ESCAPE = InputConstants.KEY_ESCAPE;
+    private static final int KEY_LEFT = InputConstants.KEY_LEFT;
 
     @Override
     public void runTest(ClientGameTestContext context) {
@@ -92,7 +98,7 @@ public class MinerefineClientGameTest implements FabricClientGameTest {
                 context.takeScreenshot("minerefine-hud-in-game");
 
                 // The default key opens the move screen, which links on to the others.
-                context.getInput().pressKey(GLFW.GLFW_KEY_F6);
+                context.getInput().pressKey(KEY_F6);
                 context.waitForScreen(HudPositionScreen.class);
                 context.takeScreenshot("minerefine-hud-position-screen");
 
@@ -112,7 +118,7 @@ public class MinerefineClientGameTest implements FabricClientGameTest {
                 context.clickScreenButton("Choose bosses...");
                 context.waitForScreen(BossPickScreen.class);
                 context.takeScreenshot("minerefine-hud-boss-picker");
-                context.getInput().pressKey(GLFW.GLFW_KEY_ESCAPE);
+                context.getInput().pressKey(KEY_ESCAPE);
                 context.waitForScreen(SettingsScreen.class);
 
                 // The look tabs draw their own controls and the panels as previews, item icons
@@ -157,8 +163,8 @@ public class MinerefineClientGameTest implements FabricClientGameTest {
                 check("12.5".equals(typed), "turret field holds '" + typed + "', expected '12.5'");
 
                 // A refused character must leave the cursor where it was: two left, x refused, 9 in.
-                context.getInput().pressKey(GLFW.GLFW_KEY_LEFT);
-                context.getInput().pressKey(GLFW.GLFW_KEY_LEFT);
+                context.getInput().pressKey(KEY_LEFT);
+                context.getInput().pressKey(KEY_LEFT);
                 context.getInput().typeChars("x9");
                 context.waitTick();
                 typed = context.computeOnClient(client ->
@@ -167,9 +173,9 @@ public class MinerefineClientGameTest implements FabricClientGameTest {
                 context.takeScreenshot("minerefine-hud-turret-screen");
 
                 // Escape walks back through each screen's onClose: turret, settings, game.
-                context.getInput().pressKey(GLFW.GLFW_KEY_ESCAPE);
+                context.getInput().pressKey(KEY_ESCAPE);
                 context.waitForScreen(SettingsScreen.class);
-                context.getInput().pressKey(GLFW.GLFW_KEY_ESCAPE);
+                context.getInput().pressKey(KEY_ESCAPE);
                 context.waitFor(client -> Compat.screen(client) == null);
 
                 // Shop prices come from item names and lore in an open container. The scanner
@@ -185,7 +191,7 @@ public class MinerefineClientGameTest implements FabricClientGameTest {
                 check(items.stream().anyMatch(item -> item.title().equals(SHOP_ITEM)
                                 && item.lore().contains(SHOP_LORE)),
                         "the shop scanner did not read the item's name and lore: " + items);
-                context.getInput().pressKey(GLFW.GLFW_KEY_ESCAPE);
+                context.getInput().pressKey(KEY_ESCAPE);
                 context.waitFor(client -> Compat.screen(client) == null);
 
                 // The Halloween hoe's ability starts its cooldown on drop, seen only through the

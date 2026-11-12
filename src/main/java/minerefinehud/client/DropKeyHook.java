@@ -1,12 +1,12 @@
 package minerefinehud.client;
 
 /**
- * Tells the mod the player pressed drop, from the mixin on the player's drop.
+ * Tells the mod the player pressed drop, from the drop mixin.
  *
  * Watching the drop key from a tick handler misses a quick tap: pressed and released between two
- * ticks, the key never reads as down. Every press goes through the player's drop, so the mixin
- * sees each one. Like {@link ActionBarHook}, the listener lives here because a mixin package may
- * hold only mixins, and anything it throws is swallowed.
+ * ticks, the key never reads as down. Every press goes through the drop, so the mixin sees each
+ * one. Like {@link ActionBarHook}, the listener lives here because a mixin package may hold only
+ * mixins, and anything it throws is swallowed.
  */
 public final class DropKeyHook {
 

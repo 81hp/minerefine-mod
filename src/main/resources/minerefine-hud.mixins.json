@@ -7,7 +7,7 @@
     "CommandPacketMixin",
     "ContainerPacketMixin",
     "InGameHudMixin",
-    "LocalPlayerDropMixin"
+    "DropKeyMixin"
   ],
   "injectors": {
     "defaultRequire": 0

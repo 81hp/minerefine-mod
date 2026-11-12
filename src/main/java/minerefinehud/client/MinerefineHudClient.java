@@ -18,7 +18,6 @@ import net.minecraft.resources.Identifier;
 import net.minecraft.sounds.SoundEvents;
 import net.minecraft.world.entity.EquipmentSlot;
 import net.minecraft.world.item.ItemStack;
-import org.lwjgl.glfw.GLFW;
 import minerefinehud.boss.BossAlerts;
 import minerefinehud.boss.BossMessageParser;
 import minerefinehud.boss.BossStore;
@@ -261,28 +260,35 @@ public final class MinerefineHudClient implements ClientModInitializer {
         // which is why en_us.json uses key.category.minerefine-hud.main.
         KeyMapping.Category category = KeyMapping.Category.register(Identifier.fromNamespaceAndPath(MOD_ID, "main"));
 
+        // VERSION SENSITIVE. Only Type differs: KEYSYM on <=26.2, KEYBOARD on 26.3.
+        // Stonecutter swaps the Type below for older versions. Key codes come from
+        // InputConstants.KEY_*, which has the right value on every version.
+        InputConstants.Type keyType = InputConstants.Type.KEYBOARD;
+        int keyF6 = InputConstants.KEY_F6;
+        int keyUnbound = InputConstants.UNKNOWN.getValue();
+
         keyPosition = KeyMappingHelper.registerKeyMapping(new KeyMapping(
                 "key.minerefine-hud.position",
-                InputConstants.Type.KEYSYM,
-                GLFW.GLFW_KEY_F6,
+                keyType,
+                keyF6,
                 category));
 
         keyToggle = KeyMappingHelper.registerKeyMapping(new KeyMapping(
                 "key.minerefine-hud.toggle",
-                InputConstants.Type.KEYSYM,
-                GLFW.GLFW_KEY_UNKNOWN,
+                keyType,
+                keyUnbound,
                 category));
 
         keySettings = KeyMappingHelper.registerKeyMapping(new KeyMapping(
                 "key.minerefine-hud.settings",
-                InputConstants.Type.KEYSYM,
-                GLFW.GLFW_KEY_UNKNOWN,
+                keyType,
+                keyUnbound,
                 category));
 
         keyTurret = KeyMappingHelper.registerKeyMapping(new KeyMapping(
                 "key.minerefine-hud.turret",
-                InputConstants.Type.KEYSYM,
-                GLFW.GLFW_KEY_UNKNOWN,
+                keyType,
+                keyUnbound,
                 category));
 
         ClientTickEvents.END_CLIENT_TICK.register(client -> {

@@ -1,5 +1,6 @@
 package minerefinehud.client;
 
+import com.mojang.blaze3d.platform.InputConstants;
 import minerefinehud.hud.HudLayout;
 import minerefinehud.hud.HudModel;
 import minerefinehud.hud.PanelPainter;
@@ -31,11 +32,13 @@ public final class HudPositionScreen extends Screen {
     /** What the screen hands back on close, in the same order as the panels it was given. */
     public record Result(List<HudLayout.Placement> placements, List<Double> scales) {}
 
-    private static final int KEY_TAB = 258;
-    private static final int KEY_RIGHT = 262;
-    private static final int KEY_LEFT = 263;
-    private static final int KEY_DOWN = 264;
-    private static final int KEY_UP = 265;
+    // InputConstants.KEY_* has the right value on every version (GLFW keycodes on <=26.2,
+    // SDL scancodes on 26.3), so no guard needed.
+    private static final int KEY_TAB = InputConstants.KEY_TAB;
+    private static final int KEY_RIGHT = InputConstants.KEY_RIGHT;
+    private static final int KEY_LEFT = InputConstants.KEY_LEFT;
+    private static final int KEY_DOWN = InputConstants.KEY_DOWN;
+    private static final int KEY_UP = InputConstants.KEY_UP;
 
     /**
      * Under each preview, so a panel can be found and grabbed even with no background of its own.

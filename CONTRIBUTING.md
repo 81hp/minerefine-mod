@@ -54,7 +54,7 @@ list in `build.gradle.kts`.
 ```
 ./gradlew buildAll          # Windows PowerShell: .\gradlew.bat buildAll
 ```
-This compiles the mod for 1.21.11, 26.1.2 and 26.2 and runs the logic tests again. The jars
+This compiles the mod for 1.21.11, 26.1.2, 26.2 and 26.3 and runs the logic tests again. The jars
 land in `build/libs/` as `minerefine-hud-<version>+<mc>.jar`.
 
 The source is written for one version, and code that differs per version sits inside

@@ -1,6 +1,6 @@
 # MineRefine HUD
 
-A client-side Fabric mod for Minecraft 1.21.11 and 26.1 – 26.2 on the MineRefine server, built to
+A client-side Fabric mod for Minecraft 1.21.11 and 26.1 – 26.3 on the MineRefine server, built to
 run inside Lunar Client.
 
 What it does:
@@ -40,6 +40,7 @@ One jar per Minecraft version lands in `build/libs/`:
 | 1.21.11 | `minerefine-mod-<version>+1.21.11.jar` | `.lunarclient/profiles/1.21/mods/fabric-1.21.11/` |
 | 26.1 – 26.1.2 | `minerefine-mod-<version>+26.1.2.jar` | the profile's `fabric-26.1.x` folder |
 | 26.2 | `minerefine-mod-<version>+26.2.jar` | `.lunarclient/profiles/26/mods/fabric-26.2/` |
+| 26.3 | `minerefine-mod-<version>+26.3.jar` | `.lunarclient/profiles/26/mods/fabric-26.3/` |
 
 Gradle runs on Java 25 (pinned in `gradle/gradle-daemon-jvm.properties`); 1.21.11 is compiled
 with Java 21. Both are downloaded automatically when missing.
@@ -50,12 +51,12 @@ with Java 21. Both are downloaded automatically when missing.
 
 - `versions/<minecraft>/gradle.properties` holds what differs per version (Minecraft range,
   Fabric API, Java).
-- The source is written against **26.2**, with Mojang's names on every version. Renames are
+- The source is written against **26.3**, with Mojang's names on every version. Renames are
   swapped in for older versions automatically, listed in `stonecutter.gradle.kts`.
-- Calls that changed shape go through `client/Compat.java`, where `//? if >=26.2 { ... }` comments
+- Calls that changed shape go through `client/Compat.java`, where `//? if >=26.3 { ... }` comments
   pick each version's branch. A new Minecraft version that moves something is fixed there once.
 - `./gradlew "Set active project to 1.21.11"` switches `src/` to another version for the IDE.
-  Switch back to 26.2 before committing.
+  Switch back to 26.3 before committing.
 
 To add a version: append it in `settings.gradle.kts`, add its `versions/<v>/gradle.properties`,
 add it to the CI matrix in `.github/workflows/build.yml`, and guard whatever no longer compiles.

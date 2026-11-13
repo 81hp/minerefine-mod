@@ -252,6 +252,89 @@ public final class OutpostTimers {
         }
     }
 
+    // ----------------------------------------------------------- schedule
+
+    /**
+     * One outpost's coming openings, for the schedule screen.
+     *
+     * @param opens   when each opening starts, from the clock; the first is the one going on now
+     *                when {@code openNow}
+     * @param openNow its battle is on right now
+     */
+    public record Schedule(String name, List<Long> opens, boolean openNow) {}
+
+    /**
+     * Each outpost's next {@code count} openings, in the order the menu lists them: the next one,
+     * then every five minute battle plus four hour wait after it.
+     */
+    public static List<Schedule> schedule(Saved saved, long now, int count) {
+        List<Schedule> out = new ArrayList<>();
+        for (Entry e : repair(saved).outposts) {
+            long first = firstOpening(e.opensAt, now);
+            List<Long> opens = new ArrayList<>();
+            for (int i = 0; i < Math.max(0, count); i++) {
+                opens.add(first + i * CYCLE_MS);
+            }
+            out.add(new Schedule(shortName(e.name), opens, first <= now));
+        }
+        return out;
+    }
+
+    /** The opening going on now, or else the next one. */
+    static long firstOpening(long opensAt, long now) {
+        if (now < opensAt) {
+            return opensAt;
+        }
+        long start = opensAt + (now - opensAt) / CYCLE_MS * CYCLE_MS;
+        return now - start < BATTLE_MS ? start : start + CYCLE_MS;
+    }
+
+    /**
+     * Nothing read yet, or a reading older than one whole cycle: the schedule is worth reading
+     * /outpost again for. Counting forward stays right in between.
+     */
+    public static boolean scheduleStale(Saved saved, long now) {
+        Saved s = repair(saved);
+        if (s.outposts.isEmpty()) {
+            return true;
+        }
+        for (Entry e : s.outposts) {
+            if (now - e.readAt > CYCLE_MS) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    /** When the oldest reading was taken, for "read 3m ago"; 0 with none, or with one never read. */
+    public static long oldestRead(Saved saved) {
+        long oldest = Long.MAX_VALUE;
+        for (Entry e : repair(saved).outposts) {
+            oldest = Math.min(oldest, Math.max(0L, e.readAt));
+        }
+        return oldest == Long.MAX_VALUE ? 0L : oldest;
+    }
+
+    /**
+     * "14:32", or "2:32 PM" on a 12-hour clock, in the player's time zone. Seconds are dropped, not
+     * rounded, so the time shown is never after the real opening.
+     */
+    public static String timeOfDay(long at, java.time.ZoneId zone, boolean twelveHour) {
+        java.time.LocalTime t = java.time.Instant.ofEpochMilli(at).atZone(zone).toLocalTime();
+        if (!twelveHour) {
+            return String.format(Locale.ROOT, "%02d:%02d", t.getHour(), t.getMinute());
+        }
+        int h = t.getHour() % 12 == 0 ? 12 : t.getHour() % 12;
+        return String.format(Locale.ROOT, "%d:%02d %s", h, t.getMinute(), t.getHour() < 12 ? "AM" : "PM");
+    }
+
+    /** Calendar days from {@code now} to {@code at} in that zone: 0 today, 1 tomorrow. */
+    public static long daysAhead(long at, long now, java.time.ZoneId zone) {
+        return java.time.temporal.ChronoUnit.DAYS.between(
+                java.time.Instant.ofEpochMilli(now).atZone(zone).toLocalDate(),
+                java.time.Instant.ofEpochMilli(at).atZone(zone).toLocalDate());
+    }
+
     /** The mod's own Interval writes a time the config can show: "15m". */
     public static String every(long ms) {
         return Interval.format(ms);

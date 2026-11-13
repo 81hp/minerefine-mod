@@ -207,9 +207,19 @@ final class ExtrasClient {
         }
     }
 
+    /**
+     * For the outpost schedule: reads /outpost once as soon as it may, outpost panel on or off.
+     * Hidden commands wait while any screen is open, so it goes once the player closes it.
+     */
+    void requestOutposts() {
+        outpostPoller.requestNow();
+    }
+
     /** A /stats menu the player opened: read it, and know its title from now on. */
     void onVisibleMenu(String title, List<ShopItemParser.ItemView> items, long now) {
-        if (config.showOutposts) {
+        // Read with the panel off too, since the outpost schedule uses the same times; on
+        // MineRefine only, so another server's menu never overwrites them.
+        if (seenMineRefine.getAsBoolean()) {
             readOutposts(items, now);
         }
         if (readStats(items, now)) {

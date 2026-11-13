@@ -540,6 +540,8 @@ public final class ModConfig {
     public int outpostWarnSeconds = 60;
     /** The last readings, counted forward from. Written by the mod. */
     public minerefinehud.outpost.OutpostTimers.Saved outpostData = new minerefinehud.outpost.OutpostTimers.Saved();
+    /** The outpost schedule's times on a 12-hour clock (2:32 PM) instead of 24-hour (14:32). */
+    public boolean outpostTwelveHour = false;
 
     /** Clear of the other panels' default spots: under the mine panel, and both right corners are taken. */
     public static final HudLayout.Placement DEFAULT_MINING_PLACEMENT =

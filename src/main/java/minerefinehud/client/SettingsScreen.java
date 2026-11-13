@@ -326,6 +326,18 @@ public final class SettingsScreen extends Screen {
                 });
         addRenderableWidget(rate);
 
+        Button schedule = addRenderableWidget(Button.builder(Component.literal("Outpost schedule..."), b -> {
+                    onChange.run();
+                    if (this.minecraft != null) {
+                        Compat.setScreen(this.minecraft, new OutpostScheduleScreen(this, config, onChange,
+                                extras::requestOutposts));
+                    }
+                })
+                .bounds(x(0), y(3), COLUMN_WIDTH * 2 + 10, 20).build());
+        schedule.setTooltip(Tooltip.create(Component.literal("When each outpost opens over the next day, "
+                + "in your own clock. Uses the times read from /outpost; if there are none or they are old, "
+                + "/outpost is read once you are back in the game.")));
+
         addRenderableWidget(Button.builder(Component.literal("Move and resize panels..."), b -> {
                     onChange.run();
                     openPositions.run();

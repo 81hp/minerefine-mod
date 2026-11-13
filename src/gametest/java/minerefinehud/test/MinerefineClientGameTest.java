@@ -6,9 +6,12 @@ import minerefinehud.client.BossPickScreen;
 import minerefinehud.client.Compat;
 import minerefinehud.client.DropKeyHook;
 import minerefinehud.client.HudPositionScreen;
+import minerefinehud.client.ModConfig;
+import minerefinehud.client.OutpostScheduleScreen;
 import minerefinehud.client.SettingsScreen;
 import minerefinehud.client.ShopScanner;
 import minerefinehud.client.TurretScreen;
+import minerefinehud.outpost.OutpostTimers;
 import minerefinehud.shop.ShopItemParser;
 import java.util.List;
 import net.fabricmc.fabric.api.client.gametest.v1.FabricClientGameTest;
@@ -169,6 +172,31 @@ public class MinerefineClientGameTest implements FabricClientGameTest {
                 // Escape walks back through each screen's onClose: turret, settings, game.
                 context.getInput().pressKey(GLFW.GLFW_KEY_ESCAPE);
                 context.waitForScreen(SettingsScreen.class);
+
+                // The outpost schedule from its General tab button: nothing read yet on the test
+                // server, so it says so.
+                context.clickScreenButton("Outpost schedule...");
+                context.waitForScreen(OutpostScheduleScreen.class);
+                context.takeScreenshot("minerefine-hud-outpost-schedule-empty");
+                context.getInput().pressKey(GLFW.GLFW_KEY_ESCAPE);
+                context.waitForScreen(SettingsScreen.class);
+                // And with two outposts read, one of them open right now, on both clocks.
+                ModConfig sample = new ModConfig();
+                long at = System.currentTimeMillis();
+                sample.outpostData = OutpostTimers.update(null, List.of(
+                        new OutpostTimers.Reading("Ruins", 2L * 3_600_000L + 32L * 60_000L),
+                        new OutpostTimers.Reading("Sift", -2L * 60_000L)), at);
+                context.runOnClient(client -> Compat.setScreen(client,
+                        new OutpostScheduleScreen(Compat.screen(client), sample, () -> {}, () -> {})));
+                context.waitForScreen(OutpostScheduleScreen.class);
+                context.takeScreenshot("minerefine-hud-outpost-schedule");
+                context.clickScreenButton("Clock: 24-hour");
+                context.waitTick();
+                check(sample.outpostTwelveHour, "the clock button did not switch to 12-hour");
+                context.takeScreenshot("minerefine-hud-outpost-schedule-12h");
+                context.getInput().pressKey(GLFW.GLFW_KEY_ESCAPE);
+                context.waitForScreen(SettingsScreen.class);
+
                 context.getInput().pressKey(GLFW.GLFW_KEY_ESCAPE);
                 context.waitFor(client -> Compat.screen(client) == null);
 

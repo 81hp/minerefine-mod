@@ -331,7 +331,9 @@ public abstract class MenuPoller {
      * changed command or menu): the check stops, rather than sending it for nothing for ever.
      */
     private void missed(Minecraft client) {
-        if (++misses < MAX_MISSES || !auto()) {
+        // Only the automatic check's misses count: a one-off check asked for with it off must not
+        // leave misses behind that turn it off as soon as the player turns it on.
+        if (!auto() || ++misses < MAX_MISSES) {
             return;
         }
         misses = 0;

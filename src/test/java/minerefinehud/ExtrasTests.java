@@ -40,6 +40,7 @@ public final class ExtrasTests {
         panels();
         beacon();
         outposts();
+        outpostSchedule();
         xp();
 
         System.out.println();
@@ -403,6 +404,69 @@ public final class ExtrasTests {
         t += 1_000L;
         r.observe("Rosewood", 2_160.0, t);
         eq("and keeps counting", 67.0, r.session("Rosewood"));
+    }
+
+    private static void outpostSchedule() {
+        java.time.ZoneId utc = java.time.ZoneOffset.UTC;
+        long m = 60_000L;
+        long h = 60 * m;
+        long cycle = 4 * h + 5 * m;
+        // 10:00 UTC; Ruins read as opening in 4h 32m 40s, Sift in 1h 10m.
+        long now = java.time.ZonedDateTime.of(2026, 11, 13, 10, 0, 0, 0, utc).toInstant().toEpochMilli();
+        OutpostTimers.Saved saved = OutpostTimers.update(null, List.of(
+                new OutpostTimers.Reading("Ruins", 4 * h + 32 * m + 40_000L),
+                new OutpostTimers.Reading("Sift", h + 10 * m)), now);
+
+        List<OutpostTimers.Schedule> s = OutpostTimers.schedule(saved, now, 6);
+        eq("schedule: one row per outpost", 2, s.size());
+        eq("schedule: in menu order", "Ruins", s.get(0).name());
+        eq("schedule: six openings", 6, s.get(0).opens().size());
+        eq("schedule: first is the next opening", now + h + 10 * m, (long) s.get(1).opens().get(0));
+        eq("schedule: then battle plus wait", now + h + 10 * m + cycle, (long) s.get(1).opens().get(1));
+        eq("schedule: sixth", now + h + 10 * m + 5 * cycle, (long) s.get(1).opens().get(5));
+        yes("schedule: not open yet", !s.get(1).openNow());
+
+        List<String> ruins = new java.util.ArrayList<>();
+        for (long t : s.get(0).opens()) {
+            ruins.add(OutpostTimers.timeOfDay(t, utc, false));
+        }
+        eq("schedule: 24-hour, seconds dropped", List.of("14:32", "18:37", "22:42", "02:47", "06:52", "10:57"), ruins);
+        eq("schedule: 12-hour afternoon", "2:32 PM", OutpostTimers.timeOfDay(s.get(0).opens().get(0), utc, true));
+        eq("schedule: 12-hour after midnight", "2:47 AM", OutpostTimers.timeOfDay(s.get(0).opens().get(3), utc, true));
+        long noon = now + 2 * h;
+        long midnight = now + 14 * h;
+        eq("schedule: noon is 12 PM", "12:00 PM", OutpostTimers.timeOfDay(noon, utc, true));
+        eq("schedule: midnight is 12 AM", "12:00 AM", OutpostTimers.timeOfDay(midnight, utc, true));
+        eq("schedule: today", 0L, OutpostTimers.daysAhead(s.get(0).opens().get(2), now, utc));
+        eq("schedule: tomorrow", 1L, OutpostTimers.daysAhead(s.get(0).opens().get(3), now, utc));
+        eq("schedule: the player's own time zone", "15:32",
+                OutpostTimers.timeOfDay(s.get(0).opens().get(0), java.time.ZoneId.of("Europe/Amsterdam"), false));
+
+        // During Sift's battle the opening going on now stays first; after it, the next one.
+        long siftOpens = now + h + 10 * m;
+        List<OutpostTimers.Schedule> during = OutpostTimers.schedule(saved, siftOpens + 2 * m, 6);
+        yes("schedule: open now", during.get(1).openNow());
+        eq("schedule: the battle going on is first", siftOpens, (long) during.get(1).opens().get(0));
+        List<OutpostTimers.Schedule> after = OutpostTimers.schedule(saved, siftOpens + 5 * m, 6);
+        yes("schedule: closed again", !after.get(1).openNow());
+        eq("schedule: battle over, the next one", siftOpens + cycle, (long) after.get(1).opens().get(0));
+        // Counted forward a whole day from one old reading.
+        List<OutpostTimers.Schedule> later = OutpostTimers.schedule(saved, siftOpens + 6 * cycle + h, 6);
+        eq("schedule: counted forward", siftOpens + 7 * cycle, (long) later.get(1).opens().get(0));
+
+        yes("schedule: fresh reading", !OutpostTimers.scheduleStale(saved, now + h));
+        yes("schedule: older than a cycle", OutpostTimers.scheduleStale(saved, now + cycle + 1));
+        yes("schedule: nothing read", OutpostTimers.scheduleStale(null, now));
+        yes("schedule: nothing read, empty", OutpostTimers.scheduleStale(new OutpostTimers.Saved(), now));
+        eq("schedule: no rows", 0, OutpostTimers.schedule(null, now, 6).size());
+        eq("schedule: oldest read", now, OutpostTimers.oldestRead(saved));
+        eq("schedule: none read", 0L, OutpostTimers.oldestRead(null));
+        OutpostTimers.Saved half = OutpostTimers.update(null, List.of(new OutpostTimers.Reading("Sift", h)), now);
+        OutpostTimers.Entry unread = new OutpostTimers.Entry();
+        unread.name = "Ruins";
+        half.outposts.add(0, unread);
+        eq("schedule: one never read is the oldest", 0L, OutpostTimers.oldestRead(half));
+        eq("schedule: zero asked", 0, OutpostTimers.schedule(saved, now, 0).get(0).opens().size());
     }
 
     /** From the /outpost screenshots, 2026-11-09. */

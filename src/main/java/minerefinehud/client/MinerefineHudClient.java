@@ -147,6 +147,7 @@ public final class MinerefineHudClient implements ClientModInitializer {
     private HalloweenClient halloween;
     private BossIndexPoller bossIndex;
     private ExtrasClient extras;
+    private TurretLevelsClient turretLevels;
 
     /** Mine named by the shop most recently opened. A fallback when nothing else names one. */
     private Optional<String> lastShopMine = Optional.empty();
@@ -233,6 +234,8 @@ public final class MinerefineHudClient implements ClientModInitializer {
                     }
                 });
         extras.register();
+        turretLevels = new TurretLevelsClient(config, () -> config.save(configFile), halloween::seenMineRefine);
+        turretLevels.register();
 
         registerKeyBindings();
         ActionBarHook.listen(this::onActionBar);
@@ -457,6 +460,12 @@ public final class MinerefineHudClient implements ClientModInitializer {
             movables.add(new Movable(new HudPositionScreen.Panel("Outposts", extras.outpostPanel(now),
                     config.outpostPlacement(), ModConfig.DEFAULT_OUTPOST_PLACEMENT, config.outpostLook.scale, 1.0, HudRenderer.Look.of(config, config.outpostLook)),
                     config::setOutpostPlacement, config.outpostLook));
+        }
+        if (config.showTurretLevels) {
+            movables.add(new Movable(new HudPositionScreen.Panel("Turret levels", turretLevels.preview(),
+                    config.turretLevelsPlacement(), ModConfig.DEFAULT_TURRET_LEVELS_PLACEMENT,
+                    config.turretLevelsLook.scale, 1.0, HudRenderer.Look.of(config, config.turretLevelsLook)),
+                    config::setTurretLevelsPlacement, config.turretLevelsLook));
         }
         movables.add(new Movable(new HudPositionScreen.Panel("Bosses", bossPreview,
                 config.bossPlacement(), ModConfig.DEFAULT_BOSS_PLACEMENT, config.bossLook.scale, 1.0, HudRenderer.Look.of(config, config.bossLook)),
@@ -804,6 +813,8 @@ public final class MinerefineHudClient implements ClientModInitializer {
         drawPanel(context, client, extras.dropsPanel(now), config.dropsPlacement(), config.dropsLook, style, theme);
         drawPanel(context, client, extras.beaconPanel(now), config.beaconPlacement(), config.beaconLook, style, theme);
         drawPanel(context, client, extras.outpostPanel(now), config.outpostPlacement(), config.outpostLook, style, theme);
+        drawPanel(context, client, turretLevels.panel(),
+                config.turretLevelsPlacement(), config.turretLevelsLook, style, theme);
         drawPanel(context, client, HudModel.bossPanel(bosses, options, halloween.reforgerRows(now)),
                 config.bossPlacement(), config.bossLook, style, theme);
 

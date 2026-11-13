@@ -10,6 +10,7 @@ import minerefinehud.mine.MiningRate;
 import minerefinehud.mine.XpRate;
 import minerefinehud.outpost.OutpostTimers;
 import minerefinehud.stats.PlayerStats;
+import minerefinehud.turret.TurretLevels;
 
 import java.util.List;
 import java.util.Optional;
@@ -41,6 +42,7 @@ public final class ExtrasTests {
         beacon();
         outposts();
         xp();
+        turretLevels();
 
         System.out.println();
         System.out.println("passed: " + passed + "   failed: " + failed);
@@ -784,6 +786,76 @@ public final class ExtrasTests {
         eq("counts", java.util.Map.of("a", 2, "b", 1), JobCalc.counts(List.of("a", "b", "a")));
         eq("remove one", List.of("a", "b"), JobCalc.removeOne(List.of("a", "b", "a"), "a").stream().sorted().toList());
         eq("remove missing", List.of("a"), JobCalc.removeOne(List.of("a"), "z"));
+    }
+
+    // ------------------------------------------------------------ turret levels
+
+    private static void turretLevels() {
+        // UNVERIFIED: the player's description of the line, not copied from the server yet.
+        String jade = "Jade Turret has leveled up to 117 -> Level 118";
+        eq("jade 117->118", Optional.of(new TurretLevels.LevelUp("jade", 117, 118)), TurretLevels.parse(jade));
+        eq("panel label", "jade 117->118", TurretLevels.parse(jade).map(TurretLevels.LevelUp::label).orElse(""));
+        // UNVERIFIED: read off the player's screenshot, so the words are right but the colour codes are not known.
+        eq("full stop at the end", Optional.of(new TurretLevels.LevelUp("honeystone", 0, 1)),
+                TurretLevels.parse("Honeystone Turret has leveled up to 0 -> Level 1."));
+        eq("colour codes and a trailing invisible character",
+                Optional.of(new TurretLevels.LevelUp("jade", 117, 118)),
+                TurretLevels.parse("§eJade Turret §7has leveled up to §e117 §7-> §eLevel 118" + G));
+        eq("zero-width space at the end", Optional.of(new TurretLevels.LevelUp("siftite", 4, 5)),
+                TurretLevels.parse("Siftite Turret has leveled up to 4 -> Level 5​"));
+
+        // UNVERIFIED: no turret this high seen yet; commas as the server writes other big numbers.
+        eq("thousands comma", Optional.of(new TurretLevels.LevelUp("jade", 999, 1000)),
+                TurretLevels.parse("Jade Turret has leveled up to 999 -> Level 1,000"));
+        eq("indented, another message's line", Optional.empty(),
+                TurretLevels.parse(" Jade Turret has leveled up to 117 -> Level 118"));
+
+        eq("no level", Optional.empty(), TurretLevels.parse("Jade Turret has leveled up!"));
+        eq("same level", Optional.empty(), TurretLevels.parse("Jade Turret has leveled up to 118 -> Level 118"));
+        eq("level going down", Optional.empty(), TurretLevels.parse("Jade Turret has leveled up to 118 -> Level 117"));
+        eq("number too big", Optional.empty(),
+                TurretLevels.parse("Jade Turret has leveled up to 99999999999 -> Level 99999999999999"));
+        eq("null", Optional.empty(), TurretLevels.parse(null));
+        eq("empty", Optional.empty(), TurretLevels.parse(""));
+
+        // A player typing the words: chat puts their rank and name first, so it never counts.
+        eq("typed by a player", Optional.empty(),
+                TurretLevels.parse("[★508] ✠:ʀᴜɴɪᴄ:✠ 81hp_: Jade Turret has leveled up to 117 -> Level 118"));
+        eq("typed, no rank", Optional.empty(), TurretLevels.parse("Arreba: Jade Turret has leveled up to 117 -> Level 118"));
+        eq("vanilla chat", Optional.empty(), TurretLevels.parse("<Arreba> Jade Turret has leveled up to 117 -> Level 118"));
+        eq("a whisper", Optional.empty(), TurretLevels.parse("From 81hp_: Jade Turret has leveled up to 117 -> Level 118"));
+        eq("more after it", Optional.empty(),
+                TurretLevels.parse("Jade Turret has leveled up to 117 -> Level 118 lol jk"));
+
+        TurretLevels.Log log = new TurretLevels.Log(new java.util.ArrayList<>());
+        TurretLevels.LevelUp up = new TurretLevels.LevelUp("jade", 117, 118);
+        yes("first one stored", log.add(up, 10_000L));
+        yes("same again within 5 s is not", !log.add(up, 14_999L));
+        eq("stored once", 1, log.saved().size());
+        yes("same again after 5 s is", log.add(up, 15_000L));
+        eq("stored twice", 2, log.saved().size());
+
+        TurretLevels.Log five = new TurretLevels.Log(new java.util.ArrayList<>());
+        for (int i = 0; i < 7; i++) {
+            five.add(new TurretLevels.LevelUp("jade", i, i + 1), i * 10_000L);
+        }
+        eq("only the last 5 kept", 5, five.saved().size());
+        eq("newest first", 7, five.saved().get(0).to);
+        eq("oldest kept", 3, five.saved().get(4).to);
+
+        // A config written by hand or by an older build: too many rows and broken ones.
+        java.util.List<TurretLevels.Saved> old = new java.util.ArrayList<>();
+        for (int i = 0; i < 8; i++) {
+            TurretLevels.Saved s = new TurretLevels.Saved();
+            s.name = i == 1 ? "" : "jade";
+            s.from = i;
+            s.to = i == 2 ? i : i + 1;
+            old.add(s);
+        }
+        old.add(null);
+        TurretLevels.Log loaded = new TurretLevels.Log(old);
+        eq("broken rows dropped, capped at 5", 5, loaded.saved().size());
+        eq("a null list loads", 0, new TurretLevels.Log(null).saved().size());
     }
 
     // ------------------------------------------------------------------ util

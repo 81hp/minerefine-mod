@@ -305,7 +305,7 @@ public final class ModConfig {
     /** Every panel's look, for settings that change them all at once. */
     public java.util.List<Look> allLooks() {
         return java.util.List.of(mineLook, bossLook, progressLook, alertLook, hwStatsLook, hwPumpkinLook, hwAbilityLook,
-                miningLook, statsLook, dropsLook, beaconLook, outpostLook);
+                miningLook, statsLook, dropsLook, beaconLook, outpostLook, turretLevelsLook);
     }
 
     /** Size a panel is drawn at: its own size times the whole HUD's. */
@@ -564,6 +564,29 @@ public final class ModConfig {
     public int outpostX = DEFAULT_OUTPOST_PLACEMENT.offsetX();
     public int outpostY = DEFAULT_OUTPOST_PLACEMENT.offsetY();
     public Look outpostLook = new Look();
+
+    /** Last few turret level-ups from chat, newest first. */
+    public boolean showTurretLevels = false;
+    public java.util.List<minerefinehud.turret.TurretLevels.Saved> turretLevels = new java.util.ArrayList<>();
+
+    public static final HudLayout.Placement DEFAULT_TURRET_LEVELS_PLACEMENT =
+            new HudLayout.Placement(Anchor.BOTTOM_RIGHT, -4, -48);
+    public String turretLevelsAnchor = DEFAULT_TURRET_LEVELS_PLACEMENT.anchor().name();
+    public int turretLevelsX = DEFAULT_TURRET_LEVELS_PLACEMENT.offsetX();
+    public int turretLevelsY = DEFAULT_TURRET_LEVELS_PLACEMENT.offsetY();
+    public Look turretLevelsLook = new Look();
+
+    public HudLayout.Placement turretLevelsPlacement() {
+        return new HudLayout.Placement(
+                Anchor.parse(turretLevelsAnchor).orElse(DEFAULT_TURRET_LEVELS_PLACEMENT.anchor()),
+                turretLevelsX, turretLevelsY);
+    }
+
+    public void setTurretLevelsPlacement(HudLayout.Placement p) {
+        turretLevelsAnchor = p.anchor().name();
+        turretLevelsX = p.offsetX();
+        turretLevelsY = p.offsetY();
+    }
 
     public String miningAnchor = DEFAULT_MINING_PLACEMENT.anchor().name();
     public int miningX = DEFAULT_MINING_PLACEMENT.offsetX();
@@ -914,6 +937,10 @@ public final class ModConfig {
         beaconLook = fix(beaconLook, 1.0);
         beaconWarnSeconds = Math.max(0, Math.min(60, beaconWarnSeconds));
         outpostLook = fix(outpostLook, 1.0);
+        turretLevelsLook = fix(turretLevelsLook, 1.0);
+        if (turretLevels == null) {
+            turretLevels = new java.util.ArrayList<>();
+        }
         menuAccent = Theme.format(Theme.parseOr(menuAccent, 0xFFFFD24A));
         menuBackground = Theme.format(Theme.parseOr(menuBackground, 0xFF182221));
         outpostWarnSeconds = Math.max(0, Math.min(600, outpostWarnSeconds));

@@ -547,7 +547,11 @@ public final class SettingsScreen extends Screen {
                     onChange.run();
                     openPositions.run();
                 })
-                .bounds(x(0), y(7), COLUMN_WIDTH * 2 + 10, 20).build());
+                .bounds(x(0), y(7), COLUMN_WIDTH, 20).build());
+        Button levels = toggleAt(x(1), y(7), "Turret levels",
+                () -> config.showTurretLevels, v -> config.showTurretLevels = v);
+        levels.setTooltip(Tooltip.create(Component.literal(
+                "The last 5 turret level-ups from chat, like jade 117->118.")));
     }
 
     /** The two countdown panels, Beacon Mine and the outposts. By Arreba. */
@@ -1240,7 +1244,8 @@ public final class SettingsScreen extends Screen {
                 new PanelEntry("Stats", config.statsLook, 1.0, Previews::stats),
                 new PanelEntry("Rare drops", config.dropsLook, 1.0, Previews::drops),
                 new PanelEntry("Beacon Mine", config.beaconLook, 1.0, Previews::beacon),
-                new PanelEntry("Outposts", config.outpostLook, 1.0, Previews::outposts));
+                new PanelEntry("Outposts", config.outpostLook, 1.0, Previews::outposts),
+                new PanelEntry("Turret levels", config.turretLevelsLook, 1.0, p -> TurretLevelsClient.sample()));
     }
 
     /** Each panel's own background and size, with that panel drawn as it will look. */

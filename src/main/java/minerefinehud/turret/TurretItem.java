@@ -42,16 +42,31 @@ public final class TurretItem {
     private static final Pattern NUMBER = Pattern.compile("[0-9][0-9,]*(?:\\.[0-9]+)?");
     private static final Pattern SIZE = Pattern.compile("(?<!cap)\\bsize\\s*:\\s*(" + NUMBER.pattern() + ")");
     private static final Pattern SIZE_CAP = Pattern.compile("size\\s*cap\\s*:\\s*(" + NUMBER.pattern() + ")");
-    private static final Pattern MERGED = Pattern.compile("(" + NUMBER.pattern() + ")\\s*x?\\s*(?:(?:→|->)\\s*[0-9,]+\\s*x?\\s*)?merged");
+    // The lookbehind only stops a match from starting inside a number, which it never could
+    // usefully; without it a line of digits is searched again from every one of them.
+    private static final Pattern MERGED = Pattern.compile("(?<![0-9,])(" + NUMBER.pattern() + ")\\s*x?\\s*(?:(?:→|->)\\s*[0-9,]+\\s*x?\\s*)?merged");
 
-    private static final String SMALL_CAPS = "ᴀʙᴄᴅᴇꜰɢʜɪᴊᴋʟᴍɴᴏᴘǫʀꜱᴛᴜᴠᴡxʏᴢ";
-    private static final String PLAIN = "abcdefghijklmnopqrstuvwxyz";
+    /**
+     * The last three are the Cyrillic stand-ins the server really writes: "ѕᴛᴀꜰꜰ", "ᴍɪɴᴇʀᴇғɪɴᴇ",
+     * "ᴘɪᴄᴋᴀхᴇ". Its "3х ᴍᴇʀɢᴇᴅ" has that х, not a Latin x.
+     */
+    private static final String SMALL_CAPS = "ᴀʙᴄᴅᴇꜰɢʜɪᴊᴋʟᴍɴᴏᴘǫʀꜱᴛᴜᴠᴡxʏᴢѕғх";
+    private static final String PLAIN = "abcdefghijklmnopqrstuvwxyzsfx";
+
+    /**
+     * Real names and lore lines are a few dozen characters. Anything far longer is not a turret's,
+     * and the patterns above take seconds on a line of thousands of digits, which a server could
+     * send. The salvage guard reads items on every click, so these are skipped unread.
+     */
+    static final int MAX_NAME = 100;
+    private static final int MAX_LINE = 120;
+    private static final int MAX_LINES = 64;
 
     private TurretItem() {
     }
 
     public static Optional<Turret> parse(String title, List<String> lore) {
-        if (title == null) {
+        if (title == null || title.length() > MAX_NAME) {
             return Optional.empty();
         }
         String name = FORMATTING.matcher(title).replaceAll("").replaceAll("[^\\p{L}\\p{N}' \\-]", " ")
@@ -63,8 +78,15 @@ public final class TurretItem {
         Double size = null;
         Double cap = null;
         Integer mergedCount = null;
+        int lines = 0;
         for (String raw : lore) {
-            String line = fold(FORMATTING.matcher(raw == null ? "" : raw).replaceAll(""));
+            if (++lines > MAX_LINES) {
+                break;
+            }
+            if (raw == null || raw.length() > MAX_LINE) {
+                continue;
+            }
+            String line = fold(FORMATTING.matcher(raw).replaceAll(""));
             Matcher c = SIZE_CAP.matcher(line);
             if (cap == null && c.find()) {
                 cap = number(c.group(1));

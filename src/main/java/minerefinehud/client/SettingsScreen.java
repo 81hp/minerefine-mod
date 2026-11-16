@@ -309,6 +309,12 @@ public final class SettingsScreen extends Screen {
         toggle(1, 0, "Mine panel", () -> config.showMine, v -> config.showMine = v);
         toggle(0, 1, "Boss panel", () -> config.showBosses, v -> config.showBosses = v);
         toggle(1, 1, "Costs in credits", () -> config.showCredits, v -> config.showCredits = v);
+        toggleAt(x(0), y(3), "Only on MineRefine", () -> config.onlyOnMineRefine, v -> config.onlyOnMineRefine = v)
+                .setTooltip(Tooltip.create(Component.literal("Panels, sounds and learning work only on MineRefine, "
+                        + "known by its name in the sidebar or tab list, and stay off on every other server. "
+                        + "Off: the mod works everywhere. Right now: "
+                        + (ServerCheck.onMineRefine() ? "this is MineRefine."
+                        : "MineRefine's name has not been seen since you joined."))));
 
         labels.add(new Label("Block rate (millions per credit)", x(0), y(2) + 6));
         EditBox rate = field(x(1), y(2), 60, String.valueOf(config.blocksPerCreditMillions), 10,
@@ -325,6 +331,28 @@ public final class SettingsScreen extends Screen {
                     }
                 });
         addRenderableWidget(rate);
+
+        // One cell for both. Under 100 wide the switch is drawn as a dot (see skin), which leaves
+        // the box room for four digits.
+        int guardWidth = Math.min(99, this.font.width("Salvage guard") + 22);
+        Button guard = toggleAt(x(1), y(3), guardWidth, "Salvage guard", () -> config.salvageGuard,
+                v -> config.salvageGuard = v);
+        guard.setTooltip(Tooltip.create(Component.literal("In the salvage menu, a turret in your inventory "
+                + "bigger than the size in the box has to be clicked twice within 3 seconds before it moves. "
+                + "The first click only plays a warning sound and says so in chat. Hotbar and drop keys "
+                + "do not move such a turret there at all.")));
+        EditBox guardSize = field(x(1) + guardWidth + 4, y(3), COLUMN_WIDTH - guardWidth - 4,
+                String.valueOf(config.salvageGuardSize), 4, s -> s.matches("[0-9]*"),
+                s -> {
+                    // Emptied: back to the default, not whatever digit was deleted last. Deleting
+                    // "1000" passes through 100, 10 and 1 on the way.
+                    config.salvageGuardSize = s.isEmpty()
+                            ? minerefinehud.turret.SalvageGuard.DEFAULT_SIZE : Integer.parseInt(s);
+                    onChange.run();
+                });
+        guardSize.setTooltip(Tooltip.create(Component.literal("Turrets above this size need the second click. "
+                + "A turret of exactly this size does not.")));
+        addRenderableWidget(guardSize);
 
         addRenderableWidget(Button.builder(Component.literal("Move and resize panels..."), b -> {
                     onChange.run();

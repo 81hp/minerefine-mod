@@ -163,7 +163,7 @@ public final class HalloweenText {
     }
 
     public static boolean isMineRefineTitle(String title) {
-        return plainLetters(strip(title)).replaceAll("[^\\p{L}]", "").toUpperCase(Locale.ROOT).contains("MINEREFINE");
+        return minerefinehud.server.ServerName.isMineRefine(title);
     }
 
     // ------------------------------------------------------------- action bar

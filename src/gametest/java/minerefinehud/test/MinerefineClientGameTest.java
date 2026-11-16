@@ -4,8 +4,10 @@ import minerefinehud.client.ActionBarHook;
 import minerefinehud.client.BossIndexPoller;
 import minerefinehud.client.BossPickScreen;
 import minerefinehud.client.Compat;
+import minerefinehud.client.ContainerClickHook;
 import minerefinehud.client.DropKeyHook;
 import minerefinehud.client.HudPositionScreen;
+import minerefinehud.client.ServerCheck;
 import minerefinehud.client.SettingsScreen;
 import minerefinehud.client.ShopScanner;
 import minerefinehud.client.TurretScreen;
@@ -32,6 +34,10 @@ public class MinerefineClientGameTest implements FabricClientGameTest {
     private static final String ACTION_BAR = "MineRefine HUD action bar check";
     private static final String SHOP_ITEM = "Test Shop Item";
     private static final String SHOP_LORE = "Cost: 5 Test Coins";
+    /** The salvage menu's title on MineRefine, and two turrets either side of the default size. */
+    private static final String SALVAGE_MENU = "Shift+Click Turrets Inside";
+    private static final String BIG_TURRET = "Jade Turret";
+    private static final String SMALL_TURRET = "Sponge Turret";
 
     @Override
     public void runTest(ClientGameTestContext context) {
@@ -84,6 +90,15 @@ public class MinerefineClientGameTest implements FabricClientGameTest {
                 // mixin. If a Minecraft update moved the method it hooks, this is where it shows.
                 server.runCommand("title @a actionbar \"" + ACTION_BAR + "\"");
                 context.waitFor(client -> ActionBarHook.last().contains(ACTION_BAR), 100);
+
+                // The test server is not MineRefine, so the mod stays off until its sidebar says so,
+                // in the server's own small capitals. Everything below needs the mod on.
+                context.waitTicks(20);
+                check(!context.computeOnClient(client -> ServerCheck.onMineRefine()),
+                        "a plain server was taken for MineRefine");
+                server.runCommand("scoreboard objectives add mrhudtest dummy \"ᴍɪɴᴇʀᴇғɪɴᴇ\"");
+                server.runCommand("scoreboard objectives setdisplay sidebar mrhudtest");
+                context.waitFor(client -> ServerCheck.onMineRefine(), 200);
 
                 // The HUD draws every frame from here on; a crash in it fails the test.
                 context.runOnClient(client -> Compat.chat(client, Component.literal("[MineRefine] test message")));
@@ -226,6 +241,95 @@ public class MinerefineClientGameTest implements FabricClientGameTest {
                 context.runOnClient(client -> client.getConnection().sendCommand("help"));
                 check(context.computeOnClient(client -> minerefinehud.client.AutoCommands.heldByRecentCommand()),
                         "a command sent did not hold the mod's own commands back");
+
+                // The salvage guard. A test server has no salvage menu, so one is opened the way
+                // the server's would be: the same packet, the same title. Two identical big turrets
+                // (items that do not stack) and a small one.
+                server.runCommand("give @a minecraft:totem_of_undying[minecraft:custom_name=\"" + BIG_TURRET
+                        + "\",minecraft:lore=[\"| Size: 1,800\",\"| Size Cap: 1900\"]] 2");
+                server.runCommand("give @a minecraft:dropper[minecraft:custom_name=\"" + SMALL_TURRET
+                        + "\",minecraft:lore=[\"| Size: 281\"]]");
+                context.waitFor(client -> carried(client, BIG_TURRET) == 2 && carried(client, SMALL_TURRET) == 1, 100);
+                context.runOnClient(client -> client.getConnection().handleOpenScreen(
+                        new net.minecraft.network.protocol.game.ClientboundOpenScreenPacket(
+                                78, net.minecraft.world.inventory.MenuType.GENERIC_9x6,
+                                Component.literal(SALVAGE_MENU))));
+                context.waitFor(client -> Compat.screen(client)
+                        instanceof net.minecraft.client.gui.screens.inventory.AbstractContainerScreen<?>, 100);
+                int clicks = ContainerClickHook.count();
+                int presses = ContainerClickHook.presses();
+                int releases = ContainerClickHook.releases();
+                // Real presses and releases of the mouse button, handed to the screen the way the
+                // game's mouse handler does, so every click goes through the game's own handling and
+                // both mixins: the one that counts presses and the one on the click itself. All in
+                // one go with its own short waits: the second click only counts within three seconds
+                // of the first, and a slow machine's ticks are not that reliable.
+                String guardFailure = context.computeOnClient(client -> {
+                    int first = slotOf(client, BIG_TURRET);
+                    mouse(client, first, true, false, true);
+                    mouse(client, first, true, false, false);
+                    if (carried(client, BIG_TURRET) != 2) {
+                        return "a big turret left the inventory on the first shift-click";
+                    }
+                    pause(150L);
+                    // The second press of a double click. Held a while, then let go: the game now
+                    // shift-clicks every stack like the turret by itself, its twin among them.
+                    mouse(client, first, true, true, true);
+                    if (carried(client, BIG_TURRET) != 1) {
+                        return "a big turret did not move on the second shift-click";
+                    }
+                    pause(400L);
+                    mouse(client, first, true, true, false);
+                    if (carried(client, BIG_TURRET) != 1) {
+                        return "the twin of a turret moved by itself when the double click was let go";
+                    }
+                    int twin = slotOf(client, BIG_TURRET);
+                    mouse(client, twin, true, false, true);
+                    mouse(client, twin, true, false, false);
+                    if (carried(client, BIG_TURRET) != 1) {
+                        return "the twin moved on one click: the game's own click counted as its first";
+                    }
+                    // A double click on the menu's frame clicks nothing, then is let go over the
+                    // warned twin: the game shift-clicks it by itself again.
+                    pause(150L);
+                    mouse(client, FRAME, true, false, true);
+                    mouse(client, FRAME, true, false, false);
+                    mouse(client, FRAME, true, true, true);
+                    mouse(client, twin, true, true, false);
+                    if (carried(client, BIG_TURRET) != 1) {
+                        return "a double click on the frame, let go over a warned turret, moved it";
+                    }
+                    // Those presses were the player doing something else, so the twin starts over.
+                    pause(150L);
+                    mouse(client, twin, true, false, true);
+                    mouse(client, twin, true, false, false);
+                    if (carried(client, BIG_TURRET) != 1) {
+                        return "the twin moved on the first click after clicking elsewhere";
+                    }
+                    pause(150L);
+                    mouse(client, twin, true, false, true);
+                    mouse(client, twin, true, false, false);
+                    if (carried(client, BIG_TURRET) != 0) {
+                        return "the twin did not move on its second click";
+                    }
+                    int small = slotOf(client, SMALL_TURRET);
+                    mouse(client, small, true, false, true);
+                    mouse(client, small, true, false, false);
+                    return carried(client, SMALL_TURRET) != 0 ? "a small turret did not move on one shift-click" : "";
+                });
+                // One of each has happened before the guard can first go wrong, so a guard that
+                // misbehaves is reported as that, further down, and not as a missing mixin.
+                check(ContainerClickHook.presses() > presses,
+                        "mouse presses were not counted: the mixin on the menu screen's mouse press is not applied");
+                check(ContainerClickHook.releases() > releases,
+                        "mouse releases were not counted: the mixin on the menu screen's mouse release is not applied");
+                check(ContainerClickHook.count() > clicks,
+                        "the clicks were not seen: the mixin on the click handler is not applied");
+                check(guardFailure.isEmpty(), guardFailure);
+                context.waitTicks(5);
+                context.takeScreenshot("minerefine-hud-salvage-guard");
+                context.getInput().pressKey(GLFW.GLFW_KEY_ESCAPE);
+                context.waitFor(client -> Compat.screen(client) == null);
             } catch (AssertionError e) {
                 // Never got into the world. 1.21.11 on GitHub's machines sat on "Connecting" for good
                 // until the server stopped pausing (October 2026, see serverProperties). The threads
@@ -249,6 +353,61 @@ public class MinerefineClientGameTest implements FabricClientGameTest {
     }
 
     private static final int CONNECT_ATTEMPTS = 3;
+
+    /** How many of the named item sit in the player's main inventory and hotbar. */
+    private static int carried(net.minecraft.client.Minecraft client, String name) {
+        return (int) client.player.getInventory().getNonEquipmentItems().stream()
+                .filter(s -> s.getHoverName().getString().equals(name)).count();
+    }
+
+    /** The first of the player's own slots in the open menu that holds the named item. */
+    private static int slotOf(net.minecraft.client.Minecraft client, String name) {
+        for (net.minecraft.world.inventory.Slot slot : client.player.containerMenu.slots) {
+            if (slot.container == client.player.getInventory()
+                    && slot.getItem().getHoverName().getString().equals(name)) {
+                return slot.index;
+            }
+        }
+        throw new AssertionError("no " + name + " in the open menu");
+    }
+
+    /** Not a slot: a spot on the menu's frame, beside its title, where a press clicks nothing. */
+    private static final int FRAME = -1;
+
+    /**
+     * The left mouse button going down or up over a slot of the open six-row chest, as the game's
+     * mouse handler would tell the screen. A chest screen is 176 wide and 114 + 18 a row high,
+     * centred, and a slot's x and y are its top left corner inside it.
+     */
+    private static void mouse(net.minecraft.client.Minecraft client, int slotIndex, boolean shift,
+                              boolean doubleClick, boolean down) {
+        net.minecraft.client.gui.screens.Screen screen = Compat.screen(client);
+        int left = (screen.width - 176) / 2;
+        int top = (screen.height - (114 + 6 * 18)) / 2;
+        double x = left + 170;
+        double y = top + 5;
+        if (slotIndex != FRAME) {
+            net.minecraft.world.inventory.Slot slot = client.player.containerMenu.getSlot(slotIndex);
+            x = left + slot.x + 8;
+            y = top + slot.y + 8;
+        }
+        net.minecraft.client.input.MouseButtonEvent event = new net.minecraft.client.input.MouseButtonEvent(x, y,
+                new net.minecraft.client.input.MouseButtonInfo(GLFW.GLFW_MOUSE_BUTTON_LEFT,
+                        shift ? GLFW.GLFW_MOD_SHIFT : 0));
+        if (down) {
+            screen.mouseClicked(event, doubleClick);
+        } else {
+            screen.mouseReleased(event);
+        }
+    }
+
+    private static void pause(long millis) {
+        try {
+            Thread.sleep(millis);
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+        }
+    }
 
     /** The test's server, for the watchdog: the test thread is blocked inside connect() by then. */
     private static volatile net.minecraft.server.MinecraftServer liveServer;

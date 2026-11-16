@@ -89,9 +89,11 @@ folder (next to Fabric API).
 Check these:
 - It works right after joining, without opening a menu first.
 - It still works after a relog and after switching servers or worlds.
-- It stays quiet on other servers.
-- With the feature turned **off** (new features default to off), nothing looks or behaves
-  differently from before.
+- It stays quiet on other servers ("Only on MineRefine" is on by default; `ServerCheck.active`
+  is the question to ask). The salvage guard is the one deliberate exception.
+- With the feature turned **off**, nothing looks or behaves differently from before. New features
+  default to off; the two exceptions so far only take something away, the salvage guard (an extra
+  click) and "Only on MineRefine" (the mod on other servers).
 - An old `config/minerefine-hud/config.json` from before your change still loads.
 
 ## Opening the pull request

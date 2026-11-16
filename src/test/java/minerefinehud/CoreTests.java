@@ -14,6 +14,7 @@ import minerefinehud.mine.MiningBlocks;
 import minerefinehud.mine.MineSpots;
 import minerefinehud.shop.Amounts;
 import minerefinehud.mine.ResourcePickups;
+import minerefinehud.turret.SalvageGuard;
 import minerefinehud.turret.TurretCalculator;
 import minerefinehud.turret.TurretItem;
 
@@ -46,6 +47,7 @@ public final class CoreTests {
         hudSplitsIntoPanels();
         resourcePickupsNameTheMine();
         turretMergesMatchTheOriginal();
+        salvageGuardNeedsASecondClick();
         bossWorldsFromSheetAndBroadcasts();
         bossPanelShowsOnlyThisWorld();
         chatSpellingsFindTheSheetsBoss();
@@ -62,6 +64,8 @@ public final class CoreTests {
         ichorIsNotJade();
         siftBlocksAreVerified();
         trillions();
+        serverNameInEveryStyle();
+        serverGateStaysOnUntilTheNextJoin();
         expeditionSidebarIsRecognised();
         ownCommandsKeepClear();
 
@@ -70,6 +74,74 @@ public final class CoreTests {
         if (failed > 0) {
             System.exit(1);
         }
+    }
+
+    // ------------------------------------------------------------- server
+
+    private static void serverNameInEveryStyle() {
+        String[] mineRefine = {
+                "MineRefine", "MINEREFINE", "minerefine",
+                "ᴍɪɴᴇʀᴇғɪɴᴇ",                     // the sidebar title, Cyrillic "ғ"
+                "ᴍɪɴᴇʀᴇꜰɪɴᴇ.ᴍɪɴᴇʜᴜᴛ.ɢɢ§0",          // the address line, Latin "ꜰ"
+                "§6§lMINE§e§lREFINE",                // colour codes between halves
+                "&6Mine&eRefine",
+                "M I N E R E F I N E", "Mine Refine", "mine-refine", "⛏ MineRefine ⛏",
+                "ＭＩＮＥＲＥＦＩＮＥ",                 // full width
+                "𝐌𝐢𝐧𝐞𝐑𝐞𝐟𝐢𝐧𝐞",                       // mathematical bold
+                "𝓜𝓲𝓷𝓮𝓡𝓮𝓯𝓲𝓷𝓮",                       // mathematical script
+                "ⓜⓘⓝⓔⓡⓔⓕⓘⓝⓔ",                       // circled
+                "ᴹᴵᴺᴱᴿᴱᶠᴵᴺᴱ",                       // superscript
+                "MÍNÉRÉFÍNÉ",                        // accents
+                "МІΝЕRЕFІΝЕ",                        // Cyrillic and Greek capitals
+                "ᴍɪɴᴇʀᴇꜰıɴᴇ",                        // dotless i
+                "Play at minerefine.minehut.gg!",
+        };
+        for (String s : mineRefine) {
+            assertTrue("names MineRefine: " + s, minerefinehud.server.ServerName.isMineRefine(s));
+        }
+        String[] other = {"", null, "ʜʏᴘɪxᴇʟ", "Coins: 5", "Mine", "Refine", "Minehut", "MINEHUT.GG",
+                "Mine Refne", "Lifesteal SMP"};
+        for (String s : other) {
+            assertTrue("not MineRefine: " + s, !minerefinehud.server.ServerName.isMineRefine(s));
+        }
+        assertEquals("address letters", "minerefineminehutgg",
+                minerefinehud.server.ServerName.letters("ᴍɪɴᴇʀᴇꜰɪɴᴇ.ᴍɪɴᴇʜᴜᴛ.ɢɢ"));
+        // Stacked accent marks: thousands of them take Java's normaliser seconds, and a server
+        // decides what a sidebar line holds.
+        String marks = "\u0301\u0323";
+        assertTrue("marks between the letters are dropped", minerefinehud.server.ServerName.isMineRefine(
+                "M" + marks.repeat(40) + "ine" + marks.repeat(40) + "Refine"));
+        long began = System.nanoTime();
+        assertTrue("a flood of marks is not MineRefine",
+                !minerefinehud.server.ServerName.isMineRefine("a" + marks.repeat(200_000)));
+        assertTrue("and is answered at once", System.nanoTime() - began < 1_000_000_000L);
+        assertTrue("the name at the start of a long line is found",
+                minerefinehud.server.ServerName.isMineRefine("MineRefine" + " ".repeat(5_000)));
+        assertTrue("only the first 512 characters of a line are read",
+                !minerefinehud.server.ServerName.isMineRefine(" ".repeat(600) + "MineRefine"));
+        assertTrue("any line will do", minerefinehud.server.ServerName.anyMineRefine(
+                List.of("Coins: 5", "ᴍɪɴᴇʀᴇғɪɴᴇ")));
+        assertTrue("no line, no MineRefine", !minerefinehud.server.ServerName.anyMineRefine(List.of()));
+        assertTrue("null list", !minerefinehud.server.ServerName.anyMineRefine(null));
+        assertTrue("halloween check agrees",
+                minerefinehud.halloween.HalloweenText.isMineRefineTitle("𝐌𝐢𝐧𝐞𝐑𝐞𝐟𝐢𝐧𝐞"));
+    }
+
+    private static void serverGateStaysOnUntilTheNextJoin() {
+        minerefinehud.server.ServerGate gate = new minerefinehud.server.ServerGate();
+        assertTrue("off before anything is seen", !gate.onMineRefine());
+        gate.observe(false);
+        assertTrue("still off without the name", !gate.onMineRefine());
+        gate.observe(true);
+        assertTrue("on once the name shows", gate.onMineRefine());
+        for (int i = 0; i < 1_000; i++) {
+            gate.observe(false);
+        }
+        assertTrue("a sidebar swapped out, however long, keeps it on", gate.onMineRefine());
+        gate.reset();
+        assertTrue("a new connection starts off", !gate.onMineRefine());
+        gate.observe(false);
+        assertTrue("and stays off on a server that never names MineRefine", !gate.onMineRefine());
     }
 
     private static void expeditionSidebarIsRecognised() {
@@ -587,6 +659,436 @@ public final class CoreTests {
             refused = true;
         }
         assertTrue("negative sizes refused, as in the original", refused);
+    }
+
+    /** The player's own click in the salvage menu, on a slot of their own inventory. */
+    private static SalvageGuard.Click salvageClick(int menu, int slot, String input, TurretItem.Turret inSlot) {
+        return new SalvageGuard.Click(menu, slot, 0, input, SalvageGuard.Origin.OWN, true, inSlot, null, null);
+    }
+
+    private static SalvageGuard.Verdict salvage(SalvageGuard guard, int slot, String input,
+                                                TurretItem.Turret inSlot, long now) {
+        return guard.check(salvageClick(5, slot, input, inSlot), 1000, now).verdict();
+    }
+
+    /** A click the game makes by itself as a double click is let go. */
+    private static SalvageGuard.Verdict salvageRelease(SalvageGuard guard, int slot, String input,
+                                                       TurretItem.Turret inSlot, long now) {
+        return guard.check(new SalvageGuard.Click(5, slot, 0, input, SalvageGuard.Origin.GAME, true, inSlot, null, null), 1000, now)
+                .verdict();
+    }
+
+    private static void salvageGuardNeedsASecondClick() {
+        final SalvageGuard.Verdict PASS = SalvageGuard.Verdict.PASS;
+        final SalvageGuard.Verdict WARN = SalvageGuard.Verdict.WARN;
+        final SalvageGuard.Verdict WARN_KEY = SalvageGuard.Verdict.WARN_KEY;
+        final SalvageGuard.Verdict BLOCK = SalvageGuard.Verdict.BLOCK;
+        final SalvageGuard.Verdict CONFIRMED = SalvageGuard.Verdict.CONFIRMED;
+
+        // The menu's title, read off the player's screenshot.
+        assertTrue("the salvage menu", SalvageGuard.isSalvageMenu("Shift+Click Turrets Inside"));
+        assertTrue("coloured", SalvageGuard.isSalvageMenu("§8§lShift+Click Turrets Inside"));
+        assertTrue("in the server's small capitals",
+                SalvageGuard.isSalvageMenu("ѕʜɪꜰᴛ+ᴄʟɪᴄᴋ ᴛᴜʀʀᴇᴛѕ ɪɴѕɪᴅᴇ"));
+        assertTrue("reworded a little", SalvageGuard.isSalvageMenu("Shift-Click turrets inside!"));
+        assertTrue("padded by a resource pack", SalvageGuard.isSalvageMenu("\uF808".repeat(200) + "Shift+Click Turrets Inside"));
+        assertTrue("in full-width letters", SalvageGuard.isSalvageMenu("Ｓｈｉｆｔ＋Ｃｌｉｃｋ Ｔｕｒｒｅｔｓ Ｉｎｓｉｄｅ"));
+        for (String other : List.of("Boss Index", "Turret Size Calculator", "Crafting", "Turrets", "Large Chest", "")) {
+            assertTrue("'" + other + "' is not the salvage menu", !SalvageGuard.isSalvageMenu(other));
+        }
+        assertTrue("no title", !SalvageGuard.isSalvageMenu(null));
+        assertTrue("a title of thousands of characters is not read at all",
+                !SalvageGuard.isSalvageMenu(" ".repeat(60_000) + "Shift+Click Turrets Inside"));
+
+        // Turrets read off their items, the way the click sees them.
+        TurretItem.Turret jade = SalvageGuard.read("§aJade Turret", List.of("| Size: 1,800", "| Size Cap: 1900"));
+        TurretItem.Turret small = SalvageGuard.read("Sponge Turret", List.of("| Size: 281"));
+        TurretItem.Turret exact = SalvageGuard.read("Rust Turret", List.of("Size: 1000"));
+        TurretItem.Turret justOver = SalvageGuard.read("Rust Turret", List.of("Size: 1,001"));
+        assertEquals("a turret's size is read", 1800.0, jade.size());
+        assertEquals("and its name", "Jade Turret", jade.name());
+        // The server's small capitals borrow ѕ and х from Cyrillic (910 and 91 times in the
+        // player's saved shop text; the Latin ꜱ not once).
+        assertEquals("the size line in the server's small capitals", 1800.0,
+                SalvageGuard.read("Jade Turret", List.of("ѕɪᴢᴇ: 1,800")).size());
+        assertEquals("merges written with the server's own x", 3,
+                TurretItem.parse("Rust Turret", List.of("Size: 900", "⚒ 3х ᴍᴇʀɢᴇᴅ")).orElseThrow().merges());
+        assertTrue("not a turret", SalvageGuard.read("[Debris Shovel] [VI]", List.of("Size: 5")) == null);
+        assertTrue("no name", SalvageGuard.read(null, List.of("Size: 5")) == null);
+
+        assertTrue("1,800 is above 1,000", SalvageGuard.guarded(jade, 1000));
+        assertTrue("281 is not", !SalvageGuard.guarded(small, 1000));
+        assertTrue("exactly the size is not above it", !SalvageGuard.guarded(exact, 1000));
+        assertTrue("one over is", SalvageGuard.guarded(justOver, 1000));
+        assertTrue("no turret, nothing to guard", !SalvageGuard.guarded(null, 1000));
+        assertTrue("a size of 0 guards every turret", SalvageGuard.guarded(small, 0));
+        assertTrue("a higher size lets the 1,800 go", !SalvageGuard.guarded(jade, 1800));
+
+        // A turret the size cannot be read off is guarded whatever the size set: a reworded size
+        // line must not switch the guard off.
+        TurretItem.Turret reworded = SalvageGuard.read("Sponge Turret", List.of("Level: 2"));
+        assertTrue("a turret without a size line is still a turret", reworded != null);
+        if (reworded == null) {
+            return;
+        }
+        assertEquals("of unreadable size", SalvageGuard.UNREADABLE, reworded.size());
+        assertTrue("guarded even at the highest size", SalvageGuard.guarded(reworded, SalvageGuard.MAX_SIZE));
+        assertEquals("something after the name", SalvageGuard.UNREADABLE,
+                SalvageGuard.read("Jade Turret [Lv 5]", List.of("| Size: 281")).size());
+        assertEquals("no lore at all", SalvageGuard.UNREADABLE, SalvageGuard.read("Jade Turret", null).size());
+        // A line of thousands of digits takes the patterns seconds; a server could send one.
+        String endless = "9".repeat(50_000);
+        long started = System.nanoTime();
+        assertEquals("an endless lore line is skipped, the real one read", 1800.0,
+                SalvageGuard.read("Jade Turret", List.of(endless, "| Size: 1,800", endless + " merged")).size());
+        assertTrue("an endless name is not read", SalvageGuard.read("Jade " + "x".repeat(50_000) + " Turret",
+                List.of("Size: 1,800")) == null);
+        List<String> hostile = new java.util.ArrayList<>(java.util.Collections.nCopies(63, "9".repeat(120)));
+        hostile.add("| Size: 1,800");
+        assertEquals("the 64th lore line is still read", 1800.0, SalvageGuard.read("Jade Turret", hostile).size());
+        hostile.add(63, "9".repeat(120));
+        assertEquals("the 65th is not", SalvageGuard.UNREADABLE, SalvageGuard.read("Jade Turret", hostile).size());
+        assertTrue("and none of it takes any time", System.nanoTime() - started < 1_000_000_000L);
+
+        long t = 1_000_000L;
+        SalvageGuard guard = new SalvageGuard();
+        var first = guard.check(salvageClick(5, 60, "QUICK_MOVE", jade), 1000, t);
+        assertEquals("the first shift-click on a big turret is stopped", WARN, first.verdict());
+        assertTrue("and stops the click", first.verdict().stops());
+        assertEquals("the warning names the turret", jade, first.turret());
+        var second = guard.check(salvageClick(5, 60, "QUICK_MOVE", jade), 1000, t + 500);
+        assertEquals("the second goes through", CONFIRMED, second.verdict());
+        assertTrue("and does not stop the click", !second.verdict().stops());
+        assertEquals("a third starts over", WARN, salvage(guard, 60, "QUICK_MOVE", jade, t + 600));
+
+        guard = new SalvageGuard();
+        assertEquals("a plain click to pick it up is stopped first", WARN, salvage(guard, 60, "PICKUP", jade, t));
+        assertEquals("and the second click may be a shift-click", CONFIRMED,
+                salvage(guard, 60, "QUICK_MOVE", jade, t + 200));
+
+        // How far apart the two clicks may be.
+        guard = new SalvageGuard();
+        salvage(guard, 60, "PICKUP", jade, t);
+        assertEquals("three seconds is still in time", CONFIRMED, salvage(guard, 60, "PICKUP", jade, t + 3_000));
+        guard = new SalvageGuard();
+        salvage(guard, 60, "PICKUP", jade, t);
+        assertEquals("later than that warns again", WARN, salvage(guard, 60, "PICKUP", jade, t + 3_001));
+        assertEquals("and that warning can be confirmed", CONFIRMED, salvage(guard, 60, "PICKUP", jade, t + 4_000));
+        guard = new SalvageGuard();
+        salvage(guard, 60, "PICKUP", jade, t);
+        assertEquals("a quick double click is two clicks", CONFIRMED, salvage(guard, 60, "PICKUP", jade, t + 90));
+        guard = new SalvageGuard();
+        salvage(guard, 60, "PICKUP", jade, t);
+        assertEquals("a clock set back does not confirm", WARN, salvage(guard, 60, "PICKUP", jade, t - 60_000));
+
+        // A mouse switch that bounces presses twice within a few milliseconds. With shift held the
+        // game takes that for a double click, and as the button is let go shift-clicks every stack
+        // like the turret, the turret included: it never left, both presses were stopped.
+        guard = new SalvageGuard();
+        assertEquals("one shift-click", WARN, salvage(guard, 60, "QUICK_MOVE", jade, t));
+        assertEquals("its bounce is not a second click", BLOCK, salvage(guard, 60, "QUICK_MOVE", jade, t + 10));
+        assertEquals("nor is the game's own click on letting go", BLOCK,
+                salvageRelease(guard, 60, "QUICK_MOVE", jade, t + 100));
+        assertEquals("nor on letting go late", BLOCK, salvageRelease(guard, 60, "QUICK_MOVE", jade, t + 900));
+        assertEquals("the real second click still moves it", CONFIRMED, salvage(guard, 60, "QUICK_MOVE", jade, t + 1_400));
+        // Without shift the game gathers stacks instead, with nothing on the cursor.
+        guard = new SalvageGuard();
+        salvage(guard, 60, "PICKUP", jade, t);
+        assertEquals("a bounced plain click", BLOCK, salvage(guard, 60, "PICKUP", jade, t + 10));
+        assertEquals("the gathering passes", PASS, salvageRelease(guard, 60, "PICKUP_ALL", null, t + 100));
+        assertEquals("and does not end the wait", CONFIRMED, salvage(guard, 60, "PICKUP", jade, t + 600));
+        guard = new SalvageGuard();
+        salvage(guard, 60, "PICKUP", jade, t);
+        assertEquals("just under the bounce time is one press", BLOCK, salvage(guard, 60, "PICKUP", jade, t + 79));
+        guard = new SalvageGuard();
+        salvage(guard, 60, "PICKUP", jade, t);
+        assertEquals("at it, a second click", CONFIRMED, salvage(guard, 60, "PICKUP", jade, t + 80));
+
+        // Releasing a shift double click, the game shift-clicks every identical stack as well.
+        // Those are not the player's clicks, however long the button was held: stopped quietly,
+        // and no first click for the twin.
+        guard = new SalvageGuard();
+        salvage(guard, 60, "QUICK_MOVE", jade, t);
+        assertEquals("the double click moves the turret", CONFIRMED, salvage(guard, 60, "QUICK_MOVE", jade, t + 180));
+        assertEquals("its twin is stopped quietly on letting go", BLOCK,
+                salvageRelease(guard, 61, "QUICK_MOVE", jade, t + 900));
+        assertEquals("so is the next twin", BLOCK, salvageRelease(guard, 62, "QUICK_MOVE", jade, t + 900));
+        assertEquals("and the same slot, if the turret could not be placed", BLOCK,
+                salvageRelease(guard, 60, "QUICK_MOVE", jade, t + 900));
+        assertEquals("the twin has not had its first click", WARN, salvage(guard, 61, "QUICK_MOVE", jade, t + 1_500));
+        assertEquals("until now", CONFIRMED, salvage(guard, 61, "QUICK_MOVE", jade, t + 1_900));
+
+        // Touchscreen mode (1.21.11 and 26.1) makes a drag two clicks at once, on letting go: the slot
+        // dragged from, then the slot dragged to. The second has no press of its own, and must
+        // not end the wait.
+        guard = new SalvageGuard();
+        assertEquals("a drag picks the turret up: stopped", WARN, salvage(guard, 60, "PICKUP", jade, t));
+        assertEquals("the slot dragged to passes", PASS, guard.check(new SalvageGuard.Click(5, 10, 0, "PICKUP",
+                SalvageGuard.Origin.OTHER, true, null, null, null), 1000, t).verdict());
+        assertEquals("the second drag moves it", CONFIRMED, salvage(guard, 60, "PICKUP", jade, t + 1_000));
+
+        // Another mod's shortcut, a scroll wheel that moves items say, clicks with no press of the
+        // mouse button behind it. It never moves a big turret, and says so rather than fail quietly.
+        guard = new SalvageGuard();
+        var shortcut = new SalvageGuard.Click(5, 60, 0, "QUICK_MOVE", SalvageGuard.Origin.OTHER, true, jade, null, null);
+        assertEquals("a shortcut on a big turret is refused, with the reason", WARN_KEY, guard.check(shortcut, 1000, t).verdict());
+        assertEquals("again and again", BLOCK, guard.check(shortcut, 1000, t + 400).verdict());
+        assertEquals("and never moves it", BLOCK, guard.check(shortcut, 1000, t + 2_000).verdict());
+        guard = new SalvageGuard();
+        salvage(guard, 60, "QUICK_MOVE", jade, t);
+        assertEquals("a shortcut is no second click", WARN_KEY, guard.check(shortcut, 1000, t + 400).verdict());
+        assertEquals("and ends the wait for one", WARN, salvage(guard, 60, "QUICK_MOVE", jade, t + 800));
+        assertEquals("a shortcut on a small turret is left alone", PASS, guard.check(new SalvageGuard.Click(
+                5, 60, 0, "QUICK_MOVE", SalvageGuard.Origin.OTHER, true, small, null, null), 1000, t).verdict());
+
+        // Whose click it is: from the mouse button going down and up, and from whether the click
+        // arrives while the game is handling one of those.
+        final SalvageGuard.Origin OWN = SalvageGuard.Origin.OWN;
+        final SalvageGuard.Origin GAME = SalvageGuard.Origin.GAME;
+        final SalvageGuard.Origin OTHER = SalvageGuard.Origin.OTHER;
+        SalvageGuard.Presses presses = new SalvageGuard.Presses();
+        presses.click();
+        assertEquals("nothing seen of the game's handling yet: every click is the player's", OWN,
+                presses.origin("QUICK_MOVE"));
+        presses.click();
+        assertEquals("and stays so", OWN, presses.origin("QUICK_MOVE"));
+        // An ordinary click is made while the game handles the press.
+        presses.pressed(false);
+        presses.click();
+        assertEquals("the click a press causes is the player's", OWN, presses.origin("QUICK_MOVE"));
+        assertTrue("with nothing in between", !presses.skippedAPress());
+        presses.click();
+        assertEquals("a second from the same press is not", OTHER, presses.origin("QUICK_MOVE"));
+        presses.pressDone();
+        presses.released();
+        presses.releaseDone();
+        // From here the handling is known to work, and a click outside it has no press behind it.
+        presses.click();
+        assertEquals("a click outside the game's handling is a shortcut", OTHER, presses.origin("QUICK_MOVE"));
+        presses.pressed(false);
+        presses.pressDone();
+        presses.released();
+        presses.releaseDone();
+        presses.click();
+        assertEquals("also right after a press that clicked nothing", OTHER, presses.origin("QUICK_MOVE"));
+        // With something on the cursor the game sends the click when the button is let go.
+        presses.pressed(false);
+        presses.pressDone();
+        presses.released();
+        presses.click();
+        assertEquals("a click on letting go is the player's if it is the press's first", OWN, presses.origin("PICKUP"));
+        presses.click();
+        assertEquals("a second on letting go, a touchscreen drag's, is not", OTHER, presses.origin("PICKUP"));
+        presses.releaseDone();
+        // The second press of a double click moves a warned turret; what follows on letting go is the game's.
+        presses.pressed(true);
+        presses.click();
+        assertEquals("the second press of a double click is the player's", OWN, presses.origin("QUICK_MOVE"));
+        presses.pressDone();
+        presses.released();
+        presses.click();
+        assertEquals("the sweep on letting go is the game's", GAME, presses.origin("QUICK_MOVE"));
+        presses.click();
+        assertEquals("all of it", GAME, presses.origin("QUICK_MOVE"));
+        presses.click();
+        assertEquals("the gathering too", GAME, presses.origin("PICKUP_ALL"));
+        presses.releaseDone();
+        presses.click();
+        assertEquals("once it is let go, a shortcut is a shortcut again and not the game's", OTHER,
+                presses.origin("QUICK_MOVE"));
+        // Something on the cursor, and a second press quickly after the first but on another slot:
+        // the game sends a plain click on letting go, not a sweep.
+        presses.pressed(true);
+        presses.pressDone();
+        presses.released();
+        presses.click();
+        assertEquals("a plain click as a double press is let go is the player's", OWN, presses.origin("PICKUP"));
+        presses.releaseDone();
+        // A double click on the menu's frame causes no click, then is let go over the inventory:
+        // the game shift-clicks every stack like the last one shift-clicked.
+        presses.pressed(false);
+        presses.click();
+        presses.origin("QUICK_MOVE");
+        presses.pressDone();
+        presses.released();
+        presses.releaseDone();
+        presses.pressed(false);
+        presses.pressDone();
+        presses.released();
+        presses.releaseDone();
+        presses.pressed(true);
+        presses.pressDone();
+        presses.released();
+        presses.click();
+        assertEquals("a sweep after a double click on the frame is the game's", GAME, presses.origin("QUICK_MOVE"));
+        assertTrue("and presses went by that clicked nothing", presses.skippedAPress());
+        presses.releaseDone();
+        // One press on the frame, then a real click: the player's, but after doing something else.
+        presses.pressed(false);
+        presses.pressDone();
+        presses.released();
+        presses.releaseDone();
+        presses.pressed(false);
+        presses.click();
+        assertEquals("a click after a press on the frame is the player's", OWN, presses.origin("QUICK_MOVE"));
+        assertTrue("after a press that clicked nothing", presses.skippedAPress());
+        presses.pressDone();
+        presses.released();
+        presses.releaseDone();
+        presses.pressed(false);
+        presses.click();
+        presses.origin("QUICK_MOVE");
+        assertTrue("which the next ordinary click is not", !presses.skippedAPress());
+        // A client that handles the mouse its own way: presses are counted, but no click ever
+        // arrives while the game handles one. Refusing them all would lock every big turret.
+        presses = new SalvageGuard.Presses();
+        presses.pressed(false);
+        presses.pressDone();
+        presses.click();
+        assertEquals("clicks never seen inside the handling: every click is the player's", OWN,
+                presses.origin("QUICK_MOVE"));
+        presses.click();
+        assertEquals("the next as well", OWN, presses.origin("QUICK_MOVE"));
+
+        // What the game does by itself never ends a wait, on a turret or beside it.
+        guard = new SalvageGuard();
+        salvage(guard, 60, "QUICK_MOVE", jade, t);
+        assertEquals("the game shift-clicking something else passes", PASS, salvageRelease(guard, 40, "QUICK_MOVE", null, t + 200));
+        assertEquals("and the wait goes on", CONFIRMED, salvage(guard, 60, "QUICK_MOVE", jade, t + 600));
+        assertEquals("a key is a key whatever the mouse is doing", WARN_KEY, guard.check(new SalvageGuard.Click(
+                5, 60, 0, "THROW", GAME, true, jade, null, null), 1000, t + 5_000).verdict());
+        // With nothing on the cursor, a click outside the window arrives as a drop on no slot.
+        guard = new SalvageGuard();
+        salvage(guard, 60, "QUICK_MOVE", jade, t);
+        assertEquals("a click outside the window passes", PASS, guard.check(new SalvageGuard.Click(
+                5, -999, 0, "THROW", OWN, false, null, null, null), 1000, t + 300).verdict());
+        assertEquals("and ends the wait", WARN, salvage(guard, 60, "QUICK_MOVE", jade, t + 600));
+
+        guard = new SalvageGuard();
+        salvage(guard, 60, "QUICK_MOVE", jade, t);
+        guard.forget();
+        assertEquals("that press in between ends the wait", WARN, salvage(guard, 60, "QUICK_MOVE", jade, t + 600));
+
+        // The second click has to be on the same turret in the same slot of the same menu.
+        guard = new SalvageGuard();
+        salvage(guard, 60, "QUICK_MOVE", jade, t);
+        assertEquals("another slot warns for itself", WARN, salvage(guard, 61, "QUICK_MOVE", jade, t + 500));
+        assertEquals("and the first slot is no longer waiting", WARN, salvage(guard, 60, "QUICK_MOVE", jade, t + 1_000));
+        assertEquals("another turret in that slot warns for itself", WARN,
+                salvage(guard, 60, "QUICK_MOVE", justOver, t + 1_500));
+        assertEquals("the menu opened again warns again", WARN,
+                guard.check(salvageClick(6, 60, "QUICK_MOVE", justOver), 1000, t + 2_000).verdict());
+        guard.reset();
+        assertEquals("nothing waits across a join", WARN,
+                guard.check(salvageClick(6, 60, "QUICK_MOVE", justOver), 1000, t + 2_500).verdict());
+
+        // Any other click of the player's in between ends the wait, and the game clicking the
+        // warned turret by itself never counts as the second click.
+        guard = new SalvageGuard();
+        salvage(guard, 60, "QUICK_MOVE", jade, t);
+        assertEquals("a click on something else passes", PASS, salvage(guard, 40, "PICKUP", null, t + 300));
+        assertEquals("and the turret has to be warned again", WARN, salvage(guard, 60, "QUICK_MOVE", jade, t + 600));
+        guard = new SalvageGuard();
+        salvage(guard, 60, "QUICK_MOVE", jade, t);
+        assertEquals("the game clicking the turret then is no second click", BLOCK,
+                salvageRelease(guard, 60, "QUICK_MOVE", jade, t + 300));
+        // Two big turrets in the same moment: one warning, and the wait is for neither.
+        guard = new SalvageGuard();
+        assertEquals("the first of two warns", WARN, salvage(guard, 61, "QUICK_MOVE", jade, t));
+        assertEquals("the other, a moment later, is stopped quietly", BLOCK, salvage(guard, 62, "QUICK_MOVE", jade, t + 50));
+        assertEquals("and ended the first one's wait", WARN, salvage(guard, 61, "QUICK_MOVE", jade, t + 400));
+        guard = new SalvageGuard();
+        salvage(guard, 61, "QUICK_MOVE", jade, t);
+        salvage(guard, 62, "QUICK_MOVE", jade, t + 50);
+        assertEquals("the one stopped quietly has not had its first click", WARN,
+                salvage(guard, 62, "QUICK_MOVE", jade, t + 600));
+
+        // What is left alone.
+        guard = new SalvageGuard();
+        assertEquals("a small turret moves on one click", PASS, salvage(guard, 60, "QUICK_MOVE", small, t));
+        assertEquals("a turret of exactly the size too", PASS, salvage(guard, 60, "QUICK_MOVE", exact, t));
+        assertEquals("anything that is not a turret", PASS, salvage(guard, 60, "QUICK_MOVE", null, t));
+        assertEquals("a click outside the window", PASS, guard.check(
+                new SalvageGuard.Click(5, -999, 0, "PICKUP", SalvageGuard.Origin.OWN, false, null, null, null), 1000, t).verdict());
+        assertEquals("taking a big turret back out of the menu", PASS, guard.check(
+                new SalvageGuard.Click(5, 12, 0, "PICKUP", SalvageGuard.Origin.OWN, false, jade, null, null), 1000, t).verdict());
+        assertEquals("dragging over a slot", PASS, salvage(guard, 60, "QUICK_CRAFT", jade, t));
+        assertEquals("a kind of click this version does not know", PASS, salvage(guard, 60, null, jade, t));
+
+        // Keys never move a big turret here. A held key repeats by itself, half a second after
+        // the press and then thirty times a second, so it must not count as a second click.
+        guard = new SalvageGuard();
+        assertEquals("the drop key over a big turret is refused", WARN_KEY, salvage(guard, 60, "THROW", jade, t));
+        assertEquals("held, its repeat is not a second click", BLOCK, salvage(guard, 60, "THROW", jade, t + 500));
+        assertEquals("nor the next", BLOCK, salvage(guard, 60, "THROW", jade, t + 533));
+        assertEquals("nor after three seconds", BLOCK, salvage(guard, 60, "THROW", jade, t + 3_000));
+        assertEquals("and it warns once in three seconds, not at every repeat", WARN_KEY,
+                salvage(guard, 60, "THROW", jade, t + 3_001));
+        assertEquals("a key press is not a first click for the mouse either", WARN,
+                salvage(guard, 60, "QUICK_MOVE", jade, t + 4_000));
+        assertEquals("the mouse still takes two", CONFIRMED, salvage(guard, 60, "QUICK_MOVE", jade, t + 4_400));
+        guard = new SalvageGuard();
+        salvage(guard, 60, "QUICK_MOVE", jade, t);
+        assertEquals("a key between the two clicks is refused", WARN_KEY, salvage(guard, 60, "SWAP", jade, t + 300));
+        assertEquals("and ends the wait", WARN, salvage(guard, 60, "QUICK_MOVE", jade, t + 600));
+        guard = new SalvageGuard();
+        salvage(guard, 60, "QUICK_MOVE", jade, t);
+        assertEquals("a key on something else passes", PASS, salvage(guard, 40, "SWAP", null, t + 300));
+        assertEquals("and ends the wait too", WARN, salvage(guard, 60, "QUICK_MOVE", jade, t + 600));
+
+        // A number key pressed over one of the menu's slots moves the turret on that hotbar slot in.
+        guard = new SalvageGuard();
+        var keyed = new SalvageGuard.Click(5, 12, 3, "SWAP", SalvageGuard.Origin.OWN, false, null, jade, null);
+        var otherKey = new SalvageGuard.Click(5, 12, 4, "SWAP", SalvageGuard.Origin.OWN, false, null, jade, null);
+        assertEquals("a hotbar key over the menu is refused", WARN_KEY, guard.check(keyed, 1000, t).verdict());
+        for (long later : new long[] { 250, 500, 1_000, 2_900 }) {
+            assertEquals("and again " + later + " ms later", BLOCK, guard.check(keyed, 1000, t + later).verdict());
+        }
+        assertEquals("another key in that time is another turret, with its own warning", WARN_KEY,
+                guard.check(otherKey, 1000, t + 2_950).verdict());
+        guard = new SalvageGuard();
+        guard.check(keyed, 1000, t);
+        assertEquals("but right after the first warning it is stopped quietly", BLOCK,
+                guard.check(otherKey, 1000, t + 100).verdict());
+        assertEquals("and warns for itself a moment later", WARN_KEY, guard.check(otherKey, 1000, t + 200).verdict());
+        assertEquals("a hotbar key over your own inventory only shuffles it", PASS, new SalvageGuard().check(
+                new SalvageGuard.Click(5, 60, 3, "SWAP", SalvageGuard.Origin.OWN, true, small, jade, null), 1000, t).verdict());
+        assertEquals("the turret on a key only counts for a key press", PASS, new SalvageGuard().check(
+                new SalvageGuard.Click(5, 12, 3, "PICKUP", SalvageGuard.Origin.OWN, false, null, jade, null), 1000, t).verdict());
+
+        // A double click gathers the twins of what is on the cursor.
+        assertEquals("not with a big turret on the cursor", BLOCK, new SalvageGuard().check(
+                new SalvageGuard.Click(5, 60, 0, "PICKUP_ALL", SalvageGuard.Origin.GAME, true, null, null, jade), 1000, t).verdict());
+        assertEquals("a small one gathers as usual", PASS, new SalvageGuard().check(
+                new SalvageGuard.Click(5, 60, 0, "PICKUP_ALL", SalvageGuard.Origin.GAME, true, null, null, small), 1000, t).verdict());
+        // With something on the cursor, a quick second click on the turret arrives as a gathering.
+        guard = new SalvageGuard();
+        salvage(guard, 60, "PICKUP", jade, t);
+        assertEquals("a gathering that is the player's own click passes", PASS, guard.check(
+                new SalvageGuard.Click(5, 60, 0, "PICKUP_ALL", SalvageGuard.Origin.OWN, true, null, null, null), 1000, t + 200).verdict());
+        assertEquals("and the wait goes on", CONFIRMED, salvage(guard, 60, "PICKUP", jade, t + 600));
+
+        // A turret whose size could not be read takes two clicks like a big one.
+        guard = new SalvageGuard();
+        assertEquals("unreadable is stopped first", WARN, salvage(guard, 60, "QUICK_MOVE", reworded, t));
+        assertEquals("and moves on the second click", CONFIRMED, salvage(guard, 60, "QUICK_MOVE", reworded, t + 400));
+
+        assertEquals("the chat line",
+                "[MineRefine] Jade Turret is size 1,800, above your salvage warning of 1,000. "
+                        + "Click it again within 3 seconds to move it.",
+                SalvageGuard.warning(jade, 1000, false));
+        assertEquals("the chat line for a key",
+                "[MineRefine] Jade Turret is size 1,800, above your salvage warning of 1,000. "
+                        + "Keys and shortcuts do not move it here: click it twice with the mouse.",
+                SalvageGuard.warning(jade, 1000, true));
+        assertEquals("the chat line for a size that could not be read",
+                "[MineRefine] Sponge Turret looks like a turret but its size could not be read. "
+                        + "Click it again within 3 seconds to move it.",
+                SalvageGuard.warning(reworded, 1000, false));
+        assertEquals("a size with a fraction keeps it",
+                "[MineRefine] Rust Turret is size 1,000.04, above your salvage warning of 1,000. "
+                        + "Click it again within 3 seconds to move it.",
+                SalvageGuard.warning(new TurretItem.Turret("Rust Turret", 1000.04, 0), 1000, false));
     }
 
     // ------------------------------------------------------------- helpers

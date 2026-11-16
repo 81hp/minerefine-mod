@@ -22,6 +22,10 @@ What it does:
 8. **EXP per hour.** A row in the Mining panel, under the session, with the EXP per hour and what
    you earned this session, read from the `+EXP` on the mining action bar and averaged over the
    same number of blocks as Mining per hour. Optional, by Arreba.
+9. **Salvage guard.** In the salvage menu, a turret bigger than a size you set (1000 unless
+   changed) takes two clicks to move, with a warning sound and a chat line on the first.
+10. **Only on MineRefine.** On any other server the panels, sounds and learning stay off, unless
+    you switch that off.
 
 Everything is movable, resizable and configurable in game.
 
@@ -110,7 +114,7 @@ or the GUI scale changes. A panel is clamped so it can never be lost off screen.
 
 | Tab | What is there |
 |-----|---------------|
-| General | Overlay, mine and boss panels on or off, costs in credits, block rate, the turret calculator |
+| General | Overlay, mine and boss panels on or off, costs in credits, block rate, only on MineRefine, the salvage guard and its size, the turret calculator |
 | Style | How the panels look, with the panels drawn beside it as you change things: five presets (Fork, Tooltip, Ledger, Minimal, Icons), panel background (none, shade, tooltip, framed) and opacity, the whole HUD's size, titles (plain, underlined, band), numbers after the label or lined up in columns, gear names or item icons, boss status as coloured text, dots or chips, progress bar (thin, thick, segments, none), where the percentage goes, one bar colour or red to green, spacing, text shadow, credits column, amount still needed, and quick accent and frame colours |
 | Mine | Which rows show: sword, tool, armour (or its four pieces), charm, mine total, item in hand |
 | Bosses | Only this dimension, rows for alive and still-learning bosses, how many, the reminder, its timing, sound and volume, the Reforger timer, and Reset learned bosses (forgets every boss and timer, then reads /bossindex once to learn them again) |
@@ -301,6 +305,52 @@ cap by 100; a merge that would go over is flattened to the cap.
 - **Auto-fill:** every turret in your inventory and off hand gets a button. Its size is read from
   the item, and its merges from its size cap.
 
+### Salvage guard
+
+Salvaging destroys a turret, and the salvage menu ("Shift+Click Turrets Inside") takes one on a
+single shift-click. With the guard on, the first click on a turret in your inventory that is
+bigger than the set size is stopped: nothing moves, nothing is sent to the server, a low note
+plays and chat says which turret and how big. Click the same turret again within 3 seconds and it
+moves as usual. After that, on another turret, or after any other click of yours in between (a
+press on the menu's frame too), the next click warns again.
+
+- **What counts as a click:** a shift-click, or a plain click to pick the turret up. Only the
+  first click a press of the mouse button causes is yours. The game adds more by itself when the
+  button is let go (after a double click it shift-clicks every identical stack); those never move
+  a guarded turret and never count as its first or second click. A second press within 80 ms is a
+  bouncing mouse switch, not a second click.
+- **Keys and shortcuts never move a guarded turret there:** the drop key and the hotbar number
+  keys only warn, also a number key pressed over the menu to move a hotbar turret in. A held key
+  repeats by itself, which would be its own second click. Another mod's shortcut that clicks
+  without a press of the mouse button (a scroll wheel that moves items) is refused the same way,
+  and chat says to use the mouse. That works from your first real click in any menu on; until
+  then, or on a client that handles the mouse its own way, clicks are told apart by time alone
+  (`/mrhud debug` says which).
+- **What is left alone:** turrets of the set size or smaller, taking a turret back out of the
+  menu, and every other menu.
+- **An item named like a turret whose size cannot be read** (the server reworded its tooltip,
+  say) is guarded whatever the size set, and chat says so. `/mrhud debug` shows what the last
+  clicked item was read as.
+- **Settings:** General tab, "Salvage guard" with the size beside it, on unless switched off. A
+  turret of exactly that size is not guarded; 0 guards every turret, 9999 is the most, and an
+  emptied box means 1000.
+
+The menu is recognised by its title alone. The guard does not wait for the sidebar and is not
+switched off by "Only on MineRefine": a sidebar the mod has not read yet must not cost a turret.
+
+### Only on MineRefine
+
+On by default. The mod knows MineRefine by its name in the sidebar ("ᴍɪɴᴇʀᴇғɪɴᴇ", in whatever
+letters or colours) or in the tab list. Until that name has been seen after joining, and so on
+every other server and in single player, there are no panels, no sounds or alerts, and nothing is
+read from chat, the action bar or shop menus, so another server cannot teach the mod wrong prices
+or boss timers. Once the name has been seen, the mod stays on until you join another server; a
+sidebar that is swapped out for a while does not switch it off.
+
+The settings, the keys and `/mrhud` work everywhere, so the switch can always be found: General
+tab, "Only on MineRefine". Its tooltip says whether MineRefine has been recognised right now, and
+so does the `server:` line of `/mrhud debug`. Off, the mod works on every server as it did before.
+
 ---
 
 ## If it does not compile
@@ -308,8 +358,10 @@ cap by 100; a merge that would go over is flattened to the cap.
 First see which version failed (CI names it), then look in `client/Compat.java` and the renames
 in `stonecutter.gradle.kts`. Everything that touches version-sensitive Minecraft API is marked
 `VERSION SENSITIVE` in its header: `SidebarReader`, `ShopScanner`, `HudRenderer` (the matrix stack for scaling),
-`HudPositionScreen`, `SettingsScreen`, `TurretScreen`, the `InGameHudMixin` that sees the action
-bar, and `registerHud()` and `playReminderSound()` in `MinerefineHudClient`. Everything else is
+`HudPositionScreen`, `SettingsScreen`, `TurretScreen`, `SalvageGuardClient`, the `InGameHudMixin`
+that sees the action bar, the `ContainerClickMixin` that sees every click in a menu (26.1 renamed
+its method), the `ContainerPressMixin` that marks the game handling a mouse press or release on a menu, the `TabListMixin`
+and `ServerCheck` that read the tab list, and `registerHud()` and `playReminderSound()` in `MinerefineHudClient`. Everything else is
 plain Java and covered by the tests, so an API change never touches the logic.
 
 ## Layout
@@ -320,13 +372,16 @@ mine/     Mine, MineCatalog, MineDetector, MiningBlocks, XpRate, pickups  pure l
 shop/     ShopItemParser, PriceLedger, Amounts, ...                pure logic, tested
 progress/ ProgressPlanner, MineCosts, ProgressionLinks, ...        pure logic, tested
 hud/      HudModel, HudLayout, Theme, Formatting                   pure logic, tested
-turret/   TurretCalculator, TurretItem                             pure logic, tested
+turret/   TurretCalculator, TurretItem, SalvageGuard               pure logic, tested
 beacon/   BeaconTimer                                             pure logic, tested
 outpost/  OutpostTimers                                          pure logic, tested
 data/     ProgressionData                                          bundled data, config override
 client/   entry point, screens, renderer, readers                  touches Minecraft
           Compat: every call that differs between Minecraft versions
 mixin/    InGameHudMixin                                           action bar hook
+          ContainerClickMixin, ContainerPressMixin                 menu clicks, and the presses they come from, for the salvage guard
+          TabListMixin                                             tab list header and footer, to know the server
+server/   ServerName, ServerGate, Expedition, CommandSpacing       pure logic, tested
 src/gametest/   client game test, run in the real game per version
 ```
 

@@ -147,6 +147,7 @@ public final class MinerefineHudClient implements ClientModInitializer {
     private HalloweenClient halloween;
     private BossIndexPoller bossIndex;
     private ExtrasClient extras;
+    private SalvageGuardClient salvageGuard;
 
     /** Mine named by the shop most recently opened. A fallback when nothing else names one. */
     private Optional<String> lastShopMine = Optional.empty();
@@ -209,6 +210,9 @@ public final class MinerefineHudClient implements ClientModInitializer {
         PriceStore.loadVerifiedPrices(prices);
         JobSource.set(catalogSource::catalog, prices, () -> config.mineWorlds);
 
+        // First of the tick handlers, so the others see this tick's answer.
+        ClientTickEvents.END_CLIENT_TICK.register(client -> ServerCheck.tick(client, System.currentTimeMillis()));
+
         halloween = new HalloweenClient(config, () -> config.save(configFile), () -> {
             if (config.bossReminderVolume > 0) {
                 playReminderSound(Minecraft.getInstance());
@@ -233,6 +237,8 @@ public final class MinerefineHudClient implements ClientModInitializer {
                     }
                 });
         extras.register();
+        salvageGuard = new SalvageGuardClient(config);
+        salvageGuard.register();
 
         registerKeyBindings();
         ActionBarHook.listen(this::onActionBar);
@@ -484,6 +490,9 @@ public final class MinerefineHudClient implements ClientModInitializer {
         // event. Using the chat event instead would miss them entirely and would also let a
         // player spoof a boss timer by typing the message.
         ClientReceiveMessageEvents.GAME.register((Component message, boolean overlay) -> {
+            if (!ServerCheck.active(config)) {
+                return;
+            }
             String text = message.getString();
 
             if (overlay) {
@@ -518,6 +527,7 @@ public final class MinerefineHudClient implements ClientModInitializer {
     private void registerConnectionHooks() {
         ClientPlayConnectionEvents.JOIN.register((handler, sender, client) -> {
             // Anything measured across a join is untrustworthy, so stop any pending measurement.
+            ServerCheck.onJoin();
             bossTracker.onContinuityBreak();
             currentMine = Optional.empty();
             currentMineSource = MineDetector.Source.NONE;
@@ -536,11 +546,13 @@ public final class MinerefineHudClient implements ClientModInitializer {
             halloween.onJoin();
             bossIndex.onJoin();
             extras.onJoin();
+            salvageGuard.onJoin();
             // Cheap, and lets a replaced progression.json in the config folder apply on rejoin.
             catalogSource.load();
         });
 
         ClientPlayConnectionEvents.DISCONNECT.register((handler, client) -> {
+            ServerCheck.onDisconnect();
             bossTracker.onContinuityBreak();
             bossStore.save(bossTracker);
             priceStore.save(prices);
@@ -558,7 +570,7 @@ public final class MinerefineHudClient implements ClientModInitializer {
      */
     private void registerShopLearning() {
         ClientTickEvents.END_CLIENT_TICK.register(client -> {
-            if (client == null || client.player == null) {
+            if (client == null || client.player == null || !ServerCheck.active(config)) {
                 return;
             }
 
@@ -761,7 +773,7 @@ public final class MinerefineHudClient implements ClientModInitializer {
     // ----------------------------------------------------------------- render
 
     private void renderHud(net.minecraft.client.gui.GuiGraphicsExtractor context) {
-        if (!config.enabled) {
+        if (!config.enabled || !ServerCheck.active(config)) {
             return;
         }
 
@@ -881,12 +893,12 @@ public final class MinerefineHudClient implements ClientModInitializer {
         // Before the senders below, so they see this tick's sidebar and world.
         ClientTickEvents.END_CLIENT_TICK.register(client -> AutoCommands.tick(client, System.currentTimeMillis()));
         ClientTickEvents.END_CLIENT_TICK.register(client -> {
-            if (client != null && client.player != null) {
+            if (client != null && client.player != null && ServerCheck.active(config)) {
                 bossIndex.tick(client, System.currentTimeMillis());
             }
         });
         ClientTickEvents.END_CLIENT_TICK.register(client -> {
-            if (client == null || client.player == null || !config.bossReminder) {
+            if (client == null || client.player == null || !config.bossReminder || !ServerCheck.active(config)) {
                 return;
             }
             long now = System.currentTimeMillis();
@@ -1041,6 +1053,9 @@ public final class MinerefineHudClient implements ClientModInitializer {
             while (recentActionBars.size() > 5) {
                 recentActionBars.removeFirst();
             }
+        }
+        if (!ServerCheck.active(config)) {
+            return;
         }
 
         // A crop total is not a mine's balance: in the Halloween dimension the bar is the event's.
@@ -1246,7 +1261,7 @@ public final class MinerefineHudClient implements ClientModInitializer {
      */
     private void registerProgressTracking() {
         ClientTickEvents.END_CLIENT_TICK.register(client -> {
-            if (client == null || client.player == null) {
+            if (client == null || client.player == null || !ServerCheck.active(config)) {
                 return;
             }
             long now = System.currentTimeMillis();
@@ -1493,6 +1508,11 @@ public final class MinerefineHudClient implements ClientModInitializer {
         out.add(" detected: " + currentMine.map(m -> m.name() + " via " + currentMineSource)
                 .orElse("nothing yet"));
 
+        out.add(" server: " + (ServerCheck.onMineRefine() ? "MineRefine, named since joining"
+                : "not named MineRefine since joining")
+                + (config.onlyOnMineRefine ? (ServerCheck.onMineRefine() ? "" : ", so the mod is off")
+                : " (set to work on every server)"));
+
         List<String> sidebar = SidebarReader.sidebarLines(client);
         out.add(" sidebar: " + (sidebar.isEmpty() ? "empty or unreadable" : sidebar.size() + " lines"));
         for (String line : sidebar) {
@@ -1576,6 +1596,7 @@ public final class MinerefineHudClient implements ClientModInitializer {
         for (String line : extras.debugLines(System.currentTimeMillis())) {
             out.add(" " + line);
         }
+        out.add(" " + salvageGuard.debugLine());
         out.add(" progress: " + (progressViews.isEmpty() ? "no bars"
                 : String.join(", ", progressViews.stream().map(v -> (v.quantity() > 1 ? v.quantity() + "x " : "")
                         + v.slot().label() + " -> " + v.mine() + " " + v.gear() + " " + v.targetLevel()

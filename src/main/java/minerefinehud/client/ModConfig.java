@@ -665,8 +665,21 @@ public final class ModConfig {
     public boolean reforgerAlert = true;
     public minerefinehud.halloween.RecurringEvent.Saved reforgerState = new minerefinehud.halloween.RecurringEvent.Saved();
 
+    // --------------------------------------------------------- salvage guard
+
+    /** In the salvage menu, a turret above {@link #salvageGuardSize} moves only on a second click. */
+    public boolean salvageGuard = true;
+    /** Turrets above this size are guarded; one of exactly this size is not. */
+    public int salvageGuardSize = minerefinehud.turret.SalvageGuard.DEFAULT_SIZE;
+
     /** Hide the overlay entirely. Also toggled by the keybind in Options, Controls. */
     public boolean enabled = true;
+
+    /**
+     * Panels, sounds and learning only while the sidebar or tab list names MineRefine, so another
+     * server neither shows them nor teaches the mod its shops and chat.
+     */
+    public boolean onlyOnMineRefine = true;
 
     public HudLayout.Placement minePlacement() {
         return new HudLayout.Placement(
@@ -919,6 +932,7 @@ public final class ModConfig {
         outpostWarnSeconds = Math.max(0, Math.min(600, outpostWarnSeconds));
         outpostEveryMs = Math.max(OutpostPoller.MIN_INTERVAL_MS, outpostEveryMs);
         outpostData = minerefinehud.outpost.OutpostTimers.repair(outpostData);
+        salvageGuardSize = Math.max(0, Math.min(minerefinehud.turret.SalvageGuard.MAX_SIZE, salvageGuardSize));
     }
 
     public static final int MAX_BOSSES = 15;

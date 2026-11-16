@@ -136,7 +136,7 @@ final class HalloweenClient {
 
         // Before the message reaches chat, so the answer to the quiet /nextreforger can be hidden.
         ClientReceiveMessageEvents.ALLOW_GAME.register((Component message, boolean overlay) -> {
-            if (overlay) {
+            if (overlay || !ServerCheck.active(config)) {
                 return true;
             }
             long countdown = RecurringEvent.reforgerCountdown(message.getString());
@@ -154,7 +154,7 @@ final class HalloweenClient {
         });
 
         ClientReceiveMessageEvents.GAME.register((Component message, boolean overlay) -> {
-            if (!overlay) {
+            if (!overlay && ServerCheck.active(config)) {
                 onChat(message.getString());
             }
         });
@@ -169,6 +169,8 @@ final class HalloweenClient {
     }
 
     void onJoin() {
+        // What recharged while on another server, where nothing ticks, must not chime on return.
+        abilities.newlyReady(System.currentTimeMillis());
         inHalloween = false;
         lastHalloweenSidebarAt = 0L;
         halloweenDimension = "";
@@ -210,7 +212,7 @@ final class HalloweenClient {
     // ------------------------------------------------------------------ tick
 
     private void tick(Minecraft client) {
-        if (client == null || client.player == null) {
+        if (client == null || client.player == null || !ServerCheck.active(config)) {
             return;
         }
         long now = System.currentTimeMillis();

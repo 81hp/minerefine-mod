@@ -5,9 +5,12 @@
   "compatibilityLevel": "JAVA_21",
   "client": [
     "CommandPacketMixin",
+    "ContainerClickMixin",
     "ContainerPacketMixin",
+    "ContainerPressMixin",
     "InGameHudMixin",
-    "LocalPlayerDropMixin"
+    "LocalPlayerDropMixin",
+    "TabListMixin"
   ],
   "injectors": {
     "defaultRequire": 0

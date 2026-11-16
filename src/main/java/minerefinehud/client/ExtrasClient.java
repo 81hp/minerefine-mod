@@ -66,7 +66,8 @@ final class ExtrasClient {
                     instanceof net.minecraft.client.gui.screens.inventory.AbstractContainerScreen<?>) {
                 miningRate.interrupt();
             }
-            if (client != null && client.player != null) {
+            // Saved outpost times would otherwise ping on any server.
+            if (client != null && client.player != null && ServerCheck.active(config)) {
                 statsPoller.tick(client, now);
                 outpostPoller.tick(client, now);
                 if (config.showBeacon && beacon.warnNow(now, config.beaconWarnSeconds * 1000L)) {
@@ -80,7 +81,7 @@ final class ExtrasClient {
         // Drops are the server's own lines. SecondChat moves them to its window after this event,
         // so they are counted whichever chat shows them.
         ClientReceiveMessageEvents.GAME.register((Component message, boolean overlay) -> {
-            if (!overlay && message != null) {
+            if (!overlay && message != null && ServerCheck.active(config)) {
                 onChat(message.getString(), System.currentTimeMillis());
             }
         });

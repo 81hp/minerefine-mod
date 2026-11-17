@@ -1,0 +1,25 @@
+name: Announce a release
+
+# Posts a release that is already published to Discord #news again, by hand: to try the webhook,
+# or after a post failed. New releases are announced by the release job in build.yml by themselves.
+on:
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "Release tag to announce, e.g. V1.6.9"
+        required: true
+
+jobs:
+  announce:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Announce on Discord
+        env:
+          GH_TOKEN: ${{ github.token }}
+          DISCORD_WEBHOOK_URL: ${{ secrets.DISCORD_WEBHOOK_URL }}
+          TAG: ${{ inputs.tag }}
+        run: python3 tools/announce-release.py "$TAG"

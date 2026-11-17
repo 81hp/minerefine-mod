@@ -56,6 +56,9 @@ public final class SalvageGuard {
      * Far longer than that is not it.
      */
     private static final int MAX_TITLE = 500;
+    /** Lore read for the kit line: the real one is the first, a few dozen characters long. */
+    private static final int KIT_LINES = 64;
+    private static final int KIT_LINE = 120;
 
     /** Whose click it is. */
     public enum Origin {
@@ -240,14 +243,38 @@ public final class SalvageGuard {
     public static TurretItem.Turret read(String title, List<String> lore) {
         Optional<TurretItem.Turret> turret = TurretItem.parse(title, lore);
         if (turret.isPresent()) {
+            // A size read wins over the kit line: a built turret must never be let through.
             return turret.get();
         }
-        if (title == null || title.length() > TurretItem.MAX_NAME) {
+        if (title == null || title.length() > TurretItem.MAX_NAME || isKit(lore)) {
             return null;
         }
         String name = HalloweenText.strip(title);
         return TurretItem.fold(name).contains("turret")
                 ? new TurretItem.Turret(name, UNREADABLE, 0) : null;
+    }
+
+    /**
+     * An unplaced turret ("Shale Turret /plot", seen November 2026) is a stackable kit without any
+     * size: its lore says "UNBUILT TURRET KIT" and "??? Damage, Health, Fortune". Nothing is built
+     * yet, so nothing can be lost and it moves on one click. Only that line counts: if the server
+     * rewords it, kits go back to two clicks rather than a built turret slipping through.
+     */
+    static boolean isKit(List<String> lore) {
+        if (lore == null) {
+            return false;
+        }
+        int lines = 0;
+        for (String line : lore) {
+            if (++lines > KIT_LINES) {
+                break;
+            }
+            if (line != null && line.length() <= KIT_LINE
+                    && ServerName.letters(line).contains("unbuiltturretkit")) {
+                return true;
+            }
+        }
+        return false;
     }
 
     /** Above the size, not at it: with 1000 set, a 1000 turret moves on one click. */

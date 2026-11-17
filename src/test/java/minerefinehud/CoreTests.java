@@ -736,6 +736,22 @@ public final class CoreTests {
         assertEquals("something after the name", SalvageGuard.UNREADABLE,
                 SalvageGuard.read("Jade Turret [Lv 5]", List.of("| Size: 281")).size());
         assertEquals("no lore at all", SalvageGuard.UNREADABLE, SalvageGuard.read("Jade Turret", null).size());
+
+        // An unplaced turret is a kit without a size (tooltip seen November 2026): nothing to
+        // lose, so it moves on one click instead of warning every time.
+        List<String> kitLore = List.of("§7UNBUILT TURRET KIT", "", "§7??? Damage, Health, Fortune",
+                "§7Deploy in: §f/plot", "", "§eRight Click on plot to deploy!", "§d§lMYTHIC");
+        assertTrue("an unbuilt kit is not guarded", SalvageGuard.read("§6Shale Turret §f/plot", kitLore) == null);
+        assertTrue("nor one in the server's small capitals",
+                SalvageGuard.read("Ichor Turret /plot", List.of("ᴜɴʙᴜɪʟᴛ ᴛᴜʀʀᴇᴛ ᴋɪᴛ")) == null);
+        assertEquals("a /plot name without the kit line still warns", SalvageGuard.UNREADABLE,
+                SalvageGuard.read("Jade Turret /plot", List.of("Deploy in: /plot")).size());
+        assertEquals("a built turret is still read", 1800.0,
+                SalvageGuard.read("Jade Turret", List.of("| Size: 1,800", "turret kit")).size());
+        assertEquals("a size read wins over the kit line", 1800.0,
+                SalvageGuard.read("Jade Turret", List.of("UNBUILT TURRET KIT", "| Size: 1,800")).size());
+        assertTrue("an endless lore line is not taken for the kit line",
+                SalvageGuard.read("Jade Turret", List.of("unbuilt turret kit " + "x".repeat(500))) != null);
         // A line of thousands of digits takes the patterns seconds; a server could send one.
         String endless = "9".repeat(50_000);
         long started = System.nanoTime();
